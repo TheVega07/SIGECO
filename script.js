@@ -3,7 +3,7 @@ let usuariosBD = [], pagosGlobales = [], ingresosGlobales = [], egresosGlobales 
 let contratosGlobales = [], actasGlobales = [], cotizacionesGlobales = [];
 let usuarioActual = null;
 
-const API_URL = "http://127.0.0.1:3000/api"; 
+const API_URL = "/api"; 
 
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById('vista-app').classList.add('oculto');
