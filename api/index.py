@@ -245,7 +245,8 @@ def subir_documento():
         data = request.get_json()
         conexion = get_db_connection()
         cursor = conexion.cursor()
-        sql = "INSERT INTO documentos (tipo, fecha, `desc`, prov, valor, archivoNombre, archivoData, visible) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+        # Se corrigió "desc" por "descripcion" y "prov" por "proveedor"
+        sql = "INSERT INTO documentos (tipo, fecha, descripcion, proveedor, valor, archivoNombre, archivoData, visible) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
         val = (data['tipo'], data['fecha'], data['desc'], data['prov'], data['valor'], data['archivoNombre'], data['archivoData'], data['visible'])
         cursor.execute(sql, val)
         conexion.commit()
