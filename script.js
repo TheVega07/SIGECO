@@ -1,4 +1,3 @@
-// --- VARIABLES GLOBALES ---
 let usuariosBD = [], pagosGlobales = [], ingresosGlobales = [], egresosGlobales = [];
 let contratosGlobales = [], actasGlobales = [], cotizacionesGlobales = [];
 let usuarioActual = null;
@@ -9,31 +8,47 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById('vista-app').classList.add('oculto');
     document.getElementById('vista-login').classList.remove('oculto');
 
-    // Escuchadores de eventos para formularios (con validación de existencia)
-    const formLogin = document.getElementById('form-login');
-    if (formLogin) formLogin.addEventListener('submit', iniciarSesion);
-    
-    const formForzarClave = document.getElementById('form-forzar-clave');
-    if (formForzarClave) formForzarClave.addEventListener('submit', guardarClaveForzada);
-    
-    const formUsuario = document.getElementById('form-usuario');
-    if (formUsuario) formUsuario.addEventListener('submit', guardarUsuario);
-    
-    const formPago = document.getElementById('form-pago');
-    if (formPago) formPago.addEventListener('submit', registrarPago);
-    
-    const formCuota = document.getElementById('form-cuota');
-    if (formCuota) formCuota.addEventListener('submit', guardarNuevaCuota);
-    
-    const formContrato = document.getElementById('form-contrato');
-    if (formContrato) formContrato.addEventListener('submit', (e) => subirDocumento(e, 'CONTRATO'));
-    
-    const formEgreso = document.getElementById('form-egreso');
-    if (formEgreso) formEgreso.addEventListener('submit', registrarEgreso);
-    
-    const formActa = document.getElementById('form-acta');
-    if (formActa) formActa.addEventListener('submit', subirActa);
+    // Formularios
+    if (document.getElementById('form-login')) document.getElementById('form-login').addEventListener('submit', iniciarSesion);
+    if (document.getElementById('form-forzar-clave')) document.getElementById('form-forzar-clave').addEventListener('submit', guardarClaveForzada);
+    if (document.getElementById('form-usuario')) document.getElementById('form-usuario').addEventListener('submit', guardarUsuario);
+    if (document.getElementById('form-pago')) document.getElementById('form-pago').addEventListener('submit', registrarPago);
+    if (document.getElementById('form-cuota')) document.getElementById('form-cuota').addEventListener('submit', guardarNuevaCuota);
+    if (document.getElementById('form-contrato')) document.getElementById('form-contrato').addEventListener('submit', (e) => subirDocumento(e, 'CONTRATO'));
+    if (document.getElementById('form-egreso')) document.getElementById('form-egreso').addEventListener('submit', registrarEgreso);
+    if (document.getElementById('form-acta')) document.getElementById('form-acta').addEventListener('submit', subirActa);
+
+    // ==========================================
+    // MAGIA VISUAL: Detector de subida de archivos
+    // ==========================================
+    document.querySelectorAll('input[type="file"]').forEach(input => {
+        input.addEventListener('change', function(e) {
+            const feedbackEl = document.getElementById('feedback-' + this.id);
+            if (feedbackEl) {
+                if (this.files.length > 0) {
+                    feedbackEl.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i> Archivo adjuntado: <strong>${this.files[0].name}</strong>`;
+                    feedbackEl.classList.remove('oculto');
+                    this.classList.add('is-valid');
+                    this.style.borderColor = '#198754';
+                } else {
+                    feedbackEl.classList.add('oculto');
+                    this.classList.remove('is-valid');
+                    this.style.borderColor = '#ced4da';
+                }
+            }
+        });
+    });
 });
+
+function limpiarFeedbackArchivos() {
+    document.querySelectorAll('input[type="file"]').forEach(input => {
+        input.value = "";
+        input.classList.remove('is-valid');
+        input.style.borderColor = '#ced4da';
+        const feedbackEl = document.getElementById('feedback-' + input.id);
+        if (feedbackEl) feedbackEl.classList.add('oculto');
+    });
+}
 
 function mostrarAlerta(mensaje, icono = '✅') {
     const alertaIcono = document.getElementById('alerta-icono');
@@ -61,7 +76,6 @@ async function cargarDatosDesdeServidor() {
         contratosGlobales = data.contratos || [];
         actasGlobales = data.actas || [];
     } catch (e) {
-        console.error("Error cargando datos:", e);
         mostrarAlerta("Error al cargar los datos desde la base de datos.", "❌");
     }
 }
@@ -69,15 +83,12 @@ async function cargarDatosDesdeServidor() {
 async function iniciarSesion(e) {
     e.preventDefault();
     try {
-        const usernameInput = document.getElementById('username').value.trim();
-        const passwordInput = document.getElementById('password').value;
-
         const resp = await fetch(`${API_URL}/login`, {
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-                username: usernameInput, 
-                password: passwordInput 
+                username: document.getElementById('username').value.trim(), 
+                password: document.getElementById('password').value 
             })
         });
         const data = await resp.json();
@@ -96,8 +107,6 @@ async function iniciarSesion(e) {
             if(errDiv) {
                 errDiv.classList.remove('oculto'); 
                 errDiv.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i>${data.mensaje}`;
-            } else {
-                alert("Error: " + data.mensaje);
             }
         }
     } catch (error) { 
@@ -128,47 +137,39 @@ function cargarPortalSegunRol(usuario) {
     document.getElementById('vista-app').style.display = '';
     document.getElementById('vista-app').classList.remove('oculto');
     
-    const navNombre = document.getElementById('nav-nombre-usuario');
-    const badgeRol = document.getElementById('badge-rol');
-    if(navNombre) navNombre.innerText = usuario.nombre;
-    if(badgeRol) badgeRol.innerText = usuario.rol;
+    document.getElementById('nav-nombre-usuario').innerText = usuario.nombre;
+    document.getElementById('badge-rol').innerText = usuario.rol;
 
     if (usuario.rol === 'ADMIN' || usuario.rol === 'COMITE') {
         let menuHTML = `
-            <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarModuloAdmin('resumen', this)"><i class="bi bi-grid me-1"></i> Resumen General</a></li>
-            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('curso', this)"><i class="bi bi-bar-chart me-1"></i> Resumen por Curso</a></li>
-            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('pagos', this)"><i class="bi bi-journal-check me-1"></i> Control de Pagos</a></li>
-            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('egresos', this)"><i class="bi bi-cart me-1"></i> Egresos</a></li>
-            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('contratos', this)"><i class="bi bi-file-earmark-text me-1"></i> Contratos</a></li>
-            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('actas', this)"><i class="bi bi-briefcase me-1"></i> Actas de Comité</a></li>
+            <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarModuloAdmin('resumen', this)"><i class="bi bi-grid-1x2-fill me-2"></i> Resumen General</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('curso', this)"><i class="bi bi-bar-chart-fill me-2"></i> Resumen por Curso</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('pagos', this)"><i class="bi bi-journal-check me-2"></i> Control de Pagos</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('egresos', this)"><i class="bi bi-cart-fill me-2"></i> Egresos</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('contratos', this)"><i class="bi bi-file-earmark-text-fill me-2"></i> Contratos</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('actas', this)"><i class="bi bi-briefcase-fill me-2"></i> Actas de Comité</a></li>
         `;
         
         if (usuario.rol === 'ADMIN') {
             menuHTML += `
-                <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('usuarios', this)"><i class="bi bi-people me-1"></i> Usuarios</a></li>
-                <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('cuotas', this)"><i class="bi bi-wallet2 me-1"></i> Cuotas</a></li>
+                <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('usuarios', this)"><i class="bi bi-people-fill me-2"></i> Usuarios</a></li>
+                <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('cuotas', this)"><i class="bi bi-wallet2 me-2"></i> Cuotas</a></li>
             `;
         }
         
         document.getElementById('menu-navegacion').innerHTML = menuHTML;
-        
-        const portalAdmin = document.getElementById('portal-admin');
-        const portalPadre = document.getElementById('portal-padre');
-        if(portalAdmin) portalAdmin.classList.remove('oculto');
-        if(portalPadre) portalPadre.classList.add('oculto');
+        document.getElementById('portal-admin').classList.remove('oculto');
+        if(document.getElementById('portal-padre')) document.getElementById('portal-padre').classList.add('oculto');
         
         renderizarTodasLasTablasAdmin();
         renderizarDashboardCurso();
     } else {
         document.getElementById('menu-navegacion').innerHTML = `
-            <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarVistaPadre('estado', this)"><i class="bi bi-clock-history me-1"></i> Estado de Cuenta</a></li>
-            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('documentos', this)"><i class="bi bi-folder2-open me-1"></i> Documentos</a></li>
+            <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarVistaPadre('estado', this)"><i class="bi bi-clock-history me-2"></i> Estado de Cuenta</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('documentos', this)"><i class="bi bi-folder2-open-fill me-2"></i> Documentos</a></li>
         `;
-        const portalAdmin = document.getElementById('portal-admin');
-        const portalPadre = document.getElementById('portal-padre');
-        if(portalPadre) portalPadre.classList.remove('oculto');
-        if(portalAdmin) portalAdmin.classList.add('oculto');
-        
+        document.getElementById('portal-padre').classList.remove('oculto');
+        document.getElementById('portal-admin').classList.add('oculto');
         actualizarDashboardPadre();
     }
 }
@@ -181,28 +182,16 @@ function cerrarSesion() {
 }
 
 function cerrarMenuMobile() {
-    const navbarToggler = document.querySelector('.navbar-toggler');
-    const navbarCollapse = document.querySelector('.navbar-collapse');
-    if (navbarCollapse && navbarCollapse.classList.contains('show')) {
-        navbarToggler.click();
-    }
+    const toggler = document.querySelector('.navbar-toggler');
+    const collapse = document.querySelector('.navbar-collapse');
+    if (collapse && collapse.classList.contains('show')) toggler.click();
 }
 
 function cambiarModuloAdmin(modulo, el) {
-    // 1. Ocultamos todas las vistas
     document.querySelectorAll('#portal-admin > div').forEach(d => d.classList.add('oculto'));
-    // 2. Quitamos la clase 'active' de todos los botones
     document.querySelectorAll('#menu-navegacion .nav-link').forEach(n => n.classList.remove('active'));
-    
-    // 3. Buscamos el contenedor exacto que se debe mostrar
-    const moduloDiv = document.getElementById(`admin-modulo-${modulo}`);
-    if (moduloDiv) {
-        moduloDiv.classList.remove('oculto');
-    } else {
-        mostrarAlerta(`El módulo de ${modulo} aún no ha sido diseñado en el HTML.`, "⚠️");
-    }
-    
-    // 4. Marcamos el botón como activo
+    const div = document.getElementById(`admin-modulo-${modulo}`);
+    if (div) div.classList.remove('oculto');
     if (el) el.classList.add('active');
     cerrarMenuMobile();
 }
@@ -210,10 +199,8 @@ function cambiarModuloAdmin(modulo, el) {
 function cambiarVistaPadre(vista, el) {
     document.querySelectorAll('#portal-padre > div').forEach(d => d.classList.add('oculto'));
     document.querySelectorAll('#menu-navegacion .nav-link').forEach(n => n.classList.remove('active'));
-    
-    const vistaDiv = document.getElementById(`padre-vista-${vista}`);
-    if (vistaDiv) vistaDiv.classList.remove('oculto');
-    
+    const div = document.getElementById(`padre-vista-${vista}`);
+    if (div) div.classList.remove('oculto');
     if(el) el.classList.add('active');
     cerrarMenuMobile();
 }
@@ -237,7 +224,7 @@ async function renderizarTodasLasTablasAdmin() {
         pagosGlobales.forEach(p => {
             const datosUsuario = usuariosBD.find(u => u.username === p.usuario);
             const nombreCompleto = datosUsuario ? datosUsuario.nombre : 'Usuario Desconocido';
-            const btnVoucher = p.voucher_b64 ? `<button class="btn btn-sm btn-info fw-bold text-white shadow-sm ms-2" onclick="abrirVoucher(${p.id})"><i class="bi bi-file-earmark-pdf-fill me-1"></i>Ver Voucher</button>` : '';
+            const btnVoucher = p.voucher_b64 ? `<button class="btn btn-sm btn-info text-white fw-bold ms-2 shadow-sm" onclick="abrirVoucher(${p.id})"><i class="bi bi-image me-1"></i>Voucher</button>` : '';
 
             tp.innerHTML += `<tr>
                 <td class="fw-bold text-dark text-start">${nombreCompleto}</td>
@@ -245,8 +232,8 @@ async function renderizarTodasLasTablasAdmin() {
                 <td>${p.fecha}</td>
                 <td>${p.voucher} ${btnVoucher}</td>
                 <td class="fw-bold text-success">$${p.valor.toFixed(2)}</td>
-                <td><span class="badge ${p.estado==='VALIDADO'?'bg-success':'bg-warning text-dark'}">${p.estado}</span></td>
-                <td>${p.estado==='PENDIENTE'?`<button class="btn btn-sm btn-outline-primary fw-bold" onclick="validarPago(${p.id})"><i class="bi bi-check2 me-1"></i>Aprobar</button>`:'<i class="bi bi-check-circle-fill text-success"></i>'}</td>
+                <td><span class="badge ${p.estado==='VALIDADO'?'bg-success':'bg-warning text-dark'} px-2 py-1">${p.estado}</span></td>
+                <td>${p.estado==='PENDIENTE'?`<button class="btn btn-sm btn-primary fw-bold shadow-sm" onclick="validarPago(${p.id})"><i class="bi bi-check2 me-1"></i>Aprobar</button>`:'<i class="bi bi-check-circle-fill text-success fs-5"></i>'}</td>
             </tr>`;
         });
     }
@@ -254,9 +241,10 @@ async function renderizarTodasLasTablasAdmin() {
     const te = document.getElementById('tabla-egresos');
     if(te) {
         te.innerHTML = '';
-        if(egresosGlobales.length === 0) te.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay egresos registrados.</td></tr>`;
+        if(egresosGlobales.length === 0) te.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay egresos registrados.</td></tr>`;
         egresosGlobales.forEach(e => {
-            te.innerHTML += `<tr><td>${e.fecha}</td><td class="fw-bold text-dark">${e.descripcion}</td><td>${e.proveedor}</td><td class="fw-bold text-danger">-$${e.valor.toFixed(2)}</td></tr>`;
+            const btnDoc = e.archivoData ? `<button class="btn btn-sm btn-outline-danger fw-bold shadow-sm" onclick="verEgresoPDF(${e.id})"><i class="bi bi-file-pdf-fill me-1"></i>Factura</button>` : '-';
+            te.innerHTML += `<tr><td>${e.fecha}</td><td class="fw-bold text-dark">${e.descripcion}</td><td>${e.proveedor}</td><td class="fw-bold text-danger">-$${e.valor.toFixed(2)}</td><td>${btnDoc}</td></tr>`;
         });
     }
 
@@ -265,7 +253,7 @@ async function renderizarTodasLasTablasAdmin() {
         ta.innerHTML = '';
         if(actasGlobales.length === 0) ta.innerHTML = `<tr><td colspan="3" class="text-muted py-4">No hay actas registradas.</td></tr>`;
         actasGlobales.forEach(a => {
-            ta.innerHTML += `<tr><td>${a.fecha}</td><td class="fw-bold text-dark">${a.descripcion}</td><td><button class="btn btn-sm btn-outline-danger fw-bold" onclick="verActaPDF(${a.id})"><i class="bi bi-file-pdf me-1"></i>Ver Acta</button></td></tr>`;
+            ta.innerHTML += `<tr><td>${a.fecha}</td><td class="fw-bold text-dark">${a.descripcion}</td><td><button class="btn btn-sm btn-dark fw-bold shadow-sm" onclick="verActaPDF(${a.id})"><i class="bi bi-file-pdf-fill me-1"></i>Abrir Acta</button></td></tr>`;
         });
     }
 
@@ -273,7 +261,7 @@ async function renderizarTodasLasTablasAdmin() {
     if(tc) {
         tc.innerHTML = '';
         usuariosBD.filter(u => u.rol === 'PADRE').forEach(u => {
-            tc.innerHTML += `<tr><td class="text-primary fw-bold">${u.username}</td><td>${u.nombre}</td><td class="fw-bold text-dark">$${u.valor_total_pagar.toFixed(2)}</td><td><button class="btn btn-sm btn-outline-primary fw-bold" onclick="abrirModalCuota('${u.username}', ${u.valor_total_pagar})"><i class="bi bi-pencil me-1"></i>Modificar</button></td></tr>`;
+            tc.innerHTML += `<tr><td class="text-primary fw-bold">${u.username}</td><td>${u.nombre}</td><td class="fw-bold text-dark">$${u.valor_total_pagar.toFixed(2)}</td><td><button class="btn btn-sm btn-warning fw-bold shadow-sm" onclick="abrirModalCuota('${u.username}', ${u.valor_total_pagar})"><i class="bi bi-pencil-fill me-1"></i>Modificar</button></td></tr>`;
         });
     }
     
@@ -282,7 +270,7 @@ async function renderizarTodasLasTablasAdmin() {
         tbDocs.innerHTML = '';
         if (contratosGlobales.length === 0) tbDocs.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay contratos registrados.</td></tr>`;
         contratosGlobales.forEach(c => {
-            tbDocs.innerHTML += `<tr><td>${c.fecha}</td><td class="fw-bold text-dark">${c.desc}</td><td>${c.prov}</td><td class="fw-bold">$${c.valor.toFixed(2)}</td><td><div class="form-check form-switch d-flex justify-content-center"><input class="form-check-input" type="checkbox" ${c.visible?'checked':''} onchange="toggleVisibleDoc(${c.id}, this.checked)"></div></td></tr>`;
+            tbDocs.innerHTML += `<tr><td>${c.fecha}</td><td class="fw-bold text-dark">${c.desc}</td><td>${c.prov}</td><td class="fw-bold text-success">$${c.valor.toFixed(2)}</td><td><div class="form-check form-switch d-flex justify-content-center"><input class="form-check-input" type="checkbox" ${c.visible?'checked':''} onchange="toggleVisibleDoc(${c.id}, this.checked)"></div></td></tr>`;
         });
     }
 }
@@ -308,8 +296,8 @@ async function renderizarDashboardCurso() {
                 if(data.datos.length === 0) tc.innerHTML = `<tr><td colspan="2" class="text-muted py-4">Aún no hay recaudaciones por curso.</td></tr>`;
                 data.datos.forEach(d => {
                     tc.innerHTML += `<tr>
-                        <td class="fw-bold text-primary">${d.curso || 'Sin asignar'}</td>
-                        <td class="fw-bold text-success">$${parseFloat(d.total_recaudado).toFixed(2)}</td>
+                        <td class="fw-bold" style="color: #1e3c72;">${d.curso || 'Sin asignar'}</td>
+                        <td class="fw-bold text-success fs-5">$${parseFloat(d.total_recaudado).toFixed(2)}</td>
                     </tr>`;
                 });
             }
@@ -335,7 +323,7 @@ function actualizarDashboardPadre() {
             tb.innerHTML = '';
             if(misPagos.length === 0) tb.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay transferencias registradas.</td></tr>`;
             misPagos.forEach(p => {
-                tb.innerHTML += `<tr><td>${p.fecha}</td><td>${p.voucher}</td><td class="text-success fw-bold">$${p.valor.toFixed(2)}</td><td><span class="badge ${p.estado==='VALIDADO'?'bg-success':'bg-warning text-dark'}">${p.estado}</span></td></tr>`;
+                tb.innerHTML += `<tr><td>${p.fecha}</td><td class="fw-bold">${p.voucher}</td><td class="text-success fw-bold">$${p.valor.toFixed(2)}</td><td><span class="badge ${p.estado==='VALIDADO'?'bg-success':'bg-warning text-dark'} px-2 py-1">${p.estado}</span></td></tr>`;
             });
         }
 
@@ -345,7 +333,7 @@ function actualizarDashboardPadre() {
             const docsVisibles = contratosGlobales.filter(c => c.visible);
             if(docsVisibles.length === 0) tbd.innerHTML = `<tr><td colspan="3" class="text-muted py-4">No hay documentos públicos habilitados.</td></tr>`;
             docsVisibles.forEach(c => {
-                tbd.innerHTML += `<tr><td>${c.fecha}</td><td class="fw-bold text-dark">${c.desc}</td><td><button class="btn btn-sm btn-outline-danger fw-bold" onclick="verDocumentoPDF(${c.id})"><i class="bi bi-file-pdf me-1"></i>Ver PDF</button></td></tr>`;
+                tbd.innerHTML += `<tr><td>${c.fecha}</td><td class="fw-bold text-dark">${c.desc}</td><td><button class="btn btn-sm btn-outline-primary fw-bold shadow-sm" onclick="verDocumentoPDF(${c.id})"><i class="bi bi-file-pdf-fill me-1"></i>Descargar</button></td></tr>`;
             });
         }
     });
@@ -364,7 +352,6 @@ function leerArchivoComoBase64(file) {
 function abrirVoucher(idPago) {
     const pago = pagosGlobales.find(p => p.id == idPago);
     if(pago && pago.voucher_b64) {
-        // Esto abre tanto imágenes como PDFs a pantalla completa en una nueva pestaña
         const w = window.open("");
         w.document.write(`<iframe width='100%' height='100%' style='border:none; margin:0; padding:0;' src='${pago.voucher_b64}'></iframe>`);
     } else {
@@ -391,6 +378,17 @@ async function verActaPDF(id) {
         win.document.write(`<iframe width='100%' height='100%' style='border:none; margin:0; padding:0;' src='${data.base64}'></iframe>`);
     } else {
         mostrarAlerta("Acta no encontrada.", "❌"); 
+    }
+}
+
+async function verEgresoPDF(id) { 
+    const resp = await fetch(`${API_URL}/egresos/ver/${id}`); 
+    const data = await resp.json(); 
+    if(data.exito && data.base64) { 
+        const win = window.open("");
+        win.document.write(`<iframe width='100%' height='100%' style='border:none; margin:0; padding:0;' src='${data.base64}'></iframe>`);
+    } else {
+        mostrarAlerta("Factura de egreso no encontrada.", "❌"); 
     }
 }
 
@@ -421,6 +419,7 @@ async function registrarPago(e) {
         if(resp.ok && data.exito) {
             bootstrap.Modal.getInstance(document.getElementById('modalPago')).hide(); 
             document.getElementById('form-pago').reset(); 
+            limpiarFeedbackArchivos();
             mostrarAlerta("Pago registrado exitosamente con su voucher adjunto.", "✅"); 
             renderizarTodasLasTablasAdmin(); 
         } else {
@@ -433,15 +432,26 @@ async function registrarPago(e) {
 
 async function registrarEgreso(e) {
     e.preventDefault();
+    const file = document.getElementById('egreso-file').files[0];
+    let b64 = "";
+    let fileName = "";
+    if(file) {
+        b64 = await leerArchivoComoBase64(file);
+        fileName = file.name;
+    }
+
     const p = {
         fecha: document.getElementById('egreso-fecha').value,
         descripcion: document.getElementById('egreso-desc').value,
         proveedor: document.getElementById('egreso-prov').value,
-        valor: parseFloat(document.getElementById('egreso-valor').value)
+        valor: parseFloat(document.getElementById('egreso-valor').value),
+        archivoNombre: fileName,
+        archivoData: b64
     };
     await fetch(`${API_URL}/egresos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
     bootstrap.Modal.getInstance(document.getElementById('modalEgreso')).hide();
     document.getElementById('form-egreso').reset();
+    limpiarFeedbackArchivos();
     mostrarAlerta("Egreso registrado correctamente.", "✅");
     renderizarTodasLasTablasAdmin();
 }
@@ -463,6 +473,7 @@ async function subirActa(e) {
     await fetch(`${API_URL}/actas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
     bootstrap.Modal.getInstance(document.getElementById('modalActa')).hide();
     document.getElementById('form-acta').reset();
+    limpiarFeedbackArchivos();
     mostrarAlerta("Acta subida correctamente.", "✅");
     renderizarTodasLasTablasAdmin();
 }
@@ -527,10 +538,10 @@ function renderizarUsuarios() {
     tb.innerHTML = '';
     usuariosBD.forEach(u => {
         let btnSt = u.estado === "ACTIVO" 
-            ? `<button class="btn btn-sm btn-outline-danger fw-bold mt-1 mt-md-0" onclick="toggleEstadoUsuario('${u.username}')"><i class="bi bi-x-circle me-1"></i>Desactivar</button>` 
-            : `<button class="btn btn-sm btn-outline-success fw-bold mt-1 mt-md-0" onclick="toggleEstadoUsuario('${u.username}')"><i class="bi bi-check-circle me-1"></i>Activar</button>`;
+            ? `<button class="btn btn-sm btn-outline-danger fw-bold mt-1 mt-md-0 shadow-sm" onclick="toggleEstadoUsuario('${u.username}')"><i class="bi bi-x-circle-fill me-1"></i>Desactivar</button>` 
+            : `<button class="btn btn-sm btn-success fw-bold mt-1 mt-md-0 shadow-sm" onclick="toggleEstadoUsuario('${u.username}')"><i class="bi bi-check-circle-fill me-1"></i>Activar</button>`;
             
-        tb.innerHTML += `<tr><td class="text-primary fw-bold">${u.username}</td><td>${u.nombre}</td><td>${u.rol}</td><td>${u.curso||'-'}</td><td><span class="badge ${u.estado==='ACTIVO'?'bg-success':'bg-secondary'}">${u.estado}</span></td><td><div class="d-flex flex-column flex-md-row justify-content-center align-items-center"><button class="btn btn-sm btn-outline-primary fw-bold me-md-1" onclick="abrirModalUsuario('${u.username}')"><i class="bi bi-pencil me-1"></i>Editar</button>${btnSt}</div></td></tr>`;
+        tb.innerHTML += `<tr><td class="text-primary fw-bold">${u.username}</td><td>${u.nombre}</td><td><span class="badge bg-primary px-2">${u.rol}</span></td><td>${u.curso||'-'}</td><td><span class="badge ${u.estado==='ACTIVO'?'bg-success':'bg-secondary'} px-2 py-1">${u.estado}</span></td><td><div class="d-flex flex-column flex-md-row justify-content-center align-items-center"><button class="btn btn-sm btn-primary fw-bold me-md-1 shadow-sm" onclick="abrirModalUsuario('${u.username}')"><i class="bi bi-pencil-fill me-1"></i>Editar</button>${btnSt}</div></td></tr>`;
     });
 }
 
@@ -575,6 +586,7 @@ async function subirDocumento(e, tipo) {
     await fetch(`${API_URL}/documentos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) }); 
     bootstrap.Modal.getInstance(document.getElementById('modalContrato')).hide(); 
     document.getElementById('form-contrato').reset(); 
+    limpiarFeedbackArchivos();
     mostrarAlerta("Contrato subido a la base de datos.", "✅"); 
     renderizarTodasLasTablasAdmin(); 
 }

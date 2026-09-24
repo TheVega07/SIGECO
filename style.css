@@ -1,190 +1,124 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/* Importar fuente moderna */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
 
-/* =========================================
-   ESTILOS GENERALES
-========================================= */
 body {
-    background-color: #f0f2f5;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    color: #334155;
-    margin: 0;
-    padding: 0;
+    font-family: 'Inter', sans-serif;
+    background-color: #f4f7fa;
+    color: #333;
+}
+
+/* ========================================= */
+/* DISEÑO MODERNO DEL LOGIN (Glassmorphism)  */
+/* ========================================= */
+.login-bg {
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.glass-card {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 20px;
+    box-shadow: 0 25px 45px rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 3rem;
+    width: 100%;
+    max-width: 420px;
+    transition: transform 0.3s ease;
+}
+
+.glass-card:hover {
+    transform: translateY(-5px);
+}
+
+.login-input {
+    border-radius: 10px;
+    padding: 12px 15px;
+    border: 1px solid #ced4da;
+    background-color: #f8f9fa;
+}
+
+.login-input:focus {
+    background-color: #fff;
+    border-color: #2a5298;
+    box-shadow: 0 0 0 0.25rem rgba(42, 82, 152, 0.25);
+}
+
+.btn-login {
+    background: linear-gradient(to right, #1e3c72, #2a5298);
+    border: none;
+    border-radius: 10px;
+    padding: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    transition: opacity 0.3s;
+}
+
+.btn-login:hover {
+    opacity: 0.9;
+}
+
+/* ========================================= */
+/* DISEÑO DEL DASHBOARD Y MENÚ               */
+/* ========================================= */
+.sidebar {
+    min-height: calc(100vh - 60px);
+    background-color: #1a2229;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+}
+
+.sidebar .nav-link {
+    color: #aeb5bc;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.sidebar .nav-link:hover, .sidebar .nav-link.active {
+    background-color: #2a5298;
+    color: white;
+    transform: translateX(5px);
+}
+
+.card-dashboard {
+    border: none;
+    border-radius: 15px;
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.card-dashboard:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 30px rgba(0,0,0,0.1) !important;
+}
+
+.table-modern {
+    background: white;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+}
+
+.table-modern thead {
+    background-color: #f8f9fa;
+    color: #495057;
 }
 
 .oculto {
     display: none !important;
 }
 
-/* =========================================
-   VISTA DE LOGIN (Fondo Azul Degradado)
-========================================= */
-#vista-login {
-    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-    min-height: 100vh;
-    padding: 15px;
+/* Animación para el feedback de los archivos */
+.file-feedback {
+    animation: fadeIn 0.4s;
 }
 
-#vista-login .card {
-    border-radius: 16px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-    width: 100%; 
-    max-width: 420px;
-}
-
-/* =========================================
-   BARRA DE NAVEGACIÓN (HORIZONTAL)
-========================================= */
-.navbar {
-    background-color: #ffffff !important;
-    border-bottom: 1px solid #e2e8f0;
-    padding: 0.8rem 2rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-}
-
-.navbar-brand {
-    font-weight: 800;
-    font-size: 1.4rem;
-    color: #1e3c72 !important;
-}
-
-.nav-link {
-    color: #64748b !important;
-    font-weight: 500;
-    padding: 0.5rem 1rem !important;
-    margin: 0 0.2rem;
-    border-radius: 8px;
-    transition: all 0.2s ease;
-}
-
-.nav-link:hover {
-    background-color: #f1f5f9;
-    color: #0f172a !important;
-}
-
-.nav-link.active {
-    color: #1e3c72 !important;
-    background-color: #e0e7ff;
-    font-weight: 700;
-}
-
-/* =========================================
-   TARJETAS Y TABLAS
-========================================= */
-.card {
-    border: none;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-}
-
-.card-header {
-    background-color: #ffffff;
-    border-bottom: 2px solid #f1f5f9;
-    font-weight: 700;
-    color: #1e3c72;
-    padding: 1.25rem 1.5rem;
-    border-radius: 12px 12px 0 0 !important;
-}
-
-.table-responsive {
-    max-height: 450px;
-    overflow-y: auto;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-}
-
-.table-responsive::-webkit-scrollbar { width: 6px; height: 6px; }
-.table-responsive::-webkit-scrollbar-track { background: #f1f5f9; }
-.table-responsive::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-.table-responsive::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-.table thead th {
-    background-color: #f8fafc;
-    color: #475569;
-    font-weight: 600;
-    text-transform: uppercase;
-    font-size: 0.75rem;
-    letter-spacing: 0.5px;
-    padding: 1rem;
-    border-bottom: 2px solid #e2e8f0;
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    white-space: nowrap;
-}
-
-.table tbody td {
-    padding: 1rem;
-    vertical-align: middle;
-    border-bottom: 1px solid #f1f5f9;
-    white-space: nowrap;
-}
-
-/* =========================================
-   MÉTRICAS (KPIs)
-========================================= */
-.indicador-box {
-    padding: 1.5rem;
-    border-radius: 12px;
-    background: #ffffff;
-    border-left: 4px solid #1e3c72;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-}
-.indicador-box.success { border-left-color: #10b981; }
-.indicador-box.danger { border-left-color: #ef4444; }
-
-/* =========================================
-   BOTÓN FLOTANTE PARA SALIR
-========================================= */
-.btn-flotante {
-    position: fixed;
-    bottom: 30px;
-    right: 30px;
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    background-color: #ef4444;
-    color: white;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 1.5rem;
-    box-shadow: 0 4px 10px rgba(239, 68, 68, 0.4);
-    border: none;
-    cursor: pointer;
-    transition: transform 0.2s;
-    z-index: 1000;
-}
-
-.btn-flotante:hover {
-    transform: scale(1.1);
-}
-
-/* =========================================
-   AJUSTES ESPECÍFICOS PARA CELULARES
-========================================= */
-@media (max-width: 768px) {
-    .navbar {
-        padding: 0.5rem 1rem;
-    }
-    
-    .nav-link {
-        text-align: center;
-        margin: 0.2rem 0;
-    }
-
-    .btn-flotante {
-        bottom: 20px;
-        right: 20px;
-        width: 45px;
-        height: 45px;
-        font-size: 1.2rem;
-    }
-
-    .indicador-box {
-        padding: 1rem;
-    }
-    
-    .indicador-box h3 {
-        font-size: 1.5rem;
-    }
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
