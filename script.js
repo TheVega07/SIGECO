@@ -18,9 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (document.getElementById('form-egreso')) document.getElementById('form-egreso').addEventListener('submit', registrarEgreso);
     if (document.getElementById('form-acta')) document.getElementById('form-acta').addEventListener('submit', subirActa);
 
-    // ==========================================
-    // MAGIA VISUAL: Detector de subida de archivos
-    // ==========================================
+    // Detector de subida de archivos (Feedback Visual)
     document.querySelectorAll('input[type="file"]').forEach(input => {
         input.addEventListener('change', function(e) {
             const feedbackEl = document.getElementById('feedback-' + this.id);
@@ -66,7 +64,9 @@ function mostrarAlerta(mensaje, icono = '✅') {
 
 async function cargarDatosDesdeServidor() {
     try {
-        const resp = await fetch(`${API_URL}/datos`);
+        // Añadimos la hora actual a la URL para destruir la memoria caché y siempre traer datos frescos
+        const urlSinCache = `${API_URL}/datos?t=${new Date().getTime()}`;
+        const resp = await fetch(urlSinCache);
         if (!resp.ok) throw new Error("Error en servidor");
         const data = await resp.json();
         usuariosBD = data.usuarios || []; 
@@ -76,6 +76,7 @@ async function cargarDatosDesdeServidor() {
         contratosGlobales = data.contratos || [];
         actasGlobales = data.actas || [];
     } catch (e) {
+        console.error(e);
         mostrarAlerta("Error al cargar los datos desde la base de datos.", "❌");
     }
 }
@@ -226,12 +227,13 @@ async function renderizarTodasLasTablasAdmin() {
             const nombreCompleto = datosUsuario ? datosUsuario.nombre : 'Usuario Desconocido';
             const btnVoucher = p.voucher_b64 ? `<button class="btn btn-sm btn-info text-white fw-bold ms-2 shadow-sm" onclick="abrirVoucher(${p.id})"><i class="bi bi-image me-1"></i>Voucher</button>` : '';
 
+            // Conversión numérica forzada (parseFloat)
             tp.innerHTML += `<tr>
                 <td class="fw-bold text-dark text-start">${nombreCompleto}</td>
                 <td class="text-primary fw-bold">${p.usuario}</td>
                 <td>${p.fecha}</td>
                 <td>${p.voucher} ${btnVoucher}</td>
-                <td class="fw-bold text-success">$${p.valor.toFixed(2)}</td>
+                <td class="fw-bold text-success">$${parseFloat(p.valor || 0).toFixed(2)}</td>
                 <td><span class="badge ${p.estado==='VALIDADO'?'bg-success':'bg-warning text-dark'} px-2 py-1">${p.estado}</span></td>
                 <td>${p.estado==='PENDIENTE'?`<button class="btn btn-sm btn-primary fw-bold shadow-sm" onclick="validarPago(${p.id})"><i class="bi bi-check2 me-1"></i>Aprobar</button>`:'<i class="bi bi-check-circle-fill text-success fs-5"></i>'}</td>
             </tr>`;
@@ -244,7 +246,9 @@ async function renderizarTodasLasTablasAdmin() {
         if(egresosGlobales.length === 0) te.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay egresos registrados.</td></tr>`;
         egresosGlobales.forEach(e => {
             const btnDoc = e.archivoData ? `<button class="btn btn-sm btn-outline-danger fw-bold shadow-sm" onclick="verEgresoPDF(${e.id})"><i class="bi bi-file-pdf-fill me-1"></i>Factura</button>` : '-';
-            te.innerHTML += `<tr><td>${e.fecha}</td><td class="fw-bold text-dark">${e.descripcion}</td><td>${e.proveedor}</td><td class="fw-bold text-danger">-$${e.valor.toFixed(2)}</td><td>${btnDoc}</td></tr>`;
+            
+            // Conversión numérica forzada (parseFloat)
+            te.innerHTML += `<tr><td>${e.fecha}</td><td class="fw-bold text-dark">${e.descripcion}</td><td>${e.proveedor}</td><td class="fw-bold text-danger">-$${parseFloat(e.valor || 0).toFixed(2)}</td><td>${btnDoc}</td></tr>`;
         });
     }
 
@@ -261,7 +265,8 @@ async function renderizarTodasLasTablasAdmin() {
     if(tc) {
         tc.innerHTML = '';
         usuariosBD.filter(u => u.rol === 'PADRE').forEach(u => {
-            tc.innerHTML += `<tr><td class="text-primary fw-bold">${u.username}</td><td>${u.nombre}</td><td class="fw-bold text-dark">$${u.valor_total_pagar.toFixed(2)}</td><td><button class="btn btn-sm btn-warning fw-bold shadow-sm" onclick="abrirModalCuota('${u.username}', ${u.valor_total_pagar})"><i class="bi bi-pencil-fill me-1"></i>Modificar</button></td></tr>`;
+            // Conversión numérica forzada (parseFloat)
+            tc.innerHTML += `<tr><td class="text-primary fw-bold">${u.username}</td><td>${u.nombre}</td><td class="fw-bold text-dark">$${parseFloat(u.valor_total_pagar || 0).toFixed(2)}</td><td><button class="btn btn-sm btn-warning fw-bold shadow-sm" onclick="abrirModalCuota('${u.username}', ${parseFloat(u.valor_total_pagar || 0)})"><i class="bi bi-pencil-fill me-1"></i>Modificar</button></td></tr>`;
         });
     }
     
@@ -270,15 +275,17 @@ async function renderizarTodasLasTablasAdmin() {
         tbDocs.innerHTML = '';
         if (contratosGlobales.length === 0) tbDocs.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay contratos registrados.</td></tr>`;
         contratosGlobales.forEach(c => {
-            tbDocs.innerHTML += `<tr><td>${c.fecha}</td><td class="fw-bold text-dark">${c.desc}</td><td>${c.prov}</td><td class="fw-bold text-success">$${c.valor.toFixed(2)}</td><td><div class="form-check form-switch d-flex justify-content-center"><input class="form-check-input" type="checkbox" ${c.visible?'checked':''} onchange="toggleVisibleDoc(${c.id}, this.checked)"></div></td></tr>`;
+            // Conversión numérica forzada (parseFloat)
+            tbDocs.innerHTML += `<tr><td>${c.fecha}</td><td class="fw-bold text-dark">${c.desc}</td><td>${c.prov}</td><td class="fw-bold text-success">$${parseFloat(c.valor || 0).toFixed(2)}</td><td><div class="form-check form-switch d-flex justify-content-center"><input class="form-check-input" type="checkbox" ${c.visible?'checked':''} onchange="toggleVisibleDoc(${c.id}, this.checked)"></div></td></tr>`;
         });
     }
 }
 
 function renderizarDashboardAdmin() {
-    let pagosValidados = pagosGlobales.filter(p => p.estado === 'VALIDADO').reduce((s, p) => s + p.valor, 0);
-    let totalIngresos = ingresosGlobales.reduce((s, i) => s + i.valor, 0) + pagosValidados;
-    let totalEgresos = egresosGlobales.reduce((s, e) => s + e.valor, 0);
+    // Conversión numérica forzada (parseFloat) en todos los cálculos del dashboard
+    let pagosValidados = pagosGlobales.filter(p => p.estado === 'VALIDADO').reduce((s, p) => s + parseFloat(p.valor || 0), 0);
+    let totalIngresos = ingresosGlobales.reduce((s, i) => s + parseFloat(i.valor || 0), 0) + pagosValidados;
+    let totalEgresos = egresosGlobales.reduce((s, e) => s + parseFloat(e.valor || 0), 0);
     
     if(document.getElementById('dash-ingresos')) document.getElementById('dash-ingresos').innerText = `$${totalIngresos.toFixed(2)}`;
     if(document.getElementById('dash-egresos')) document.getElementById('dash-egresos').innerText = `$${totalEgresos.toFixed(2)}`;
@@ -287,7 +294,8 @@ function renderizarDashboardAdmin() {
 
 async function renderizarDashboardCurso() {
     try {
-        const resp = await fetch(`${API_URL}/dashboard/curso`);
+        const urlSinCache = `${API_URL}/dashboard/curso?t=${new Date().getTime()}`;
+        const resp = await fetch(urlSinCache);
         const data = await resp.json();
         if(data.exito) {
             const tc = document.getElementById('tabla-dashboard-curso');
@@ -297,7 +305,7 @@ async function renderizarDashboardCurso() {
                 data.datos.forEach(d => {
                     tc.innerHTML += `<tr>
                         <td class="fw-bold" style="color: #1e3c72;">${d.curso || 'Sin asignar'}</td>
-                        <td class="fw-bold text-success fs-5">$${parseFloat(d.total_recaudado).toFixed(2)}</td>
+                        <td class="fw-bold text-success fs-5">$${parseFloat(d.total_recaudado || 0).toFixed(2)}</td>
                     </tr>`;
                 });
             }
@@ -311,10 +319,11 @@ function actualizarDashboardPadre() {
     cargarDatosDesdeServidor().then(() => {
         const userDatos = usuariosBD.find(u => u.username === usuarioActual.username);
         const misPagos = pagosGlobales.filter(p => p.usuario === usuarioActual.username);
-        let totalPagado = misPagos.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + p.valor, 0);
-        let pendiente = userDatos.valor_total_pagar - totalPagado;
+        
+        let totalPagado = misPagos.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
+        let pendiente = parseFloat(userDatos.valor_total_pagar || 0) - totalPagado;
 
-        if(document.getElementById('lbl-total-pagar')) document.getElementById('lbl-total-pagar').innerText = `$${userDatos.valor_total_pagar.toFixed(2)}`;
+        if(document.getElementById('lbl-total-pagar')) document.getElementById('lbl-total-pagar').innerText = `$${parseFloat(userDatos.valor_total_pagar || 0).toFixed(2)}`;
         if(document.getElementById('lbl-pagado')) document.getElementById('lbl-pagado').innerText = `$${totalPagado.toFixed(2)}`;
         if(document.getElementById('lbl-pendiente')) document.getElementById('lbl-pendiente').innerText = `$${pendiente.toFixed(2)}`;
 
@@ -323,7 +332,7 @@ function actualizarDashboardPadre() {
             tb.innerHTML = '';
             if(misPagos.length === 0) tb.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay transferencias registradas.</td></tr>`;
             misPagos.forEach(p => {
-                tb.innerHTML += `<tr><td>${p.fecha}</td><td class="fw-bold">${p.voucher}</td><td class="text-success fw-bold">$${p.valor.toFixed(2)}</td><td><span class="badge ${p.estado==='VALIDADO'?'bg-success':'bg-warning text-dark'} px-2 py-1">${p.estado}</span></td></tr>`;
+                tb.innerHTML += `<tr><td>${p.fecha}</td><td class="fw-bold">${p.voucher}</td><td class="text-success fw-bold">$${parseFloat(p.valor || 0).toFixed(2)}</td><td><span class="badge ${p.estado==='VALIDADO'?'bg-success':'bg-warning text-dark'} px-2 py-1">${p.estado}</span></td></tr>`;
             });
         }
 
@@ -360,7 +369,8 @@ function abrirVoucher(idPago) {
 }
 
 async function verDocumentoPDF(id) { 
-    const resp = await fetch(`${API_URL}/documentos/ver/${id}`); 
+    const urlSinCache = `${API_URL}/documentos/ver/${id}?t=${new Date().getTime()}`;
+    const resp = await fetch(urlSinCache); 
     const data = await resp.json(); 
     if(data.exito && data.base64) { 
         const win = window.open("");
@@ -371,7 +381,8 @@ async function verDocumentoPDF(id) {
 }
 
 async function verActaPDF(id) { 
-    const resp = await fetch(`${API_URL}/actas/ver/${id}`); 
+    const urlSinCache = `${API_URL}/actas/ver/${id}?t=${new Date().getTime()}`;
+    const resp = await fetch(urlSinCache); 
     const data = await resp.json(); 
     if(data.exito && data.base64) { 
         const win = window.open("");
@@ -382,7 +393,8 @@ async function verActaPDF(id) {
 }
 
 async function verEgresoPDF(id) { 
-    const resp = await fetch(`${API_URL}/egresos/ver/${id}`); 
+    const urlSinCache = `${API_URL}/egresos/ver/${id}?t=${new Date().getTime()}`;
+    const resp = await fetch(urlSinCache); 
     const data = await resp.json(); 
     if(data.exito && data.base64) { 
         const win = window.open("");
@@ -553,7 +565,7 @@ async function validarPago(id) {
 
 function abrirModalCuota(user, val) { 
     document.getElementById('cuota-usu').value = user; 
-    document.getElementById('nueva-cuota-input').value = val; 
+    document.getElementById('nueva-cuota-input').value = parseFloat(val).toFixed(2); 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAsignarCuota')).show(); 
 }
 
