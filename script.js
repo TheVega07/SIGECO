@@ -348,24 +348,45 @@ function actualizarDashboardPadre() {
 }
 
 // ==========================================================
-// FUNCIÓN INFALIBLE PARA ABRIR PDFS E IMÁGENES
+// SISTEMA 100% INMUNE A BLOQUEADORES (DESCARGA DIRECTA)
 // ==========================================================
-function abrirBase64EnNuevaPestana(base64Data) {
-    if(!base64Data || base64Data.length < 20) {
-        mostrarAlerta("El documento está vacío o no se guardó correctamente.", "❌");
-        return;
-    }
-    if (!base64Data.startsWith('data:')) {
-        base64Data = 'data:application/pdf;base64,' + base64Data;
-    }
-    const newWindow = window.open("");
-    if (newWindow) {
-        newWindow.document.write(`<iframe width='100%' height='100%' style='border:none; margin:0; padding:0;' src='${base64Data}'></iframe>`);
-        newWindow.document.close();
-    } else {
-        mostrarAlerta("Tu navegador bloqueó la ventana. Por favor, permite las ventanas emergentes (pop-ups) en la barra de direcciones.", "⚠️");
+async function descargarArchivoInmune(url, nombreDefault) {
+    try {
+        const resp = await fetch(url);
+        const data = await resp.json();
+        
+        if (data.exito && data.base64) {
+            let b64 = data.base64;
+            
+            // Detectar automáticamente el tipo de archivo si falta el prefijo
+            if (!b64.startsWith('data:')) {
+                if (b64.startsWith('JVBER')) b64 = 'data:application/pdf;base64,' + b64;
+                else if (b64.startsWith('iVBOR')) b64 = 'data:image/png;base64,' + b64;
+                else if (b64.startsWith('/9j/')) b64 = 'data:image/jpeg;base64,' + b64;
+                else b64 = 'data:application/pdf;base64,' + b64; 
+            }
+            
+            // Crear un enlace invisible y forzar la descarga en el equipo
+            const a = document.createElement("a");
+            a.href = b64;
+            a.download = nombreDefault; 
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+        } else {
+            mostrarAlerta("Documento no encontrado o corrupto.", "❌");
+        }
+    } catch (e) {
+        mostrarAlerta("Error al descargar el archivo de la base de datos.", "❌");
     }
 }
+
+// Redirigimos todas las funciones al nuevo sistema de descarga directa
+function abrirVoucher(id) { descargarArchivoInmune(`${API_URL}/pagos/ver/${id}?t=${new Date().getTime()}`, `voucher_pago_${id}.jpg`); }
+function verDocumentoPDF(id) { descargarArchivoInmune(`${API_URL}/documentos/ver/${id}?t=${new Date().getTime()}`, `documento_${id}.pdf`); }
+function verActaPDF(id) { descargarArchivoInmune(`${API_URL}/actas/ver/${id}?t=${new Date().getTime()}`, `acta_reunion_${id}.pdf`); }
+function verEgresoPDF(id) { descargarArchivoInmune(`${API_URL}/egresos/ver/${id}?t=${new Date().getTime()}`, `factura_egreso_${id}.pdf`); }
 
 // === FUNCIONES DE LECTURA DE ARCHIVOS ===
 function leerArchivoComoBase64(file) { 
@@ -375,38 +396,6 @@ function leerArchivoComoBase64(file) {
         reader.onerror = rej; 
         reader.readAsDataURL(file); 
     }); 
-}
-
-async function abrirVoucher(id) {
-    const urlSinCache = `${API_URL}/pagos/ver/${id}?t=${new Date().getTime()}`;
-    const resp = await fetch(urlSinCache);
-    const data = await resp.json();
-    if(data.exito && data.base64) abrirBase64EnNuevaPestana(data.base64);
-    else mostrarAlerta("Voucher no encontrado o corrupto.", "❌");
-}
-
-async function verDocumentoPDF(id) { 
-    const urlSinCache = `${API_URL}/documentos/ver/${id}?t=${new Date().getTime()}`;
-    const resp = await fetch(urlSinCache); 
-    const data = await resp.json(); 
-    if(data.exito && data.base64) abrirBase64EnNuevaPestana(data.base64);
-    else mostrarAlerta("Documento no encontrado o corrupto.", "❌"); 
-}
-
-async function verActaPDF(id) { 
-    const urlSinCache = `${API_URL}/actas/ver/${id}?t=${new Date().getTime()}`;
-    const resp = await fetch(urlSinCache); 
-    const data = await resp.json(); 
-    if(data.exito && data.base64) abrirBase64EnNuevaPestana(data.base64);
-    else mostrarAlerta("Acta no encontrada.", "❌"); 
-}
-
-async function verEgresoPDF(id) { 
-    const urlSinCache = `${API_URL}/egresos/ver/${id}?t=${new Date().getTime()}`;
-    const resp = await fetch(urlSinCache); 
-    const data = await resp.json(); 
-    if(data.exito && data.base64) abrirBase64EnNuevaPestana(data.base64);
-    else mostrarAlerta("Factura de egreso no encontrada.", "❌"); 
 }
 
 // === FUNCIONES DE REGISTRO (CRUD) ===
