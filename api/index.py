@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import mysql.connector
+import datetime
+from decimal import Decimal
 
 app = Flask(__name__)
 CORS(app)
@@ -24,6 +26,32 @@ db_config = {
 def get_db_connection():
     return mysql.connector.connect(**db_config)
 
+# ==========================================
+# SANITIZADOR DE DATOS (Evita el Error 500)
+# ==========================================
+def sanitize_row(row):
+    if not row:
+        return row
+    for key, val in row.items():
+        if isinstance(val, Decimal):
+            row[key] = float(val)
+        elif isinstance(val, (datetime.date, datetime.datetime)):
+            row[key] = str(val)
+        elif isinstance(val, bytes):
+            try:
+                row[key] = val.decode('utf-8')
+            except:
+                row[key] = ""
+    return row
+
+def sanitize_list(rows):
+    if not rows:
+        return []
+    return [sanitize_row(r) for r in rows]
+
+# ==========================================
+# RUTAS DE AUTENTICACIÓN Y DESCARGA GENERAL
+# ==========================================
 @app.route('/api/login', methods=['POST'])
 def login():
     try:
@@ -34,7 +62,7 @@ def login():
         conexion = get_db_connection()
         cursor = conexion.cursor(dictionary=True)
         cursor.execute("SELECT * FROM usuarios WHERE username = %s AND password = %s", (usuario, password))
-        user = cursor.fetchone()
+        user = sanitize_row(cursor.fetchone())
         cursor.close()
         conexion.close()
 
@@ -53,39 +81,61 @@ def obtener_datos():
         conexion = get_db_connection()
         cursor = conexion.cursor(dictionary=True)
         
-        # ⚠️ IMPORTANTE: No extraemos los LONGTEXT aquí para que Vercel no colapse. Solo verificamos si existen.
-        cursor.execute("SELECT username, nombre, rol, curso, estado, valor_total_pagar, debe_cambiar_clave FROM usuarios")
-        usuarios = cursor.fetchall()
+        resp_data = {
+            "usuarios": [], "pagos": [], "ingresos": [], 
+            "egresos": [], "contratos": [], "actas": []
+        }
         
-        cursor.execute("SELECT id, usuario, fecha, voucher, valor, estado, CASE WHEN LENGTH(voucher_b64) > 10 THEN 1 ELSE 0 END as tiene_voucher FROM pagos")
-        pagos = cursor.fetchall()
+        try:
+            cursor.execute("SELECT * FROM usuarios")
+            resp_data["usuarios"] = sanitize_list(cursor.fetchall())
+        except: pass
+        
+        try:
+            cursor.execute("SELECT * FROM pagos")
+            pagos = cursor.fetchall()
+            for p in pagos:
+                p['tiene_voucher'] = 1 if p.get('voucher_b64') else 0
+                p.pop('voucher_b64', None) 
+            resp_data["pagos"] = sanitize_list(pagos)
+        except: pass
         
         try:
             cursor.execute("SELECT * FROM ingresos")
-            ingresos = cursor.fetchall()
-        except:
-            ingresos = []
-            
-        cursor.execute("SELECT id, fecha, descripcion, proveedor, valor, CASE WHEN LENGTH(archivoData) > 10 THEN 1 ELSE 0 END as tiene_doc FROM egresos")
-        egresos = cursor.fetchall()
+            resp_data["ingresos"] = sanitize_list(cursor.fetchall())
+        except: pass
         
-        cursor.execute("SELECT id, tipo, fecha, `desc`, prov, valor, visible, CASE WHEN LENGTH(archivoData) > 10 THEN 1 ELSE 0 END as tiene_doc FROM documentos")
-        contratos = cursor.fetchall()
+        try:
+            cursor.execute("SELECT * FROM egresos")
+            egresos = cursor.fetchall()
+            for e in egresos:
+                e['tiene_doc'] = 1 if e.get('archivoData') else 0
+                e.pop('archivoData', None)
+            resp_data["egresos"] = sanitize_list(egresos)
+        except: pass
         
-        cursor.execute("SELECT id, fecha, descripcion, archivoNombre, CASE WHEN LENGTH(archivoData) > 10 THEN 1 ELSE 0 END as tiene_doc FROM actas")
-        actas = cursor.fetchall()
+        try:
+            cursor.execute("SELECT * FROM documentos")
+            docs = cursor.fetchall()
+            for d in docs:
+                d['tiene_doc'] = 1 if d.get('archivoData') else 0
+                d.pop('archivoData', None)
+            resp_data["contratos"] = sanitize_list(docs)
+        except: pass
+        
+        try:
+            cursor.execute("SELECT * FROM actas")
+            actas = cursor.fetchall()
+            for a in actas:
+                a['tiene_doc'] = 1 if a.get('archivoData') else 0
+                a.pop('archivoData', None)
+            resp_data["actas"] = sanitize_list(actas)
+        except: pass
 
         cursor.close()
         conexion.close()
 
-        return jsonify({
-            "usuarios": usuarios, 
-            "pagos": pagos, 
-            "ingresos": ingresos, 
-            "egresos": egresos, 
-            "contratos": contratos,
-            "actas": actas
-        })
+        return jsonify(resp_data)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -324,7 +374,7 @@ def dashboard_curso():
             GROUP BY u.curso
         """
         cursor.execute(sql)
-        recaudado_curso = cursor.fetchall()
+        recaudado_curso = sanitize_list(cursor.fetchall())
         cursor.close()
         conexion.close()
         return jsonify({"exito": True, "datos": recaudado_curso})
