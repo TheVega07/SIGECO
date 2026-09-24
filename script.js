@@ -64,7 +64,7 @@ async function cargarDatosDesdeServidor() {
     try {
         const urlSinCache = `${API_URL}/datos?t=${new Date().getTime()}`;
         const resp = await fetch(urlSinCache);
-        if (!resp.ok) throw new Error("Error en el servidor");
+        if (!resp.ok) throw new Error("Error en el servidor al traer los datos.");
         const data = await resp.json();
         usuariosBD = data.usuarios || []; 
         pagosGlobales = data.pagos || [];
@@ -74,7 +74,7 @@ async function cargarDatosDesdeServidor() {
         actasGlobales = data.actas || [];
     } catch (e) {
         console.error(e);
-        mostrarAlerta("Error al descargar la información de la base de datos.", "❌");
+        mostrarAlerta("Error al descargar la información de la base de datos. Recarga la página.", "❌");
     }
 }
 
@@ -355,7 +355,6 @@ function abrirBase64EnNuevaPestana(base64Data) {
         mostrarAlerta("El documento está vacío o no se guardó correctamente.", "❌");
         return;
     }
-    // Aseguramos que tenga el formato correcto para que el navegador lo entienda
     if (!base64Data.startsWith('data:')) {
         base64Data = 'data:application/pdf;base64,' + base64Data;
     }
@@ -410,7 +409,7 @@ async function verEgresoPDF(id) {
     else mostrarAlerta("Factura de egreso no encontrada.", "❌"); 
 }
 
-// === FUNCIONES DE REGISTRO (CRUD) CON VALIDACIÓN ESTRICTA ===
+// === FUNCIONES DE REGISTRO (CRUD) ===
 async function registrarPago(e) { 
     e.preventDefault(); 
     const fileInput = document.getElementById('pago-voucher-file');
