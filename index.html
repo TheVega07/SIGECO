@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SIGECO</title>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <!-- CSS Personalizado -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- ================= VISTA LOGIN ================= -->
+    <div id="vista-login" class="d-flex justify-content-center align-items-center">
+        <div class="card p-4 p-md-5">
+            <div class="text-center mb-4">
+                <div class="bg-primary text-white rounded-circle d-inline-flex justify-content-center align-items-center mb-3" style="width: 60px; height: 60px;">
+                    <i class="bi bi-shield-check fs-2"></i>
+                </div>
+                <h4 class="fw-bold mb-0 text-dark">SIGECO</h4>
+                <p class="text-muted small">Gestión y Transparencia Financiera</p>
+            </div>
+
+            <div id="mensaje-error" class="alert alert-danger oculto py-2 small text-center fw-bold" role="alert"></div>
+
+            <form id="form-login">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">NOMBRE DE USUARIO</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white text-muted"><i class="bi bi-person"></i></span>
+                        <input type="text" class="form-control" id="username" placeholder="Ej: admin" required>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label small fw-bold text-muted">CONTRASEÑA</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white text-muted"><i class="bi bi-lock"></i></span>
+                        <input type="password" class="form-control" id="password" placeholder="••••••••" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary w-100 fw-bold py-2 mb-3 shadow-sm">Ingresar al Portal</button>
+            </form>
+            <div class="text-center">
+                <a href="#" class="text-decoration-none small text-muted" onclick="bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSolicitarAyuda')).show()">¿Olvidaste tu contraseña? <span class="text-primary fw-bold">Solicita ayuda</span></a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= VISTA APLICACIÓN ================= -->
+    <div id="vista-app" class="oculto">
+        
+        <!-- Navbar Horizontal -->
+        <nav class="navbar navbar-expand-lg sticky-top">
+            <div class="container-fluid px-2">
+                <a class="navbar-brand d-flex align-items-center" href="#">
+                    SIGECO 
+                    <span class="badge bg-primary ms-2 fs-6 rounded-pill" id="badge-rol" style="font-size: 0.6rem !important;">ROL</span>
+                </a>
+                <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse justify-content-center mt-3 mt-lg-0" id="navbarNav">
+                    <ul class="navbar-nav" id="menu-navegacion"></ul>
+                </div>
+                <div class="d-none d-lg-flex align-items-center">
+                    <div class="bg-light text-secondary rounded-circle d-flex justify-content-center align-items-center me-2 border" style="width: 35px; height: 35px;"><i class="bi bi-person-fill"></i></div>
+                    <span class="fw-bold text-secondary" id="nav-nombre-usuario">Usuario</span>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container py-4 mb-5">
+            
+            <!-- ====== PORTAL ADMIN ====== -->
+            <div id="portal-admin" class="oculto">
+                
+                <!-- Resumen Admin -->
+                <div id="admin-modulo-resumen">
+                    <h4 class="fw-bold mb-4">Indicadores Financieros</h4>
+                    <div class="row g-3 g-md-4 mb-5">
+                        <div class="col-12 col-md-4"><div class="indicador-box success"><p class="text-muted small fw-bold mb-1"><i class="bi bi-graph-up-arrow me-2 text-success"></i>TOTAL RECAUDADO</p><h3 class="fw-bold text-success mb-0" id="dash-ingresos">$0.00</h3></div></div>
+                        <div class="col-12 col-md-4"><div class="indicador-box danger"><p class="text-muted small fw-bold mb-1"><i class="bi bi-graph-down-arrow me-2 text-danger"></i>EGRESOS (EVENTOS)</p><h3 class="fw-bold text-danger mb-0" id="dash-egresos">$0.00</h3></div></div>
+                        <div class="col-12 col-md-4"><div class="indicador-box"><p class="text-muted small fw-bold mb-1"><i class="bi bi-safe me-2 text-primary"></i>SALDO EN CAJA</p><h3 class="fw-bold text-primary mb-0" id="dash-saldo">$0.00</h3></div></div>
+                    </div>
+                </div>
+
+                <!-- Usuarios -->
+                <div id="admin-modulo-usuarios" class="oculto">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap mb-4 gap-2">
+                        <h4 class="fw-bold mb-0">Directorio de Usuarios</h4>
+                        <button class="btn btn-primary fw-bold px-4 shadow-sm" onclick="abrirModalUsuario()"><i class="bi bi-person-plus-fill me-2"></i>Crear</button>
+                    </div>
+                    <div class="card"><div class="card-body p-0 table-responsive"><table class="table table-hover mb-0 text-center"><thead><tr><th>Usuario</th><th>Nombre Completo</th><th>Rol</th><th>Curso</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="tabla-usuarios-admin"></tbody></table></div></div>
+                </div>
+
+                <!-- Control de Pagos -->
+                <div id="admin-modulo-pagos" class="oculto">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap mb-4 gap-2">
+                        <h4 class="fw-bold mb-0">Control de Pagos</h4>
+                        <button class="btn btn-outline-primary fw-bold px-4" data-bs-toggle="modal" data-bs-target="#modalPago"><i class="bi bi-plus-lg me-2"></i>Registrar Pago</button>
+                    </div>
+                    <div class="card">
+                        <div class="card-body p-0 table-responsive">
+                            <table class="table table-hover mb-0 text-center">
+                                <thead>
+                                    <tr>
+                                        <th>Nombres</th>
+                                        <th>Usuario</th>
+                                        <th>Fecha</th>
+                                        <th>Voucher</th>
+                                        <th>Valor</th>
+                                        <th>Estado</th>
+                                        <th>Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabla-pagos"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contratos -->
+                <div id="admin-modulo-contratos" class="oculto">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap mb-4 gap-2">
+                        <h4 class="fw-bold mb-0">Gestión Documental</h4>
+                        <button class="btn btn-primary fw-bold px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalContrato"><i class="bi bi-upload me-2"></i>Subir</button>
+                    </div>
+                    <div class="card"><div class="card-body p-0 table-responsive"><table class="table table-hover mb-0 text-center"><thead><tr><th>Fecha</th><th>Descripción</th><th>Proveedor</th><th>Valor</th><th>¿Visible?</th></tr></thead><tbody id="tabla-contratos"></tbody></table></div></div>
+                </div>
+
+                <!-- Cuotas -->
+                <div id="admin-modulo-cuotas" class="oculto">
+                    <h4 class="fw-bold mb-4">Gestión de Cuotas por Familia</h4>
+                    <div class="card"><div class="card-body p-0 table-responsive"><table class="table table-hover mb-0 text-center"><thead><tr><th>Usuario</th><th>Nombre Completo</th><th>Total Asignado</th><th>Acción</th></tr></thead><tbody id="tabla-cuotas"></tbody></table></div></div>
+                </div>
+
+                <!-- Claves -->
+                <div id="admin-modulo-claves" class="oculto">
+                    <h4 class="fw-bold mb-4">Solicitudes de Contraseña</h4>
+                    <div class="alert bg-primary bg-opacity-10 text-primary border-0 rounded-3 mb-4"><i class="bi bi-info-circle-fill me-2"></i>Las solicitudes de ayuda de los padres aparecerán aquí.</div>
+                </div>
+
+            </div>
+
+            <!-- ====== PORTAL PADRE ====== -->
+            <div id="portal-padre" class="oculto">
+                <!-- Mi Estado de Cuenta -->
+                <div id="padre-vista-estado">
+                    <h4 class="fw-bold mb-4">Mi Estado de Cuenta</h4>
+                    <div class="row g-3 g-md-4 mb-5">
+                        <div class="col-12 col-md-4"><div class="indicador-box"><p class="text-muted small fw-bold mb-1"><i class="bi bi-cash-coin me-2"></i>TOTAL A PAGAR</p><h3 class="fw-bold text-dark mb-0" id="lbl-total-pagar">$0.00</h3></div></div>
+                        <div class="col-12 col-md-4"><div class="indicador-box success"><p class="text-muted small fw-bold mb-1"><i class="bi bi-check-circle me-2 text-success"></i>VALOR PAGADO</p><h3 class="fw-bold text-success mb-0" id="lbl-pagado">$0.00</h3></div></div>
+                        <div class="col-12 col-md-4"><div class="indicador-box danger"><p class="text-muted small fw-bold mb-1"><i class="bi bi-exclamation-circle me-2 text-danger"></i>VALOR PENDIENTE</p><h3 class="fw-bold text-danger mb-0" id="lbl-pendiente">$0.00</h3></div></div>
+                    </div>
+                    <h5 class="fw-bold mb-3">Mis Transferencias</h5>
+                    <div class="card"><div class="card-body p-0 table-responsive"><table class="table table-hover mb-0 text-center"><thead><tr><th>Fecha</th><th>Voucher</th><th>Valor</th><th>Estado</th></tr></thead><tbody id="tabla-pagos-padre"></tbody></table></div></div>
+                </div>
+
+                <!-- Documentos Padre -->
+                <div id="padre-vista-documentos" class="oculto">
+                    <h4 class="fw-bold mb-4">Transparencia Documental</h4>
+                    <div class="card"><div class="card-body p-0 table-responsive"><table class="table table-hover mb-0 text-center"><thead><tr><th>Fecha</th><th>Descripción del Contrato</th><th>Acción</th></tr></thead><tbody id="tabla-docs-padre"></tbody></table></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Botón flotante para salir -->
+        <button class="btn-flotante" onclick="cerrarSesion()" title="Cerrar Sesión"><i class="bi bi-power"></i></button>
+    </div>
+
+    <!-- ================= MODALES ================= -->
+    <div class="modal fade" id="modalAlertaSistema" tabindex="-1">
+        <div class="modal-dialog modal-sm modal-dialog-centered"><div class="modal-content border-0 shadow"><div class="modal-body text-center p-4"><h3 class="mb-3" id="alerta-icono">✅</h3><h6 class="mb-4 fw-bold text-dark" id="alerta-mensaje">Mensaje</h6><button type="button" class="btn btn-primary w-100 rounded-pill fw-bold" data-bs-dismiss="modal">Entendido</button></div></div></div>
+    </div>
+
+    <div class="modal fade" id="modalForzarClave" data-bs-backdrop="static" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg"><div class="modal-header bg-danger text-white border-0"><h6 class="modal-title fw-bold"><i class="bi bi-shield-lock-fill me-2"></i>Acción Requerida</h6></div><div class="modal-body p-4 text-center"><h5 class="fw-bold mb-3">Crea tu nueva contraseña</h5><p class="small text-muted mb-4">El administrador ha restablecido tu cuenta. Por seguridad, debes crear una clave privada ahora mismo.</p><form id="form-forzar-clave"><input type="password" class="form-control form-control-lg bg-light text-center mb-4" id="nueva-clave-forzada" placeholder="Escribe aquí..." required minlength="4"><button type="submit" class="btn btn-danger btn-lg w-100 rounded-pill fw-bold">Guardar y Entrar</button></form></div></div></div>
+    </div>
+
+    <div class="modal fade" id="modalSolicitarAyuda" tabindex="-1">
+        <div class="modal-dialog modal-sm modal-dialog-centered"><div class="modal-content border-0 shadow"><div class="modal-header border-0"><h6 class="modal-title fw-bold w-100 text-center">Solicitar Ayuda</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body pt-0 text-center"><p class="small text-muted mb-3">NOMBRE DE USUARIO</p><input type="text" id="ayuda-username" class="form-control form-control-lg text-center fw-bold mb-3 bg-light" placeholder="Ej: jsalazarb"><button class="btn btn-warning w-100 rounded-pill fw-bold" onclick="bootstrap.Modal.getInstance(document.getElementById('modalSolicitarAyuda')).hide(); mostrarAlerta('Solicitud enviada al Administrador.', '🛡️');">Enviar Solicitud a Sistema</button></div></div></div>
+    </div>
+
+    <!-- Modal Usuario -->
+    <div class="modal fade" id="modalUsuario" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow"><div class="modal-header border-bottom-0"><h6 class="modal-title fw-bold text-dark" id="titulo-modal-usuario">Usuario</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body pt-0"><form id="form-usuario"><input type="hidden" id="usu-modo"><div class="mb-3"><label class="form-label small fw-bold text-muted">NOMBRE DE USUARIO</label><input type="text" class="form-control bg-light" id="usu-id" required></div><div class="mb-3"><label class="form-label small fw-bold text-muted">NOMBRE COMPLETO</label><input type="text" class="form-control bg-light" id="usu-nombre" required></div><div class="row"><div class="col-6 mb-3"><label class="form-label small fw-bold text-muted">ROL</label><select class="form-select bg-light" id="usu-rol"><option value="PADRE">PADRE</option><option value="ADMIN">ADMIN</option></select></div><div class="col-6 mb-3"><label class="form-label small fw-bold text-muted">CURSO</label><input type="text" class="form-control bg-light" id="usu-curso"></div></div><div class="mb-4" id="div-usu-clave"><label class="form-label small fw-bold text-muted">CONTRASEÑA</label><input type="password" class="form-control bg-light" id="usu-clave"></div><button type="submit" class="btn btn-primary w-100 rounded-pill fw-bold">Guardar Usuario</button></form></div></div></div></div>
+
+    <!-- Modal Pago (Con Select) -->
+    <div class="modal fade" id="modalPago" tabindex="-1">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header border-0 pb-0">
+                    <h6 class="modal-title fw-bold text-center w-100">Registrar Pago</h6>
+                </div>
+                <div class="modal-body">
+                    <form id="form-pago">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted">SELECCIONAR PADRE</label>
+                            <select class="form-select bg-light fw-bold" id="pago-usuario" required>
+                                <option value="">Cargando padres...</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted">NÚMERO DE VOUCHER</label>
+                            <input type="text" class="form-control bg-light" id="pago-voucher" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted">VALOR ($)</label>
+                            <input type="number" step="0.01" class="form-control bg-light" id="pago-valor" required>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label small fw-bold text-muted">FECHA</label>
+                            <input type="date" class="form-control bg-light" id="pago-fecha" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 rounded-pill fw-bold">Guardar Registro</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal Contrato -->
+    <div class="modal fade" id="modalContrato" tabindex="-1"><div class="modal-dialog modal-sm modal-dialog-centered"><div class="modal-content border-0 shadow"><div class="modal-header border-0 pb-0"><h6 class="modal-title fw-bold text-center w-100">Subir Contrato</h6></div><div class="modal-body"><form id="form-contrato"><div class="mb-3"><label class="form-label small fw-bold text-muted">FECHA</label><input type="date" class="form-control bg-light" id="ctr-fecha" required></div><div class="mb-3"><label class="form-label small fw-bold text-muted">DESCRIPCIÓN</label><input type="text" class="form-control bg-light" id="ctr-desc" required></div><div class="mb-3"><label class="form-label small fw-bold text-muted">PROVEEDOR</label><input type="text" class="form-control bg-light" id="ctr-prov" required></div><div class="mb-3"><label class="form-label small fw-bold text-muted">VALOR ($)</label><input type="number" step="0.01" class="form-control bg-light" id="ctr-valor" required></div><div class="mb-4"><label class="form-label small fw-bold text-muted">ARCHIVO PDF</label><input type="file" class="form-control bg-light" id="ctr-file" accept="application/pdf" required></div><div class="form-check mt-3 mb-4 d-flex align-items-center"><input class="form-check-input me-2" type="checkbox" id="ctr-visible"><label class="form-check-label small text-muted">Hacer público para padres</label></div><button type="submit" class="btn btn-primary w-100 rounded-pill fw-bold">Guardar Contrato</button></form></div></div></div></div>
+
+    <!-- Modal Cuota -->
+    <div class="modal fade" id="modalAsignarCuota" tabindex="-1"><div class="modal-dialog modal-sm modal-dialog-centered"><div class="modal-content border-0 shadow"><div class="modal-header border-0 pb-0"><h6 class="modal-title fw-bold text-center w-100">Asignar Cuota</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body text-center"><form id="form-cuota"><input type="hidden" id="cuota-usu"><p class="small fw-bold text-muted mb-2">NUEVO VALOR A PAGAR ($)</p><input type="number" step="0.01" class="form-control form-control-lg bg-light text-center fw-bold mb-4" id="nueva-cuota-input" required><button type="submit" class="btn btn-primary w-100 rounded-pill fw-bold">Actualizar Cuota</button></form></div></div></div></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
