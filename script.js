@@ -8,7 +8,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById('vista-app').classList.add('oculto');
     document.getElementById('vista-login').classList.remove('oculto');
 
-    // Formularios
     if (document.getElementById('form-login')) document.getElementById('form-login').addEventListener('submit', iniciarSesion);
     if (document.getElementById('form-forzar-clave')) document.getElementById('form-forzar-clave').addEventListener('submit', guardarClaveForzada);
     if (document.getElementById('form-usuario')) document.getElementById('form-usuario').addEventListener('submit', guardarUsuario);
@@ -18,7 +17,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (document.getElementById('form-egreso')) document.getElementById('form-egreso').addEventListener('submit', registrarEgreso);
     if (document.getElementById('form-acta')) document.getElementById('form-acta').addEventListener('submit', subirActa);
 
-    // Detector de subida de archivos (Feedback Visual)
     document.querySelectorAll('input[type="file"]').forEach(input => {
         input.addEventListener('change', function(e) {
             const feedbackEl = document.getElementById('feedback-' + this.id);
@@ -64,10 +62,9 @@ function mostrarAlerta(mensaje, icono = '✅') {
 
 async function cargarDatosDesdeServidor() {
     try {
-        // Añadimos la hora actual a la URL para destruir la memoria caché y siempre traer datos frescos
         const urlSinCache = `${API_URL}/datos?t=${new Date().getTime()}`;
         const resp = await fetch(urlSinCache);
-        if (!resp.ok) throw new Error("Error en servidor");
+        if (!resp.ok) throw new Error("Error en el servidor");
         const data = await resp.json();
         usuariosBD = data.usuarios || []; 
         pagosGlobales = data.pagos || [];
@@ -77,7 +74,7 @@ async function cargarDatosDesdeServidor() {
         actasGlobales = data.actas || [];
     } catch (e) {
         console.error(e);
-        mostrarAlerta("Error al cargar los datos desde la base de datos.", "❌");
+        mostrarAlerta("Error al descargar la información de la base de datos.", "❌");
     }
 }
 
@@ -111,22 +108,27 @@ async function iniciarSesion(e) {
             }
         }
     } catch (error) { 
-        mostrarAlerta("Error de conexión. Verifica el servidor.", "❌"); 
+        mostrarAlerta("Error de conexión con el servidor en la nube.", "❌"); 
     }
 }
 
 async function guardarClaveForzada(e) {
     e.preventDefault();
     const nuevaClave = document.getElementById('nueva-clave-forzada').value;
-    await fetch(`${API_URL}/usuarios/clave`, {
+    const resp = await fetch(`${API_URL}/usuarios/clave`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: usuarioActual.username, password: nuevaClave, forzar: 0 })
     });
-    usuarioActual.debe_cambiar_clave = 0;
-    bootstrap.Modal.getInstance(document.getElementById('modalForzarClave')).hide();
-    document.getElementById('form-forzar-clave').reset();
-    mostrarAlerta('Contraseña actualizada con éxito.', '🔐');
-    cargarPortalSegunRol(usuarioActual);
+    const data = await resp.json();
+    if(resp.ok && data.exito){
+        usuarioActual.debe_cambiar_clave = 0;
+        bootstrap.Modal.getInstance(document.getElementById('modalForzarClave')).hide();
+        document.getElementById('form-forzar-clave').reset();
+        mostrarAlerta('Contraseña actualizada con éxito.', '🔐');
+        cargarPortalSegunRol(usuarioActual);
+    } else {
+        mostrarAlerta("Error al cambiar contraseña.", "❌");
+    }
 }
 
 function cargarPortalSegunRol(usuario) {
@@ -150,14 +152,12 @@ function cargarPortalSegunRol(usuario) {
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('contratos', this)"><i class="bi bi-file-earmark-text-fill me-2"></i> Contratos</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('actas', this)"><i class="bi bi-briefcase-fill me-2"></i> Actas de Comité</a></li>
         `;
-        
         if (usuario.rol === 'ADMIN') {
             menuHTML += `
                 <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('usuarios', this)"><i class="bi bi-people-fill me-2"></i> Usuarios</a></li>
                 <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('cuotas', this)"><i class="bi bi-wallet2 me-2"></i> Cuotas</a></li>
             `;
         }
-        
         document.getElementById('menu-navegacion').innerHTML = menuHTML;
         document.getElementById('portal-admin').classList.remove('oculto');
         if(document.getElementById('portal-padre')) document.getElementById('portal-padre').classList.add('oculto');
@@ -225,9 +225,8 @@ async function renderizarTodasLasTablasAdmin() {
         pagosGlobales.forEach(p => {
             const datosUsuario = usuariosBD.find(u => u.username === p.usuario);
             const nombreCompleto = datosUsuario ? datosUsuario.nombre : 'Usuario Desconocido';
-            const btnVoucher = p.voucher_b64 ? `<button class="btn btn-sm btn-info text-white fw-bold ms-2 shadow-sm" onclick="abrirVoucher(${p.id})"><i class="bi bi-image me-1"></i>Voucher</button>` : '';
+            const btnVoucher = p.tiene_voucher ? `<button class="btn btn-sm btn-info text-white fw-bold ms-2 shadow-sm" onclick="abrirVoucher(${p.id})"><i class="bi bi-image me-1"></i>Voucher</button>` : '';
 
-            // Conversión numérica forzada (parseFloat)
             tp.innerHTML += `<tr>
                 <td class="fw-bold text-dark text-start">${nombreCompleto}</td>
                 <td class="text-primary fw-bold">${p.usuario}</td>
@@ -245,9 +244,7 @@ async function renderizarTodasLasTablasAdmin() {
         te.innerHTML = '';
         if(egresosGlobales.length === 0) te.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay egresos registrados.</td></tr>`;
         egresosGlobales.forEach(e => {
-            const btnDoc = e.archivoData ? `<button class="btn btn-sm btn-outline-danger fw-bold shadow-sm" onclick="verEgresoPDF(${e.id})"><i class="bi bi-file-pdf-fill me-1"></i>Factura</button>` : '-';
-            
-            // Conversión numérica forzada (parseFloat)
+            const btnDoc = e.tiene_doc ? `<button class="btn btn-sm btn-outline-danger fw-bold shadow-sm" onclick="verEgresoPDF(${e.id})"><i class="bi bi-file-pdf-fill me-1"></i>Factura</button>` : '-';
             te.innerHTML += `<tr><td>${e.fecha}</td><td class="fw-bold text-dark">${e.descripcion}</td><td>${e.proveedor}</td><td class="fw-bold text-danger">-$${parseFloat(e.valor || 0).toFixed(2)}</td><td>${btnDoc}</td></tr>`;
         });
     }
@@ -257,7 +254,8 @@ async function renderizarTodasLasTablasAdmin() {
         ta.innerHTML = '';
         if(actasGlobales.length === 0) ta.innerHTML = `<tr><td colspan="3" class="text-muted py-4">No hay actas registradas.</td></tr>`;
         actasGlobales.forEach(a => {
-            ta.innerHTML += `<tr><td>${a.fecha}</td><td class="fw-bold text-dark">${a.descripcion}</td><td><button class="btn btn-sm btn-dark fw-bold shadow-sm" onclick="verActaPDF(${a.id})"><i class="bi bi-file-pdf-fill me-1"></i>Abrir Acta</button></td></tr>`;
+            const btnDoc = a.tiene_doc ? `<button class="btn btn-sm btn-dark fw-bold shadow-sm" onclick="verActaPDF(${a.id})"><i class="bi bi-file-pdf-fill me-1"></i>Abrir Acta</button>` : '-';
+            ta.innerHTML += `<tr><td>${a.fecha}</td><td class="fw-bold text-dark">${a.descripcion}</td><td>${btnDoc}</td></tr>`;
         });
     }
 
@@ -265,7 +263,6 @@ async function renderizarTodasLasTablasAdmin() {
     if(tc) {
         tc.innerHTML = '';
         usuariosBD.filter(u => u.rol === 'PADRE').forEach(u => {
-            // Conversión numérica forzada (parseFloat)
             tc.innerHTML += `<tr><td class="text-primary fw-bold">${u.username}</td><td>${u.nombre}</td><td class="fw-bold text-dark">$${parseFloat(u.valor_total_pagar || 0).toFixed(2)}</td><td><button class="btn btn-sm btn-warning fw-bold shadow-sm" onclick="abrirModalCuota('${u.username}', ${parseFloat(u.valor_total_pagar || 0)})"><i class="bi bi-pencil-fill me-1"></i>Modificar</button></td></tr>`;
         });
     }
@@ -275,14 +272,15 @@ async function renderizarTodasLasTablasAdmin() {
         tbDocs.innerHTML = '';
         if (contratosGlobales.length === 0) tbDocs.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay contratos registrados.</td></tr>`;
         contratosGlobales.forEach(c => {
-            // Conversión numérica forzada (parseFloat)
-            tbDocs.innerHTML += `<tr><td>${c.fecha}</td><td class="fw-bold text-dark">${c.desc}</td><td>${c.prov}</td><td class="fw-bold text-success">$${parseFloat(c.valor || 0).toFixed(2)}</td><td><div class="form-check form-switch d-flex justify-content-center"><input class="form-check-input" type="checkbox" ${c.visible?'checked':''} onchange="toggleVisibleDoc(${c.id}, this.checked)"></div></td></tr>`;
+            const descripcionC = c.desc || c.descripcion || '';
+            const proveedorC = c.prov || c.proveedor || '';
+            const btnVisible = `<div class="form-check form-switch d-flex justify-content-center"><input class="form-check-input" type="checkbox" ${c.visible?'checked':''} onchange="toggleVisibleDoc(${c.id}, this.checked)"></div>`;
+            tbDocs.innerHTML += `<tr><td>${c.fecha}</td><td class="fw-bold text-dark">${descripcionC}</td><td>${proveedorC}</td><td class="fw-bold text-success">$${parseFloat(c.valor || 0).toFixed(2)}</td><td>${btnVisible}</td></tr>`;
         });
     }
 }
 
 function renderizarDashboardAdmin() {
-    // Conversión numérica forzada (parseFloat) en todos los cálculos del dashboard
     let pagosValidados = pagosGlobales.filter(p => p.estado === 'VALIDADO').reduce((s, p) => s + parseFloat(p.valor || 0), 0);
     let totalIngresos = ingresosGlobales.reduce((s, i) => s + parseFloat(i.valor || 0), 0) + pagosValidados;
     let totalEgresos = egresosGlobales.reduce((s, e) => s + parseFloat(e.valor || 0), 0);
@@ -311,7 +309,7 @@ async function renderizarDashboardCurso() {
             }
         }
     } catch (e) {
-        console.error("Error cargando dashboard por curso", e);
+        console.error("Error cargando dashboard", e);
     }
 }
 
@@ -342,13 +340,35 @@ function actualizarDashboardPadre() {
             const docsVisibles = contratosGlobales.filter(c => c.visible);
             if(docsVisibles.length === 0) tbd.innerHTML = `<tr><td colspan="3" class="text-muted py-4">No hay documentos públicos habilitados.</td></tr>`;
             docsVisibles.forEach(c => {
-                tbd.innerHTML += `<tr><td>${c.fecha}</td><td class="fw-bold text-dark">${c.desc}</td><td><button class="btn btn-sm btn-outline-primary fw-bold shadow-sm" onclick="verDocumentoPDF(${c.id})"><i class="bi bi-file-pdf-fill me-1"></i>Descargar</button></td></tr>`;
+                const descripcionC = c.desc || c.descripcion || '';
+                tbd.innerHTML += `<tr><td>${c.fecha}</td><td class="fw-bold text-dark">${descripcionC}</td><td><button class="btn btn-sm btn-outline-primary fw-bold shadow-sm" onclick="verDocumentoPDF(${c.id})"><i class="bi bi-file-pdf-fill me-1"></i>Ver PDF</button></td></tr>`;
             });
         }
     });
 }
 
-// === FUNCIONES DE LECTURA DE ARCHIVOS (PDF E IMÁGENES) ===
+// ==========================================================
+// FUNCIÓN INFALIBLE PARA ABRIR PDFS E IMÁGENES
+// ==========================================================
+function abrirBase64EnNuevaPestana(base64Data) {
+    if(!base64Data || base64Data.length < 20) {
+        mostrarAlerta("El documento está vacío o no se guardó correctamente.", "❌");
+        return;
+    }
+    // Aseguramos que tenga el formato correcto para que el navegador lo entienda
+    if (!base64Data.startsWith('data:')) {
+        base64Data = 'data:application/pdf;base64,' + base64Data;
+    }
+    const newWindow = window.open("");
+    if (newWindow) {
+        newWindow.document.write(`<iframe width='100%' height='100%' style='border:none; margin:0; padding:0;' src='${base64Data}'></iframe>`);
+        newWindow.document.close();
+    } else {
+        mostrarAlerta("Tu navegador bloqueó la ventana. Por favor, permite las ventanas emergentes (pop-ups) en la barra de direcciones.", "⚠️");
+    }
+}
+
+// === FUNCIONES DE LECTURA DE ARCHIVOS ===
 function leerArchivoComoBase64(file) { 
     return new Promise((res, rej) => { 
         const reader = new FileReader(); 
@@ -358,61 +378,44 @@ function leerArchivoComoBase64(file) {
     }); 
 }
 
-function abrirVoucher(idPago) {
-    const pago = pagosGlobales.find(p => p.id == idPago);
-    if(pago && pago.voucher_b64) {
-        const w = window.open("");
-        w.document.write(`<iframe width='100%' height='100%' style='border:none; margin:0; padding:0;' src='${pago.voucher_b64}'></iframe>`);
-    } else {
-        mostrarAlerta("Este pago no tiene un voucher adjunto.", "❌");
-    }
+async function abrirVoucher(id) {
+    const urlSinCache = `${API_URL}/pagos/ver/${id}?t=${new Date().getTime()}`;
+    const resp = await fetch(urlSinCache);
+    const data = await resp.json();
+    if(data.exito && data.base64) abrirBase64EnNuevaPestana(data.base64);
+    else mostrarAlerta("Voucher no encontrado o corrupto.", "❌");
 }
 
 async function verDocumentoPDF(id) { 
     const urlSinCache = `${API_URL}/documentos/ver/${id}?t=${new Date().getTime()}`;
     const resp = await fetch(urlSinCache); 
     const data = await resp.json(); 
-    if(data.exito && data.base64) { 
-        const win = window.open("");
-        win.document.write(`<iframe width='100%' height='100%' style='border:none; margin:0; padding:0;' src='${data.base64}'></iframe>`);
-    } else {
-        mostrarAlerta("Documento no encontrado o corrupto.", "❌"); 
-    }
+    if(data.exito && data.base64) abrirBase64EnNuevaPestana(data.base64);
+    else mostrarAlerta("Documento no encontrado o corrupto.", "❌"); 
 }
 
 async function verActaPDF(id) { 
     const urlSinCache = `${API_URL}/actas/ver/${id}?t=${new Date().getTime()}`;
     const resp = await fetch(urlSinCache); 
     const data = await resp.json(); 
-    if(data.exito && data.base64) { 
-        const win = window.open("");
-        win.document.write(`<iframe width='100%' height='100%' style='border:none; margin:0; padding:0;' src='${data.base64}'></iframe>`);
-    } else {
-        mostrarAlerta("Acta no encontrada.", "❌"); 
-    }
+    if(data.exito && data.base64) abrirBase64EnNuevaPestana(data.base64);
+    else mostrarAlerta("Acta no encontrada.", "❌"); 
 }
 
 async function verEgresoPDF(id) { 
     const urlSinCache = `${API_URL}/egresos/ver/${id}?t=${new Date().getTime()}`;
     const resp = await fetch(urlSinCache); 
     const data = await resp.json(); 
-    if(data.exito && data.base64) { 
-        const win = window.open("");
-        win.document.write(`<iframe width='100%' height='100%' style='border:none; margin:0; padding:0;' src='${data.base64}'></iframe>`);
-    } else {
-        mostrarAlerta("Factura de egreso no encontrada.", "❌"); 
-    }
+    if(data.exito && data.base64) abrirBase64EnNuevaPestana(data.base64);
+    else mostrarAlerta("Factura de egreso no encontrada.", "❌"); 
 }
 
-// === FUNCIONES DE REGISTRO (CRUD) ===
+// === FUNCIONES DE REGISTRO (CRUD) CON VALIDACIÓN ESTRICTA ===
 async function registrarPago(e) { 
     e.preventDefault(); 
     const fileInput = document.getElementById('pago-voucher-file');
     let voucherB64 = "";
-    
-    if(fileInput && fileInput.files.length > 0) {
-        voucherB64 = await leerArchivoComoBase64(fileInput.files[0]);
-    }
+    if(fileInput && fileInput.files.length > 0) voucherB64 = await leerArchivoComoBase64(fileInput.files[0]);
 
     const p = { 
         usuario: document.getElementById('pago-usuario').value, 
@@ -423,34 +426,25 @@ async function registrarPago(e) {
     }; 
     
     try {
-        const resp = await fetch(`${API_URL}/pagos`, { 
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) 
-        }); 
+        const resp = await fetch(`${API_URL}/pagos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) }); 
         const data = await resp.json();
-
         if(resp.ok && data.exito) {
             bootstrap.Modal.getInstance(document.getElementById('modalPago')).hide(); 
             document.getElementById('form-pago').reset(); 
             limpiarFeedbackArchivos();
-            mostrarAlerta("Pago registrado exitosamente con su voucher adjunto.", "✅"); 
+            mostrarAlerta("Pago registrado exitosamente.", "✅"); 
             renderizarTodasLasTablasAdmin(); 
         } else {
-            mostrarAlerta("Error al guardar: " + data.mensaje, "❌");
+            mostrarAlerta("Error al guardar en la base de datos: " + data.mensaje, "❌");
         }
-    } catch(error) {
-        mostrarAlerta("Error de conexión al intentar guardar.", "❌");
-    }
+    } catch(error) { mostrarAlerta("Error de conexión al servidor.", "❌"); }
 }
 
 async function registrarEgreso(e) {
     e.preventDefault();
     const file = document.getElementById('egreso-file').files[0];
-    let b64 = "";
-    let fileName = "";
-    if(file) {
-        b64 = await leerArchivoComoBase64(file);
-        fileName = file.name;
-    }
+    let b64 = "", fileName = "";
+    if(file) { b64 = await leerArchivoComoBase64(file); fileName = file.name; }
 
     const p = {
         fecha: document.getElementById('egreso-fecha').value,
@@ -460,21 +454,27 @@ async function registrarEgreso(e) {
         archivoNombre: fileName,
         archivoData: b64
     };
-    await fetch(`${API_URL}/egresos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
-    bootstrap.Modal.getInstance(document.getElementById('modalEgreso')).hide();
-    document.getElementById('form-egreso').reset();
-    limpiarFeedbackArchivos();
-    mostrarAlerta("Egreso registrado correctamente.", "✅");
-    renderizarTodasLasTablasAdmin();
+    
+    try {
+        const resp = await fetch(`${API_URL}/egresos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+        const data = await resp.json();
+        if(resp.ok && data.exito) {
+            bootstrap.Modal.getInstance(document.getElementById('modalEgreso')).hide();
+            document.getElementById('form-egreso').reset();
+            limpiarFeedbackArchivos();
+            mostrarAlerta("Egreso registrado correctamente.", "✅");
+            renderizarTodasLasTablasAdmin();
+        } else {
+            mostrarAlerta("Error al registrar egreso: " + data.mensaje, "❌");
+        }
+    } catch(error) { mostrarAlerta("Error de conexión al servidor.", "❌"); }
 }
 
 async function subirActa(e) {
     e.preventDefault();
     const file = document.getElementById('acta-file').files[0];
-    if(!file) {
-        mostrarAlerta("Por favor, selecciona un documento PDF.", "⚠️");
-        return;
-    }
+    if(!file) { mostrarAlerta("Por favor, selecciona un documento PDF.", "⚠️"); return; }
+    
     const b64 = await leerArchivoComoBase64(file);
     const p = {
         fecha: document.getElementById('acta-fecha').value,
@@ -482,12 +482,20 @@ async function subirActa(e) {
         archivoNombre: file.name,
         archivoData: b64
     };
-    await fetch(`${API_URL}/actas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
-    bootstrap.Modal.getInstance(document.getElementById('modalActa')).hide();
-    document.getElementById('form-acta').reset();
-    limpiarFeedbackArchivos();
-    mostrarAlerta("Acta subida correctamente.", "✅");
-    renderizarTodasLasTablasAdmin();
+    
+    try {
+        const resp = await fetch(`${API_URL}/actas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+        const data = await resp.json();
+        if(resp.ok && data.exito) {
+            bootstrap.Modal.getInstance(document.getElementById('modalActa')).hide();
+            document.getElementById('form-acta').reset();
+            limpiarFeedbackArchivos();
+            mostrarAlerta("Acta subida y guardada correctamente.", "✅");
+            renderizarTodasLasTablasAdmin();
+        } else {
+            mostrarAlerta("Error al subir acta: " + data.mensaje, "❌");
+        }
+    } catch(error) { mostrarAlerta("Error de conexión al servidor.", "❌"); }
 }
 
 function abrirModalUsuario(username = null) {
@@ -523,24 +531,26 @@ async function guardarUsuario(e) {
         curso: document.getElementById('usu-curso').value, 
         password: document.getElementById('usu-clave').value 
     };
-    await fetch(`${API_URL}/usuarios`, { 
-        method: document.getElementById('usu-modo').value === "CREAR" ? 'POST' : 'PUT', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify(payload) 
-    });
-    bootstrap.Modal.getInstance(document.getElementById('modalUsuario')).hide();
-    mostrarAlerta("Usuario guardado exitosamente.", "✅");
-    renderizarTodasLasTablasAdmin();
+    
+    try {
+        const method = document.getElementById('usu-modo').value === "CREAR" ? 'POST' : 'PUT';
+        const resp = await fetch(`${API_URL}/usuarios`, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const data = await resp.json();
+        
+        if(resp.ok && data.exito) {
+            bootstrap.Modal.getInstance(document.getElementById('modalUsuario')).hide();
+            mostrarAlerta("Usuario guardado en la base de datos.", "✅");
+            renderizarTodasLasTablasAdmin();
+        } else {
+            mostrarAlerta("Error al guardar usuario: " + data.mensaje, "❌");
+        }
+    } catch(error) { mostrarAlerta("Error de conexión al servidor.", "❌"); }
 }
 
 async function toggleEstadoUsuario(username) {
     const u = usuariosBD.find(x => x.username === username);
     const nuevoEstado = u.estado === "ACTIVO" ? "INACTIVO" : "ACTIVO";
-    await fetch(`${API_URL}/usuarios/estado`, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ username: username, estado: nuevoEstado }) 
-    });
+    await fetch(`${API_URL}/usuarios/estado`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: username, estado: nuevoEstado }) });
     renderizarTodasLasTablasAdmin();
 }
 
@@ -580,10 +590,7 @@ async function guardarNuevaCuota(e) {
 async function subirDocumento(e, tipo) { 
     e.preventDefault(); 
     const file = document.getElementById('ctr-file').files[0]; 
-    if(!file) {
-        mostrarAlerta("Por favor, selecciona un documento.", "⚠️");
-        return;
-    }
+    if(!file) { mostrarAlerta("Por favor, selecciona un documento.", "⚠️"); return; }
     const b64 = await leerArchivoComoBase64(file); 
     const p = { 
         tipo: tipo, 
@@ -595,12 +602,19 @@ async function subirDocumento(e, tipo) {
         archivoData: b64, 
         visible: document.getElementById('ctr-visible').checked ? 1 : 0 
     }; 
-    await fetch(`${API_URL}/documentos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) }); 
-    bootstrap.Modal.getInstance(document.getElementById('modalContrato')).hide(); 
-    document.getElementById('form-contrato').reset(); 
-    limpiarFeedbackArchivos();
-    mostrarAlerta("Contrato subido a la base de datos.", "✅"); 
-    renderizarTodasLasTablasAdmin(); 
+    try {
+        const resp = await fetch(`${API_URL}/documentos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) }); 
+        const data = await resp.json();
+        if(resp.ok && data.exito) {
+            bootstrap.Modal.getInstance(document.getElementById('modalContrato')).hide(); 
+            document.getElementById('form-contrato').reset(); 
+            limpiarFeedbackArchivos();
+            mostrarAlerta("Contrato subido y guardado exitosamente.", "✅"); 
+            renderizarTodasLasTablasAdmin(); 
+        } else {
+            mostrarAlerta("Error al guardar: " + data.mensaje, "❌");
+        }
+    } catch(error) { mostrarAlerta("Error de conexión al servidor.", "❌"); }
 }
 
 async function toggleVisibleDoc(id, val) { 
