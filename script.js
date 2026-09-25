@@ -79,18 +79,21 @@ async function cargarDatosDesdeServidor() {
 
 // ================= INYECTOR AUTOMÁTICO DE INTERFAZ (UI) =================
 function inyectarNuevasFunciones() {
+    // 5. CAMBIO ESTRICTO DE NOMBRE (SOLO SIGECO 28)
     document.title = "SIGECO 28";
     const brand = document.querySelector('.navbar-brand');
-    if(brand && !brand.innerText.includes('28')) brand.innerHTML = brand.innerHTML.replace('SIGECO', 'SIGECO 28');
+    if (brand) brand.innerHTML = '<i class="bi bi-shield-check me-2"></i>SIGECO 28';
 
+    // Restringir Pagos a solo Imágenes JPG
     const filePago = document.getElementById('pago-voucher-file');
     if(filePago) {
         filePago.setAttribute('accept', '.jpg, .jpeg');
         filePago.setAttribute('title', 'Solo se permiten imágenes JPG');
     }
 
-    const adminPortal = document.getElementById('portal-admin');
-    if (adminPortal && !document.getElementById('filtro-curso-global')) {
+    // 1. FILTRO DE CURSO AISLADO (SOLO EN RESUMEN DE CURSO)
+    const adminModuloCurso = document.getElementById('admin-modulo-curso');
+    if (adminModuloCurso && !document.getElementById('filtro-curso-global')) {
         const filtroHTML = `
         <div class="card shadow-sm mb-4 border-primary" id="filtro-curso-global">
             <div class="card-body d-flex align-items-center bg-light rounded">
@@ -100,9 +103,10 @@ function inyectarNuevasFunciones() {
                 </select>
             </div>
         </div>`;
-        adminPortal.insertAdjacentHTML('afterbegin', filtroHTML);
+        adminModuloCurso.insertAdjacentHTML('afterbegin', filtroHTML);
     }
 
+    // Crear Modal de Actividades si no existe
     if (!document.getElementById('modalActividad')) {
         const modalHTML = `
         <div class="modal fade" id="modalActividad" tabindex="-1">
@@ -119,7 +123,7 @@ function inyectarNuevasFunciones() {
                             <div class="mb-3"><label class="fw-bold">Fecha</label><input type="date" class="form-control" id="act-fecha" required></div>
                             <div class="mb-3"><label class="fw-bold">Valor Recaudado ($)</label><input type="number" step="0.01" class="form-control" id="act-valor" required></div>
                             <div class="mb-3">
-                                <label class="fw-bold">Documento de Respaldo (PDF)</label>
+                                <label class="fw-bold">Documento de Respaldo (PDF - Máx 3MB)</label>
                                 <input type="file" class="form-control" id="act-file" accept=".pdf" required>
                                 <div id="feedback-act-file" class="text-success small mt-1 oculto"></div>
                             </div>
@@ -142,6 +146,7 @@ function inyectarNuevasFunciones() {
         });
     }
 
+    const adminPortal = document.getElementById('portal-admin');
     if (adminPortal && !document.getElementById('admin-modulo-actividades')) {
         const moduloHTML = `
         <div id="admin-modulo-actividades" class="oculto mb-4">
@@ -260,7 +265,9 @@ function cerrarMenuMobile() {
 }
 
 function cambiarModuloAdmin(modulo, el) {
-    document.querySelectorAll('#portal-admin > div').forEach(d => { if(d.id !== 'filtro-curso-global') d.classList.add('oculto'); });
+    document.querySelectorAll('#portal-admin > div').forEach(d => { 
+        if(d.id && d.id.startsWith('admin-modulo-')) d.classList.add('oculto'); 
+    });
     document.querySelectorAll('#menu-navegacion .nav-link').forEach(n => n.classList.remove('active'));
     const div = document.getElementById(`admin-modulo-${modulo}`);
     if (div) div.classList.remove('oculto');
@@ -427,7 +434,7 @@ async function renderizarDashboardCurso() {
     } catch (e) { console.error("Error cargando dashboard", e); }
 }
 
-// ================= EL TABLERO DE LOS PADRES AHORA INCLUYE ACTIVIDADES =================
+// ================= 4. TABLERO DE LOS PADRES SEPARADO EN SECCIONES =================
 function actualizarDashboardPadre() {
     cargarDatosDesdeServidor().then(() => {
         const userDatos = usuariosBD.find(u => u.username === usuarioActual.username);
@@ -449,74 +456,102 @@ function actualizarDashboardPadre() {
             });
         }
 
-        const tbd = document.getElementById('tabla-docs-padre'); 
-        if(tbd) {
-            tbd.innerHTML = '';
+        const vistaDocs = document.getElementById('padre-vista-documentos'); 
+        if(vistaDocs) {
             const docsVisibles = contratosGlobales.filter(c => c.visible);
-            
-            // El padre solo ve las actividades de SU curso.
             const misActividades = actividadesGlobales.filter(a => a.curso === userDatos.curso);
             
-            if(docsVisibles.length === 0 && actasGlobales.length === 0 && misActividades.length === 0) {
-                tbd.innerHTML = `<tr><td colspan="3" class="text-muted py-4">No hay documentos públicos habilitados en este momento.</td></tr>`;
-            } else {
-                // 1. Mostrar Contratos Generales
-                docsVisibles.forEach(c => {
-                    const descripcionC = c.desc || c.descripcion || '';
-                    tbd.innerHTML += `<tr><td>${c.fecha}</td><td class="fw-bold text-dark">${descripcionC}</td><td><button class="btn btn-sm btn-outline-primary fw-bold shadow-sm" onclick="verDocumentoPDF(${c.id})"><i class="bi bi-file-pdf-fill me-1"></i>Ver Documento</button></td></tr>`;
-                });
-                
-                // 2. Mostrar Actividades Extra del curso del padre
-                if(misActividades.length > 0) {
-                    tbd.innerHTML += `<tr><td colspan="3" class="bg-light text-center fw-bold text-success border-bottom-0 pt-4"><i class="bi bi-cash-coin me-2"></i>INGRESOS POR ACTIVIDADES (CURSO: ${userDatos.curso})</td></tr>`;
-                    misActividades.forEach(a => {
-                        const btnDoc = a.tiene_doc ? `<button class="btn btn-sm btn-outline-success fw-bold shadow-sm" onclick="verActividadPDF(${a.id})"><i class="bi bi-file-pdf-fill me-1"></i>Ver Respaldo</button>` : '-';
-                        tbd.innerHTML += `<tr><td>${a.fecha}</td><td class="fw-bold text-dark">${a.descripcion} <br><small class="text-success">+$${parseFloat(a.valor||0).toFixed(2)}</small></td><td>${btnDoc}</td></tr>`;
-                    });
-                }
+            let htmlContratos = docsVisibles.length === 0 ? `<tr><td colspan="3" class="text-muted py-4">No hay contratos públicos habilitados.</td></tr>` : '';
+            docsVisibles.forEach(c => {
+                const descripcionC = c.desc || c.descripcion || '';
+                htmlContratos += `<tr><td>${c.fecha}</td><td class="fw-bold text-dark">${descripcionC}</td><td><button class="btn btn-sm btn-outline-primary fw-bold shadow-sm" onclick="verDocumentoPDF(${c.id})"><i class="bi bi-file-pdf-fill me-1"></i>Ver Documento</button></td></tr>`;
+            });
 
-                // 3. Mostrar las Actas de Reuniones
-                if(actasGlobales.length > 0) {
-                    tbd.innerHTML += `<tr><td colspan="3" class="bg-light text-center fw-bold text-secondary border-bottom-0 pt-4"><i class="bi bi-briefcase-fill me-2"></i>ACTAS DE REUNIONES Y COMITÉ</td></tr>`;
-                    actasGlobales.forEach(a => {
-                        tbd.innerHTML += `<tr><td>${a.fecha}</td><td class="fw-bold text-dark">${a.descripcion}</td><td><button class="btn btn-sm btn-dark fw-bold shadow-sm" onclick="verActaPDF(${a.id})"><i class="bi bi-file-pdf-fill me-1"></i>Abrir Acta</button></td></tr>`;
-                    });
-                }
-            }
+            let htmlActividades = misActividades.length === 0 ? `<tr><td colspan="3" class="text-muted py-4">No hay actividades extra registradas en tu curso.</td></tr>` : '';
+            misActividades.forEach(a => {
+                const btnDoc = a.tiene_doc ? `<button class="btn btn-sm btn-outline-success fw-bold shadow-sm" onclick="verActividadPDF(${a.id})"><i class="bi bi-file-pdf-fill me-1"></i>Ver Respaldo</button>` : '-';
+                htmlActividades += `<tr><td>${a.fecha}</td><td class="fw-bold text-dark">${a.descripcion} <br><small class="text-success">+$${parseFloat(a.valor||0).toFixed(2)}</small></td><td>${btnDoc}</td></tr>`;
+            });
+
+            let htmlActas = actasGlobales.length === 0 ? `<tr><td colspan="3" class="text-muted py-4">No hay actas de reuniones disponibles.</td></tr>` : '';
+            actasGlobales.forEach(a => {
+                htmlActas += `<tr><td>${a.fecha}</td><td class="fw-bold text-dark">${a.descripcion}</td><td><button class="btn btn-sm btn-dark fw-bold shadow-sm" onclick="verActaPDF(${a.id})"><i class="bi bi-file-pdf-fill me-1"></i>Abrir Acta</button></td></tr>`;
+            });
+
+            // Reconstrucción del HTML dividiendo las vistas
+            vistaDocs.innerHTML = `
+                <h4 class="fw-bold text-dark mb-4 border-bottom pb-2"><i class="bi bi-folder2-open-fill me-2"></i>Documentos y Registros</h4>
+                
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white fw-bold"><i class="bi bi-file-earmark-text-fill me-2"></i>1. Contratos Vigentes</div>
+                    <div class="table-responsive"><table class="table table-hover align-middle text-center mb-0"><thead class="table-light"><tr><th>Fecha</th><th>Descripción</th><th>Documento</th></tr></thead><tbody>${htmlContratos}</tbody></table></div>
+                </div>
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-success text-white fw-bold"><i class="bi bi-cash-coin me-2"></i>2. Ingresos por Actividades (Tu Curso: ${userDatos.curso})</div>
+                    <div class="table-responsive"><table class="table table-hover align-middle text-center mb-0"><thead class="table-light"><tr><th>Fecha</th><th>Descripción</th><th>Documento</th></tr></thead><tbody>${htmlActividades}</tbody></table></div>
+                </div>
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-secondary text-white fw-bold"><i class="bi bi-briefcase-fill me-2"></i>3. Actas de Reuniones del Comité</div>
+                    <div class="table-responsive"><table class="table table-hover align-middle text-center mb-0"><thead class="table-light"><tr><th>Fecha</th><th>Descripción</th><th>Documento</th></tr></thead><tbody>${htmlActas}</tbody></table></div>
+                </div>
+            `;
         }
     });
 }
 
+// ================= 3. DESCARGA INFALIBLE CON TECNOLOGÍA BLOB =================
 async function descargarArchivoInmune(url, nombreDefault) {
     try {
         const resp = await fetch(url);
         const data = await resp.json();
         if (data.exito && data.base64) {
             let b64 = data.base64;
-            if (!b64.startsWith('data:')) {
+            if (!b64.includes('base64,')) {
                 if (b64.startsWith('JVBER')) b64 = 'data:application/pdf;base64,' + b64;
                 else if (b64.startsWith('iVBOR')) b64 = 'data:image/png;base64,' + b64;
                 else if (b64.startsWith('/9j/')) b64 = 'data:image/jpeg;base64,' + b64;
                 else b64 = 'data:application/pdf;base64,' + b64; 
             }
+            
+            // Convertir de Base64 a archivo físico Blob (Soporta PDFs pesados)
+            const arr = b64.split(',');
+            const mime = arr[0].match(/:(.*?);/)[1];
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while(n--){ u8arr[n] = bstr.charCodeAt(n); }
+            const blob = new Blob([u8arr], {type: mime});
+            
+            // Generar descarga
+            const blobUrl = window.URL.createObjectURL(blob);
             const a = document.createElement("a");
-            a.href = b64;
+            a.style.display = "none";
+            a.href = blobUrl;
             a.download = nombreDefault; 
             document.body.appendChild(a);
             a.click();
+            window.URL.revokeObjectURL(blobUrl);
             document.body.removeChild(a);
         } else { mostrarAlerta("Documento no encontrado o corrupto.", "❌"); }
     } catch (e) { mostrarAlerta("Error al descargar el archivo de la base de datos.", "❌"); }
 }
 
 function abrirVoucher(id) { descargarArchivoInmune(`${API_URL}/pagos/ver/${id}?t=${new Date().getTime()}`, `voucher_pago_${id}.jpg`); }
-function verDocumentoPDF(id) { descargarArchivoInmune(`${API_URL}/documentos/ver/${id}?t=${new Date().getTime()}`, `documento_${id}.pdf`); }
+function verDocumentoPDF(id) { descargarArchivoInmune(`${API_URL}/documentos/ver/${id}?t=${new Date().getTime()}`, `documento_contrato_${id}.pdf`); }
 function verActaPDF(id) { descargarArchivoInmune(`${API_URL}/actas/ver/${id}?t=${new Date().getTime()}`, `acta_reunion_${id}.pdf`); }
 function verEgresoPDF(id) { descargarArchivoInmune(`${API_URL}/egresos/ver/${id}?t=${new Date().getTime()}`, `factura_egreso_${id}.pdf`); }
 function verActividadPDF(id) { descargarArchivoInmune(`${API_URL}/actividades/ver/${id}?t=${new Date().getTime()}`, `respaldo_actividad_${id}.pdf`); }
 
+// ================= 2. PROTECCIÓN CONTRA ARCHIVOS MUY PESADOS =================
 function leerArchivoComoBase64(file) { 
     return new Promise((res, rej) => { 
+        if(file.size > 3500000) { 
+            mostrarAlerta("El archivo es demasiado pesado (Máximo 3.5MB). Vercel bloqueará la subida.", "⚠️");
+            rej("Archivo muy pesado");
+            return;
+        }
         const reader = new FileReader(); 
         reader.onload = () => res(reader.result); 
         reader.onerror = rej; 
@@ -536,7 +571,7 @@ async function registrarPago(e) {
             limpiarFeedbackArchivos();
             return; 
         }
-        voucherB64 = await leerArchivoComoBase64(f);
+        try { voucherB64 = await leerArchivoComoBase64(f); } catch(err) { return; }
     }
 
     const p = { 
@@ -564,7 +599,9 @@ async function registrarActividad(e) {
     const file = document.getElementById('act-file').files[0];
     if(!file) { mostrarAlerta("Debes adjuntar el PDF de respaldo.", "⚠️"); return; }
     
-    const b64 = await leerArchivoComoBase64(file);
+    let b64 = "";
+    try { b64 = await leerArchivoComoBase64(file); } catch(err) { return; }
+
     const p = {
         curso: document.getElementById('act-curso').value.trim(),
         descripcion: document.getElementById('act-desc').value.trim(),
@@ -591,7 +628,10 @@ async function registrarEgreso(e) {
     e.preventDefault();
     const file = document.getElementById('egreso-file').files[0];
     let b64 = "", fileName = "";
-    if(file) { b64 = await leerArchivoComoBase64(file); fileName = file.name; }
+    if(file) { 
+        try { b64 = await leerArchivoComoBase64(file); fileName = file.name; } 
+        catch(err) { return; } 
+    }
 
     const p = {
         fecha: document.getElementById('egreso-fecha').value,
@@ -618,7 +658,10 @@ async function subirActa(e) {
     e.preventDefault();
     const file = document.getElementById('acta-file').files[0];
     if(!file) { mostrarAlerta("Por favor, selecciona un documento PDF.", "⚠️"); return; }
-    const b64 = await leerArchivoComoBase64(file);
+    
+    let b64 = "";
+    try { b64 = await leerArchivoComoBase64(file); } catch(err) { return; }
+    
     const p = {
         fecha: document.getElementById('acta-fecha').value,
         descripcion: document.getElementById('acta-desc').value,
@@ -714,7 +757,10 @@ async function subirDocumento(e, tipo) {
     e.preventDefault(); 
     const file = document.getElementById('ctr-file').files[0]; 
     if(!file) { mostrarAlerta("Por favor, selecciona un documento.", "⚠️"); return; }
-    const b64 = await leerArchivoComoBase64(file); 
+    
+    let b64 = "";
+    try { b64 = await leerArchivoComoBase64(file); } catch(err) { return; }
+    
     const p = { 
         tipo: tipo, 
         fecha: document.getElementById('ctr-fecha').value, 
