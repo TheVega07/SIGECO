@@ -7,7 +7,6 @@ from decimal import Decimal
 app = Flask(__name__)
 CORS(app)
 
-# Destructor de caché estricto para Vercel
 @app.after_request
 def add_header(response):
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
@@ -26,9 +25,6 @@ db_config = {
 def get_db_connection():
     return mysql.connector.connect(**db_config)
 
-# ==========================================
-# SANITIZADOR DE DATOS (Evita el Error 500)
-# ==========================================
 def sanitize_row(row):
     if not row:
         return row
@@ -49,9 +45,6 @@ def sanitize_list(rows):
         return []
     return [sanitize_row(r) for r in rows]
 
-# ==========================================
-# RUTAS DE AUTENTICACIÓN Y DESCARGA GENERAL
-# ==========================================
 @app.route('/api/login', methods=['POST'])
 def login():
     try:
@@ -83,7 +76,7 @@ def obtener_datos():
         
         resp_data = {
             "usuarios": [], "pagos": [], "ingresos": [], 
-            "egresos": [], "contratos": [], "actas": []
+            "egresos": [], "contratos": [], "actas": [], "actividades": []
         }
         
         try:
@@ -132,6 +125,15 @@ def obtener_datos():
             resp_data["actas"] = sanitize_list(actas)
         except: pass
 
+        try:
+            cursor.execute("SELECT * FROM actividades")
+            actividades = cursor.fetchall()
+            for a in actividades:
+                a['tiene_doc'] = 1 if a.get('archivoData') else 0
+                a.pop('archivoData', None)
+            resp_data["actividades"] = sanitize_list(actividades)
+        except: pass
+
         cursor.close()
         conexion.close()
 
@@ -139,23 +141,19 @@ def obtener_datos():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ==========================================
-# RUTAS DE USUARIOS
-# ==========================================
+# ================= RUTAS USUARIOS =================
 @app.route('/api/usuarios', methods=['POST', 'PUT'])
 def guardar_usuario():
     try:
         data = request.get_json()
         conexion = get_db_connection()
         cursor = conexion.cursor()
-        
         if request.method == 'POST':
             sql = "INSERT INTO usuarios (username, nombre, rol, curso, password, estado, valor_total_pagar, debe_cambiar_clave) VALUES (%s, %s, %s, %s, %s, 'ACTIVO', 0, 1)"
             val = (data['username'], data['nombre'], data['rol'], data['curso'], data['password'])
         else:
             sql = "UPDATE usuarios SET nombre=%s, rol=%s, curso=%s WHERE username=%s"
             val = (data['nombre'], data['rol'], data['curso'], data['username'])
-            
         cursor.execute(sql, val)
         conexion.commit()
         cursor.close()
@@ -206,9 +204,7 @@ def cuota_usuario():
     except Exception as e:
         return jsonify({"exito": False, "mensaje": str(e)})
 
-# ==========================================
-# RUTAS DE PAGOS Y DOCUMENTOS
-# ==========================================
+# ================= RUTAS PAGOS Y DOCUMENTOS =================
 @app.route('/api/pagos', methods=['POST'])
 def registrar_pago():
     try:
@@ -245,7 +241,6 @@ def subir_documento():
         data = request.get_json()
         conexion = get_db_connection()
         cursor = conexion.cursor()
-        # Se corrigió "desc" por "descripcion" y "prov" por "proveedor"
         sql = "INSERT INTO documentos (tipo, fecha, descripcion, proveedor, valor, archivoNombre, archivoData, visible) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
         val = (data['tipo'], data['fecha'], data['desc'], data['prov'], data['valor'], data['archivoNombre'], data['archivoData'], data['visible'])
         cursor.execute(sql, val)
@@ -279,11 +274,9 @@ def ver_documento(id):
         doc = cursor.fetchone()
         cursor.close()
         conexion.close()
-        if doc and doc['archivoData']:
-            return jsonify({"exito": True, "base64": doc['archivoData']})
+        if doc and doc['archivoData']: return jsonify({"exito": True, "base64": doc['archivoData']})
         return jsonify({"exito": False, "mensaje": "No encontrado"})
-    except Exception as e:
-        return jsonify({"exito": False, "mensaje": str(e)})
+    except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
 
 @app.route('/api/pagos/ver/<int:id>', methods=['GET'])
 def ver_voucher(id):
@@ -294,12 +287,11 @@ def ver_voucher(id):
         doc = cursor.fetchone()
         cursor.close()
         conexion.close()
-        if doc and doc['voucher_b64']:
-            return jsonify({"exito": True, "base64": doc['voucher_b64']})
+        if doc and doc['voucher_b64']: return jsonify({"exito": True, "base64": doc['voucher_b64']})
         return jsonify({"exito": False, "mensaje": "No encontrado"})
-    except Exception as e:
-        return jsonify({"exito": False, "mensaje": str(e)})
+    except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
 
+# ================= RUTAS EGRESOS, ACTAS Y ACTIVIDADES =================
 @app.route('/api/egresos', methods=['POST'])
 def registrar_egreso():
     try:
@@ -313,8 +305,7 @@ def registrar_egreso():
         cursor.close()
         conexion.close()
         return jsonify({"exito": True})
-    except Exception as e:
-        return jsonify({"exito": False, "mensaje": str(e)})
+    except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
 
 @app.route('/api/egresos/ver/<int:id>', methods=['GET'])
 def ver_egreso(id):
@@ -325,11 +316,9 @@ def ver_egreso(id):
         doc = cursor.fetchone()
         cursor.close()
         conexion.close()
-        if doc and doc['archivoData']:
-            return jsonify({"exito": True, "base64": doc['archivoData']})
+        if doc and doc['archivoData']: return jsonify({"exito": True, "base64": doc['archivoData']})
         return jsonify({"exito": False, "mensaje": "No encontrado"})
-    except Exception as e:
-        return jsonify({"exito": False, "mensaje": str(e)})
+    except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
 
 @app.route('/api/actas', methods=['POST'])
 def subir_acta():
@@ -344,8 +333,7 @@ def subir_acta():
         cursor.close()
         conexion.close()
         return jsonify({"exito": True})
-    except Exception as e:
-        return jsonify({"exito": False, "mensaje": str(e)})
+    except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
 
 @app.route('/api/actas/ver/<int:id>', methods=['GET'])
 def ver_acta(id):
@@ -356,11 +344,37 @@ def ver_acta(id):
         doc = cursor.fetchone()
         cursor.close()
         conexion.close()
-        if doc and doc['archivoData']:
-            return jsonify({"exito": True, "base64": doc['archivoData']})
+        if doc and doc['archivoData']: return jsonify({"exito": True, "base64": doc['archivoData']})
         return jsonify({"exito": False, "mensaje": "No encontrado"})
-    except Exception as e:
-        return jsonify({"exito": False, "mensaje": str(e)})
+    except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
+
+@app.route('/api/actividades', methods=['POST'])
+def subir_actividad():
+    try:
+        data = request.get_json()
+        conexion = get_db_connection()
+        cursor = conexion.cursor()
+        sql = "INSERT INTO actividades (curso, descripcion, fecha, valor, archivoNombre, archivoData) VALUES (%s, %s, %s, %s, %s, %s)"
+        val = (data['curso'], data['descripcion'], data['fecha'], data['valor'], data['archivoNombre'], data['archivoData'])
+        cursor.execute(sql, val)
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        return jsonify({"exito": True})
+    except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
+
+@app.route('/api/actividades/ver/<int:id>', methods=['GET'])
+def ver_actividad(id):
+    try:
+        conexion = get_db_connection()
+        cursor = conexion.cursor(dictionary=True)
+        cursor.execute("SELECT archivoData FROM actividades WHERE id = %s", (id,))
+        doc = cursor.fetchone()
+        cursor.close()
+        conexion.close()
+        if doc and doc['archivoData']: return jsonify({"exito": True, "base64": doc['archivoData']})
+        return jsonify({"exito": False, "mensaje": "No encontrado"})
+    except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
 
 @app.route('/api/dashboard/curso', methods=['GET'])
 def dashboard_curso():
