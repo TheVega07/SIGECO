@@ -79,19 +79,16 @@ async function cargarDatosDesdeServidor() {
 
 // ================= INYECTOR AUTOMÁTICO DE INTERFAZ (UI) =================
 function inyectarNuevasFunciones() {
-    // 5. CAMBIO ESTRICTO DE NOMBRE (SOLO SIGECO 28)
     document.title = "SIGECO 28";
     const brand = document.querySelector('.navbar-brand');
     if (brand) brand.innerHTML = '<i class="bi bi-shield-check me-2"></i>SIGECO 28';
 
-    // Restringir Pagos a solo Imágenes JPG
     const filePago = document.getElementById('pago-voucher-file');
     if(filePago) {
         filePago.setAttribute('accept', '.jpg, .jpeg');
         filePago.setAttribute('title', 'Solo se permiten imágenes JPG');
     }
 
-    // 1. FILTRO DE CURSO AISLADO (SOLO EN RESUMEN DE CURSO)
     const adminModuloCurso = document.getElementById('admin-modulo-curso');
     if (adminModuloCurso && !document.getElementById('filtro-curso-global')) {
         const filtroHTML = `
@@ -106,7 +103,7 @@ function inyectarNuevasFunciones() {
         adminModuloCurso.insertAdjacentHTML('afterbegin', filtroHTML);
     }
 
-    // Crear Modal de Actividades si no existe
+    // Modal modificado: Ahora el Curso es un <select> en lugar de un <input> de texto libre
     if (!document.getElementById('modalActividad')) {
         const modalHTML = `
         <div class="modal fade" id="modalActividad" tabindex="-1">
@@ -118,7 +115,12 @@ function inyectarNuevasFunciones() {
                     </div>
                     <div class="modal-body">
                         <form id="form-actividad">
-                            <div class="mb-3"><label class="fw-bold">Curso / Paralelo</label><input type="text" class="form-control" id="act-curso" required placeholder="Ej: 8vo B"></div>
+                            <div class="mb-3">
+                                <label class="fw-bold">Curso / Paralelo</label>
+                                <select class="form-select" id="act-curso" required>
+                                    <option value="" disabled selected>Cargando cursos...</option>
+                                </select>
+                            </div>
                             <div class="mb-3"><label class="fw-bold">Descripción (Ej. Rifa, Bingo)</label><input type="text" class="form-control" id="act-desc" required></div>
                             <div class="mb-3"><label class="fw-bold">Fecha</label><input type="date" class="form-control" id="act-fecha" required></div>
                             <div class="mb-3"><label class="fw-bold">Valor Recaudado ($)</label><input type="number" step="0.01" class="form-control" id="act-valor" required></div>
@@ -289,14 +291,27 @@ function aplicarFiltroCurso(curso) {
     renderizarTodasLasTablasAdmin();
 }
 
+// ================= SELECTORES ACTUALIZADOS AUTOMÁTICAMENTE =================
 function actualizarSelectCursos() {
     const select = document.getElementById('select-filtro-curso');
-    if(!select) return;
+    const selectAct = document.getElementById('act-curso'); // El nuevo select del modal
     const cursos = [...new Set(usuariosBD.map(u => u.curso).filter(c => c && c.trim() !== ''))].sort();
-    const valorActual = select.value;
-    select.innerHTML = '<option value="TODOS">Todos los Cursos (General)</option>';
-    cursos.forEach(c => { select.innerHTML += `<option value="${c}">Solo mostrar ${c}</option>`; });
-    if(cursos.includes(valorActual)) select.value = valorActual;
+    
+    // 1. Actualizar Filtro General
+    if(select) {
+        const valorActual = select.value;
+        select.innerHTML = '<option value="TODOS">Todos los Cursos (General)</option>';
+        cursos.forEach(c => { select.innerHTML += `<option value="${c}">Solo mostrar ${c}</option>`; });
+        if(cursos.includes(valorActual)) select.value = valorActual;
+    }
+
+    // 2. Actualizar Select del Modal Actividades
+    if(selectAct && selectAct.tagName === 'SELECT') {
+        const valAct = selectAct.value;
+        selectAct.innerHTML = '<option value="" disabled selected>-- Seleccione el Curso --</option>';
+        cursos.forEach(c => { selectAct.innerHTML += `<option value="${c}">${c}</option>`; });
+        if(cursos.includes(valAct)) selectAct.value = valAct;
+    }
 }
 
 async function renderizarTodasLasTablasAdmin() {
@@ -307,13 +322,14 @@ async function renderizarTodasLasTablasAdmin() {
     let pagosParaRender = pagosGlobales;
     let actividadesParaRender = actividadesGlobales;
 
+    // Filtro con validación robusta
     if (cursoFiltroActual !== "TODOS") {
-        usuariosParaRender = usuariosBD.filter(u => u.curso === cursoFiltroActual);
+        usuariosParaRender = usuariosBD.filter(u => (u.curso||'').trim().toUpperCase() === cursoFiltroActual.trim().toUpperCase());
         pagosParaRender = pagosGlobales.filter(p => {
             let u = usuariosBD.find(x => x.username === p.usuario);
-            return u && u.curso === cursoFiltroActual;
+            return u && (u.curso||'').trim().toUpperCase() === cursoFiltroActual.trim().toUpperCase();
         });
-        actividadesParaRender = actividadesGlobales.filter(a => a.curso === cursoFiltroActual);
+        actividadesParaRender = actividadesGlobales.filter(a => (a.curso||'').trim().toUpperCase() === cursoFiltroActual.trim().toUpperCase());
     }
 
     renderizarDashboardAdmin(pagosParaRender, actividadesParaRender);
@@ -434,7 +450,7 @@ async function renderizarDashboardCurso() {
     } catch (e) { console.error("Error cargando dashboard", e); }
 }
 
-// ================= 4. TABLERO DE LOS PADRES SEPARADO EN SECCIONES =================
+// ================= FILTRO A PRUEBA DE BALAS PARA PADRES =================
 function actualizarDashboardPadre() {
     cargarDatosDesdeServidor().then(() => {
         const userDatos = usuariosBD.find(u => u.username === usuarioActual.username);
@@ -459,7 +475,13 @@ function actualizarDashboardPadre() {
         const vistaDocs = document.getElementById('padre-vista-documentos'); 
         if(vistaDocs) {
             const docsVisibles = contratosGlobales.filter(c => c.visible);
-            const misActividades = actividadesGlobales.filter(a => a.curso === userDatos.curso);
+            
+            // FILTRO A PRUEBA DE BALAS: Compara en mayúsculas y sin espacios
+            const cursoPadreLimpio = (userDatos.curso || '').trim().toUpperCase();
+            const misActividades = actividadesGlobales.filter(a => {
+                const cursoActLimpio = (a.curso || '').trim().toUpperCase();
+                return cursoActLimpio === cursoPadreLimpio;
+            });
             
             let htmlContratos = docsVisibles.length === 0 ? `<tr><td colspan="3" class="text-muted py-4">No hay contratos públicos habilitados.</td></tr>` : '';
             docsVisibles.forEach(c => {
@@ -478,7 +500,6 @@ function actualizarDashboardPadre() {
                 htmlActas += `<tr><td>${a.fecha}</td><td class="fw-bold text-dark">${a.descripcion}</td><td><button class="btn btn-sm btn-dark fw-bold shadow-sm" onclick="verActaPDF(${a.id})"><i class="bi bi-file-pdf-fill me-1"></i>Abrir Acta</button></td></tr>`;
             });
 
-            // Reconstrucción del HTML dividiendo las vistas
             vistaDocs.innerHTML = `
                 <h4 class="fw-bold text-dark mb-4 border-bottom pb-2"><i class="bi bi-folder2-open-fill me-2"></i>Documentos y Registros</h4>
                 
@@ -501,7 +522,6 @@ function actualizarDashboardPadre() {
     });
 }
 
-// ================= 3. DESCARGA INFALIBLE CON TECNOLOGÍA BLOB =================
 async function descargarArchivoInmune(url, nombreDefault) {
     try {
         const resp = await fetch(url);
@@ -515,7 +535,6 @@ async function descargarArchivoInmune(url, nombreDefault) {
                 else b64 = 'data:application/pdf;base64,' + b64; 
             }
             
-            // Convertir de Base64 a archivo físico Blob (Soporta PDFs pesados)
             const arr = b64.split(',');
             const mime = arr[0].match(/:(.*?);/)[1];
             const bstr = atob(arr[1]);
@@ -524,7 +543,6 @@ async function descargarArchivoInmune(url, nombreDefault) {
             while(n--){ u8arr[n] = bstr.charCodeAt(n); }
             const blob = new Blob([u8arr], {type: mime});
             
-            // Generar descarga
             const blobUrl = window.URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.style.display = "none";
@@ -544,7 +562,6 @@ function verActaPDF(id) { descargarArchivoInmune(`${API_URL}/actas/ver/${id}?t=$
 function verEgresoPDF(id) { descargarArchivoInmune(`${API_URL}/egresos/ver/${id}?t=${new Date().getTime()}`, `factura_egreso_${id}.pdf`); }
 function verActividadPDF(id) { descargarArchivoInmune(`${API_URL}/actividades/ver/${id}?t=${new Date().getTime()}`, `respaldo_actividad_${id}.pdf`); }
 
-// ================= 2. PROTECCIÓN CONTRA ARCHIVOS MUY PESADOS =================
 function leerArchivoComoBase64(file) { 
     return new Promise((res, rej) => { 
         if(file.size > 3500000) { 
