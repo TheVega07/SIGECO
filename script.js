@@ -1,6 +1,7 @@
 let usuariosBD = [], pagosGlobales = [], ingresosGlobales = [], egresosGlobales = [];
-let contratosGlobales = [], actasGlobales = [], cotizacionesGlobales = [];
+let contratosGlobales = [], actasGlobales = [], actividadesGlobales = [];
 let usuarioActual = null;
+let cursoFiltroActual = "TODOS";
 
 const API_URL = "/api"; 
 
@@ -50,14 +51,11 @@ function mostrarAlerta(mensaje, icono = '✅') {
     const alertaIcono = document.getElementById('alerta-icono');
     const alertaMensaje = document.getElementById('alerta-mensaje');
     const modalElement = document.getElementById('modalAlertaSistema');
-    
     if (alertaIcono && alertaMensaje && modalElement) {
         alertaIcono.innerText = icono;
         alertaMensaje.innerText = mensaje;
         bootstrap.Modal.getOrCreateInstance(modalElement).show();
-    } else {
-        alert(icono + " " + mensaje);
-    }
+    } else { alert(icono + " " + mensaje); }
 }
 
 async function cargarDatosDesdeServidor() {
@@ -72,9 +70,95 @@ async function cargarDatosDesdeServidor() {
         egresosGlobales = data.egresos || [];
         contratosGlobales = data.contratos || [];
         actasGlobales = data.actas || [];
+        actividadesGlobales = data.actividades || [];
     } catch (e) {
         console.error(e);
-        mostrarAlerta("Error al descargar la información de la base de datos. Recarga la página.", "❌");
+        mostrarAlerta("Error al descargar la información de la base de datos.", "❌");
+    }
+}
+
+// ================= INYECTOR AUTOMÁTICO DE INTERFAZ (UI) =================
+function inyectarNuevasFunciones() {
+    document.title = "SIGECO 28";
+    const brand = document.querySelector('.navbar-brand');
+    if(brand && !brand.innerText.includes('28')) brand.innerHTML = brand.innerHTML.replace('SIGECO', 'SIGECO 28');
+
+    const filePago = document.getElementById('pago-voucher-file');
+    if(filePago) {
+        filePago.setAttribute('accept', '.jpg, .jpeg');
+        filePago.setAttribute('title', 'Solo se permiten imágenes JPG');
+    }
+
+    const adminPortal = document.getElementById('portal-admin');
+    if (adminPortal && !document.getElementById('filtro-curso-global')) {
+        const filtroHTML = `
+        <div class="card shadow-sm mb-4 border-primary" id="filtro-curso-global">
+            <div class="card-body d-flex align-items-center bg-light rounded">
+                <label class="fw-bold me-3 mb-0 text-primary"><i class="bi bi-funnel-fill me-2"></i>Filtrar vistas por Curso:</label>
+                <select class="form-select w-auto border-primary shadow-sm" id="select-filtro-curso" onchange="aplicarFiltroCurso(this.value)">
+                    <option value="TODOS">Todos los Cursos (General)</option>
+                </select>
+            </div>
+        </div>`;
+        adminPortal.insertAdjacentHTML('afterbegin', filtroHTML);
+    }
+
+    if (!document.getElementById('modalActividad')) {
+        const modalHTML = `
+        <div class="modal fade" id="modalActividad" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-success text-white">
+                        <h5 class="modal-title"><i class="bi bi-cash-coin me-2"></i>Registrar Ingreso por Actividad</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="form-actividad">
+                            <div class="mb-3"><label class="fw-bold">Curso / Paralelo</label><input type="text" class="form-control" id="act-curso" required placeholder="Ej: 8vo B"></div>
+                            <div class="mb-3"><label class="fw-bold">Descripción (Ej. Rifa, Bingo)</label><input type="text" class="form-control" id="act-desc" required></div>
+                            <div class="mb-3"><label class="fw-bold">Fecha</label><input type="date" class="form-control" id="act-fecha" required></div>
+                            <div class="mb-3"><label class="fw-bold">Valor Recaudado ($)</label><input type="number" step="0.01" class="form-control" id="act-valor" required></div>
+                            <div class="mb-3">
+                                <label class="fw-bold">Documento de Respaldo (PDF)</label>
+                                <input type="file" class="form-control" id="act-file" accept=".pdf" required>
+                                <div id="feedback-act-file" class="text-success small mt-1 oculto"></div>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100 fw-bold">Guardar Actividad</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        document.getElementById('form-actividad').addEventListener('submit', registrarActividad);
+        
+        document.getElementById('act-file').addEventListener('change', function(e) {
+            const fb = document.getElementById('feedback-act-file');
+            if (this.files.length > 0) {
+                fb.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i> ${this.files[0].name}`;
+                fb.classList.remove('oculto');
+                this.classList.add('is-valid');
+            } else { fb.classList.add('oculto'); this.classList.remove('is-valid'); }
+        });
+    }
+
+    if (adminPortal && !document.getElementById('admin-modulo-actividades')) {
+        const moduloHTML = `
+        <div id="admin-modulo-actividades" class="oculto mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="text-success fw-bold"><i class="bi bi-cash-coin me-2"></i>Ingresos por Actividades Extras</h4>
+                <button class="btn btn-success shadow-sm fw-bold" onclick="bootstrap.Modal.getOrCreateInstance(document.getElementById('modalActividad')).show()">
+                    <i class="bi bi-plus-circle me-1"></i> Nueva Actividad
+                </button>
+            </div>
+            <div class="table-responsive bg-white rounded shadow border p-3">
+                <table class="table table-hover align-middle text-center">
+                    <thead class="table-success"><tr><th>Fecha</th><th>Curso</th><th>Descripción</th><th>Valor Recaudado</th><th>Respaldo</th></tr></thead>
+                    <tbody id="tabla-actividades"></tbody>
+                </table>
+            </div>
+        </div>`;
+        adminPortal.insertAdjacentHTML('beforeend', moduloHTML);
     }
 }
 
@@ -82,43 +166,30 @@ async function iniciarSesion(e) {
     e.preventDefault();
     try {
         const resp = await fetch(`${API_URL}/login`, {
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                username: document.getElementById('username').value.trim(), 
-                password: document.getElementById('password').value 
-            })
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: document.getElementById('username').value.trim(), password: document.getElementById('password').value })
         });
         const data = await resp.json();
-
         if (data.exito) {
             await cargarDatosDesdeServidor();
+            inyectarNuevasFunciones(); 
+            
             if(data.usuario.debe_cambiar_clave === 1) {
                 usuarioActual = data.usuario;
                 document.getElementById('vista-login').classList.add('oculto');
                 bootstrap.Modal.getOrCreateInstance(document.getElementById('modalForzarClave')).show();
-            } else {
-                cargarPortalSegunRol(data.usuario);
-            }
+            } else { cargarPortalSegunRol(data.usuario); }
         } else {
             const errDiv = document.getElementById('mensaje-error');
-            if(errDiv) {
-                errDiv.classList.remove('oculto'); 
-                errDiv.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i>${data.mensaje}`;
-            }
+            if(errDiv) { errDiv.classList.remove('oculto'); errDiv.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i>${data.mensaje}`; }
         }
-    } catch (error) { 
-        mostrarAlerta("Error de conexión con el servidor en la nube.", "❌"); 
-    }
+    } catch (error) { mostrarAlerta("Error de conexión con el servidor en la nube.", "❌"); }
 }
 
 async function guardarClaveForzada(e) {
     e.preventDefault();
     const nuevaClave = document.getElementById('nueva-clave-forzada').value;
-    const resp = await fetch(`${API_URL}/usuarios/clave`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: usuarioActual.username, password: nuevaClave, forzar: 0 })
-    });
+    const resp = await fetch(`${API_URL}/usuarios/clave`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: usuarioActual.username, password: nuevaClave, forzar: 0 }) });
     const data = await resp.json();
     if(resp.ok && data.exito){
         usuarioActual.debe_cambiar_clave = 0;
@@ -126,9 +197,7 @@ async function guardarClaveForzada(e) {
         document.getElementById('form-forzar-clave').reset();
         mostrarAlerta('Contraseña actualizada con éxito.', '🔐');
         cargarPortalSegunRol(usuarioActual);
-    } else {
-        mostrarAlerta("Error al cambiar contraseña.", "❌");
-    }
+    } else { mostrarAlerta("Error al cambiar contraseña.", "❌"); }
 }
 
 function cargarPortalSegunRol(usuario) {
@@ -149,6 +218,7 @@ function cargarPortalSegunRol(usuario) {
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('curso', this)"><i class="bi bi-bar-chart-fill me-2"></i> Resumen por Curso</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('pagos', this)"><i class="bi bi-journal-check me-2"></i> Control de Pagos</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('egresos', this)"><i class="bi bi-cart-fill me-2"></i> Egresos</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('actividades', this)"><i class="bi bi-cash-coin me-2"></i> Actividades Extra</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('contratos', this)"><i class="bi bi-file-earmark-text-fill me-2"></i> Contratos</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('actas', this)"><i class="bi bi-briefcase-fill me-2"></i> Actas de Comité</a></li>
         `;
@@ -162,12 +232,13 @@ function cargarPortalSegunRol(usuario) {
         document.getElementById('portal-admin').classList.remove('oculto');
         if(document.getElementById('portal-padre')) document.getElementById('portal-padre').classList.add('oculto');
         
+        actualizarSelectCursos();
         renderizarTodasLasTablasAdmin();
         renderizarDashboardCurso();
     } else {
         document.getElementById('menu-navegacion').innerHTML = `
             <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarVistaPadre('estado', this)"><i class="bi bi-clock-history me-2"></i> Estado de Cuenta</a></li>
-            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('documentos', this)"><i class="bi bi-folder2-open-fill me-2"></i> Documentos</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('documentos', this)"><i class="bi bi-folder2-open-fill me-2"></i> Documentos y Actas</a></li>
         `;
         document.getElementById('portal-padre').classList.remove('oculto');
         document.getElementById('portal-admin').classList.add('oculto');
@@ -189,7 +260,7 @@ function cerrarMenuMobile() {
 }
 
 function cambiarModuloAdmin(modulo, el) {
-    document.querySelectorAll('#portal-admin > div').forEach(d => d.classList.add('oculto'));
+    document.querySelectorAll('#portal-admin > div').forEach(d => { if(d.id !== 'filtro-curso-global') d.classList.add('oculto'); });
     document.querySelectorAll('#menu-navegacion .nav-link').forEach(n => n.classList.remove('active'));
     const div = document.getElementById(`admin-modulo-${modulo}`);
     if (div) div.classList.remove('oculto');
@@ -206,39 +277,81 @@ function cambiarVistaPadre(vista, el) {
     cerrarMenuMobile();
 }
 
+function aplicarFiltroCurso(curso) {
+    cursoFiltroActual = curso;
+    renderizarTodasLasTablasAdmin();
+}
+
+function actualizarSelectCursos() {
+    const select = document.getElementById('select-filtro-curso');
+    if(!select) return;
+    const cursos = [...new Set(usuariosBD.map(u => u.curso).filter(c => c && c.trim() !== ''))].sort();
+    const valorActual = select.value;
+    select.innerHTML = '<option value="TODOS">Todos los Cursos (General)</option>';
+    cursos.forEach(c => { select.innerHTML += `<option value="${c}">Solo mostrar ${c}</option>`; });
+    if(cursos.includes(valorActual)) select.value = valorActual;
+}
+
 async function renderizarTodasLasTablasAdmin() {
     await cargarDatosDesdeServidor();
-    renderizarDashboardAdmin();
-    renderizarUsuarios();
+    actualizarSelectCursos();
+
+    let usuariosParaRender = usuariosBD;
+    let pagosParaRender = pagosGlobales;
+    let actividadesParaRender = actividadesGlobales;
+
+    if (cursoFiltroActual !== "TODOS") {
+        usuariosParaRender = usuariosBD.filter(u => u.curso === cursoFiltroActual);
+        pagosParaRender = pagosGlobales.filter(p => {
+            let u = usuariosBD.find(x => x.username === p.usuario);
+            return u && u.curso === cursoFiltroActual;
+        });
+        actividadesParaRender = actividadesGlobales.filter(a => a.curso === cursoFiltroActual);
+    }
+
+    renderizarDashboardAdmin(pagosParaRender, actividadesParaRender);
+    
+    const tbU = document.getElementById('tabla-usuarios-admin'); 
+    if(tbU) {
+        tbU.innerHTML = '';
+        usuariosParaRender.forEach(u => {
+            let btnSt = u.estado === "ACTIVO" 
+                ? `<button class="btn btn-sm btn-outline-danger fw-bold mt-1 mt-md-0 shadow-sm" onclick="toggleEstadoUsuario('${u.username}')"><i class="bi bi-x-circle-fill me-1"></i>Desactivar</button>` 
+                : `<button class="btn btn-sm btn-success fw-bold mt-1 mt-md-0 shadow-sm" onclick="toggleEstadoUsuario('${u.username}')"><i class="bi bi-check-circle-fill me-1"></i>Activar</button>`;
+            tbU.innerHTML += `<tr><td class="text-primary fw-bold">${u.username}</td><td>${u.nombre}</td><td><span class="badge bg-primary px-2">${u.rol}</span></td><td><span class="badge bg-dark">${u.curso||'-'}</span></td><td><span class="badge ${u.estado==='ACTIVO'?'bg-success':'bg-secondary'} px-2 py-1">${u.estado}</span></td><td><div class="d-flex flex-column flex-md-row justify-content-center align-items-center"><button class="btn btn-sm btn-primary fw-bold me-md-1 shadow-sm" onclick="abrirModalUsuario('${u.username}')"><i class="bi bi-pencil-fill me-1"></i>Editar</button>${btnSt}</div></td></tr>`;
+        });
+    }
     
     const selectPadres = document.getElementById('pago-usuario');
     if(selectPadres) {
         selectPadres.innerHTML = '<option value="">-- Seleccione un padre --</option>';
-        usuariosBD.filter(u => u.rol === 'PADRE').forEach(u => {
-            selectPadres.innerHTML += `<option value="${u.username}">${u.nombre} (${u.username})</option>`;
+        usuariosParaRender.filter(u => u.rol === 'PADRE').forEach(u => {
+            selectPadres.innerHTML += `<option value="${u.username}">${u.nombre} (${u.username} - ${u.curso||'Sin curso'})</option>`;
         });
     }
 
     const tp = document.getElementById('tabla-pagos'); 
     if(tp) {
         tp.innerHTML = '';
-        pagosGlobales.forEach(p => {
+        if(pagosParaRender.length === 0) tp.innerHTML = `<tr><td colspan="7" class="text-muted py-4">No hay pagos para mostrar.</td></tr>`;
+        pagosParaRender.forEach(p => {
             const datosUsuario = usuariosBD.find(u => u.username === p.usuario);
             const nombreCompleto = datosUsuario ? datosUsuario.nombre : 'Usuario Desconocido';
             const btnVoucher = p.tiene_voucher ? `<button class="btn btn-sm btn-info text-white fw-bold ms-2 shadow-sm" onclick="abrirVoucher(${p.id})"><i class="bi bi-image me-1"></i>Voucher</button>` : '';
-
-            tp.innerHTML += `<tr>
-                <td class="fw-bold text-dark text-start">${nombreCompleto}</td>
-                <td class="text-primary fw-bold">${p.usuario}</td>
-                <td>${p.fecha}</td>
-                <td>${p.voucher} ${btnVoucher}</td>
-                <td class="fw-bold text-success">$${parseFloat(p.valor || 0).toFixed(2)}</td>
-                <td><span class="badge ${p.estado==='VALIDADO'?'bg-success':'bg-warning text-dark'} px-2 py-1">${p.estado}</span></td>
-                <td>${p.estado==='PENDIENTE'?`<button class="btn btn-sm btn-primary fw-bold shadow-sm" onclick="validarPago(${p.id})"><i class="bi bi-check2 me-1"></i>Aprobar</button>`:'<i class="bi bi-check-circle-fill text-success fs-5"></i>'}</td>
-            </tr>`;
+            tp.innerHTML += `<tr><td class="fw-bold text-dark text-start">${nombreCompleto} <br><small class="text-muted">${datosUsuario?datosUsuario.curso:''}</small></td><td class="text-primary fw-bold">${p.usuario}</td><td>${p.fecha}</td><td>${p.voucher} ${btnVoucher}</td><td class="fw-bold text-success">$${parseFloat(p.valor || 0).toFixed(2)}</td><td><span class="badge ${p.estado==='VALIDADO'?'bg-success':'bg-warning text-dark'} px-2 py-1">${p.estado}</span></td><td>${p.estado==='PENDIENTE'?`<button class="btn btn-sm btn-primary fw-bold shadow-sm" onclick="validarPago(${p.id})"><i class="bi bi-check2 me-1"></i>Aprobar</button>`:'<i class="bi bi-check-circle-fill text-success fs-5"></i>'}</td></tr>`;
         });
     }
     
+    const tact = document.getElementById('tabla-actividades');
+    if(tact) {
+        tact.innerHTML = '';
+        if(actividadesParaRender.length === 0) tact.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay actividades registradas en este curso.</td></tr>`;
+        actividadesParaRender.forEach(a => {
+            const btnDoc = a.tiene_doc ? `<button class="btn btn-sm btn-outline-success fw-bold shadow-sm" onclick="verActividadPDF(${a.id})"><i class="bi bi-file-pdf-fill me-1"></i>Ver Respaldo</button>` : '-';
+            tact.innerHTML += `<tr><td>${a.fecha}</td><td class="fw-bold"><span class="badge bg-dark">${a.curso}</span></td><td class="fw-bold text-dark">${a.descripcion}</td><td class="fw-bold text-success">+$${parseFloat(a.valor || 0).toFixed(2)}</td><td>${btnDoc}</td></tr>`;
+        });
+    }
+
     const te = document.getElementById('tabla-egresos');
     if(te) {
         te.innerHTML = '';
@@ -262,7 +375,7 @@ async function renderizarTodasLasTablasAdmin() {
     const tc = document.getElementById('tabla-cuotas'); 
     if(tc) {
         tc.innerHTML = '';
-        usuariosBD.filter(u => u.rol === 'PADRE').forEach(u => {
+        usuariosParaRender.filter(u => u.rol === 'PADRE').forEach(u => {
             tc.innerHTML += `<tr><td class="text-primary fw-bold">${u.username}</td><td>${u.nombre}</td><td class="fw-bold text-dark">$${parseFloat(u.valor_total_pagar || 0).toFixed(2)}</td><td><button class="btn btn-sm btn-warning fw-bold shadow-sm" onclick="abrirModalCuota('${u.username}', ${parseFloat(u.valor_total_pagar || 0)})"><i class="bi bi-pencil-fill me-1"></i>Modificar</button></td></tr>`;
         });
     }
@@ -280,10 +393,13 @@ async function renderizarTodasLasTablasAdmin() {
     }
 }
 
-function renderizarDashboardAdmin() {
-    let pagosValidados = pagosGlobales.filter(p => p.estado === 'VALIDADO').reduce((s, p) => s + parseFloat(p.valor || 0), 0);
-    let totalIngresos = ingresosGlobales.reduce((s, i) => s + parseFloat(i.valor || 0), 0) + pagosValidados;
-    let totalEgresos = egresosGlobales.reduce((s, e) => s + parseFloat(e.valor || 0), 0);
+function renderizarDashboardAdmin(pagosRender, actiRender) {
+    let pagosValidados = pagosRender.filter(p => p.estado === 'VALIDADO').reduce((s, p) => s + parseFloat(p.valor || 0), 0);
+    let totalIngresosAct = actiRender.reduce((s, a) => s + parseFloat(a.valor || 0), 0);
+    let totalIngresosBase = (cursoFiltroActual === "TODOS") ? ingresosGlobales.reduce((s, i) => s + parseFloat(i.valor || 0), 0) : 0;
+    
+    let totalIngresos = totalIngresosBase + pagosValidados + totalIngresosAct;
+    let totalEgresos = (cursoFiltroActual === "TODOS") ? egresosGlobales.reduce((s, e) => s + parseFloat(e.valor || 0), 0) : 0;
     
     if(document.getElementById('dash-ingresos')) document.getElementById('dash-ingresos').innerText = `$${totalIngresos.toFixed(2)}`;
     if(document.getElementById('dash-egresos')) document.getElementById('dash-egresos').innerText = `$${totalEgresos.toFixed(2)}`;
@@ -308,11 +424,10 @@ async function renderizarDashboardCurso() {
                 });
             }
         }
-    } catch (e) {
-        console.error("Error cargando dashboard", e);
-    }
+    } catch (e) { console.error("Error cargando dashboard", e); }
 }
 
+// ================= EL TABLERO DE LOS PADRES AHORA INCLUYE ACTIVIDADES =================
 function actualizarDashboardPadre() {
     cargarDatosDesdeServidor().then(() => {
         const userDatos = usuariosBD.find(u => u.username === usuarioActual.username);
@@ -338,57 +453,68 @@ function actualizarDashboardPadre() {
         if(tbd) {
             tbd.innerHTML = '';
             const docsVisibles = contratosGlobales.filter(c => c.visible);
-            if(docsVisibles.length === 0) tbd.innerHTML = `<tr><td colspan="3" class="text-muted py-4">No hay documentos públicos habilitados.</td></tr>`;
-            docsVisibles.forEach(c => {
-                const descripcionC = c.desc || c.descripcion || '';
-                tbd.innerHTML += `<tr><td>${c.fecha}</td><td class="fw-bold text-dark">${descripcionC}</td><td><button class="btn btn-sm btn-outline-primary fw-bold shadow-sm" onclick="verDocumentoPDF(${c.id})"><i class="bi bi-file-pdf-fill me-1"></i>Ver PDF</button></td></tr>`;
-            });
+            
+            // El padre solo ve las actividades de SU curso.
+            const misActividades = actividadesGlobales.filter(a => a.curso === userDatos.curso);
+            
+            if(docsVisibles.length === 0 && actasGlobales.length === 0 && misActividades.length === 0) {
+                tbd.innerHTML = `<tr><td colspan="3" class="text-muted py-4">No hay documentos públicos habilitados en este momento.</td></tr>`;
+            } else {
+                // 1. Mostrar Contratos Generales
+                docsVisibles.forEach(c => {
+                    const descripcionC = c.desc || c.descripcion || '';
+                    tbd.innerHTML += `<tr><td>${c.fecha}</td><td class="fw-bold text-dark">${descripcionC}</td><td><button class="btn btn-sm btn-outline-primary fw-bold shadow-sm" onclick="verDocumentoPDF(${c.id})"><i class="bi bi-file-pdf-fill me-1"></i>Ver Documento</button></td></tr>`;
+                });
+                
+                // 2. Mostrar Actividades Extra del curso del padre
+                if(misActividades.length > 0) {
+                    tbd.innerHTML += `<tr><td colspan="3" class="bg-light text-center fw-bold text-success border-bottom-0 pt-4"><i class="bi bi-cash-coin me-2"></i>INGRESOS POR ACTIVIDADES (CURSO: ${userDatos.curso})</td></tr>`;
+                    misActividades.forEach(a => {
+                        const btnDoc = a.tiene_doc ? `<button class="btn btn-sm btn-outline-success fw-bold shadow-sm" onclick="verActividadPDF(${a.id})"><i class="bi bi-file-pdf-fill me-1"></i>Ver Respaldo</button>` : '-';
+                        tbd.innerHTML += `<tr><td>${a.fecha}</td><td class="fw-bold text-dark">${a.descripcion} <br><small class="text-success">+$${parseFloat(a.valor||0).toFixed(2)}</small></td><td>${btnDoc}</td></tr>`;
+                    });
+                }
+
+                // 3. Mostrar las Actas de Reuniones
+                if(actasGlobales.length > 0) {
+                    tbd.innerHTML += `<tr><td colspan="3" class="bg-light text-center fw-bold text-secondary border-bottom-0 pt-4"><i class="bi bi-briefcase-fill me-2"></i>ACTAS DE REUNIONES Y COMITÉ</td></tr>`;
+                    actasGlobales.forEach(a => {
+                        tbd.innerHTML += `<tr><td>${a.fecha}</td><td class="fw-bold text-dark">${a.descripcion}</td><td><button class="btn btn-sm btn-dark fw-bold shadow-sm" onclick="verActaPDF(${a.id})"><i class="bi bi-file-pdf-fill me-1"></i>Abrir Acta</button></td></tr>`;
+                    });
+                }
+            }
         }
     });
 }
 
-// ==========================================================
-// SISTEMA 100% INMUNE A BLOQUEADORES (DESCARGA DIRECTA)
-// ==========================================================
 async function descargarArchivoInmune(url, nombreDefault) {
     try {
         const resp = await fetch(url);
         const data = await resp.json();
-        
         if (data.exito && data.base64) {
             let b64 = data.base64;
-            
-            // Detectar automáticamente el tipo de archivo si falta el prefijo
             if (!b64.startsWith('data:')) {
                 if (b64.startsWith('JVBER')) b64 = 'data:application/pdf;base64,' + b64;
                 else if (b64.startsWith('iVBOR')) b64 = 'data:image/png;base64,' + b64;
                 else if (b64.startsWith('/9j/')) b64 = 'data:image/jpeg;base64,' + b64;
                 else b64 = 'data:application/pdf;base64,' + b64; 
             }
-            
-            // Crear un enlace invisible y forzar la descarga en el equipo
             const a = document.createElement("a");
             a.href = b64;
             a.download = nombreDefault; 
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            
-        } else {
-            mostrarAlerta("Documento no encontrado o corrupto.", "❌");
-        }
-    } catch (e) {
-        mostrarAlerta("Error al descargar el archivo de la base de datos.", "❌");
-    }
+        } else { mostrarAlerta("Documento no encontrado o corrupto.", "❌"); }
+    } catch (e) { mostrarAlerta("Error al descargar el archivo de la base de datos.", "❌"); }
 }
 
-// Redirigimos todas las funciones al nuevo sistema de descarga directa
 function abrirVoucher(id) { descargarArchivoInmune(`${API_URL}/pagos/ver/${id}?t=${new Date().getTime()}`, `voucher_pago_${id}.jpg`); }
 function verDocumentoPDF(id) { descargarArchivoInmune(`${API_URL}/documentos/ver/${id}?t=${new Date().getTime()}`, `documento_${id}.pdf`); }
 function verActaPDF(id) { descargarArchivoInmune(`${API_URL}/actas/ver/${id}?t=${new Date().getTime()}`, `acta_reunion_${id}.pdf`); }
 function verEgresoPDF(id) { descargarArchivoInmune(`${API_URL}/egresos/ver/${id}?t=${new Date().getTime()}`, `factura_egreso_${id}.pdf`); }
+function verActividadPDF(id) { descargarArchivoInmune(`${API_URL}/actividades/ver/${id}?t=${new Date().getTime()}`, `respaldo_actividad_${id}.pdf`); }
 
-// === FUNCIONES DE LECTURA DE ARCHIVOS ===
 function leerArchivoComoBase64(file) { 
     return new Promise((res, rej) => { 
         const reader = new FileReader(); 
@@ -398,12 +524,20 @@ function leerArchivoComoBase64(file) {
     }); 
 }
 
-// === FUNCIONES DE REGISTRO (CRUD) ===
 async function registrarPago(e) { 
     e.preventDefault(); 
     const fileInput = document.getElementById('pago-voucher-file');
     let voucherB64 = "";
-    if(fileInput && fileInput.files.length > 0) voucherB64 = await leerArchivoComoBase64(fileInput.files[0]);
+    
+    if(fileInput && fileInput.files.length > 0) {
+        const f = fileInput.files[0];
+        if(!f.type.match('image/jpeg')) {
+            mostrarAlerta("Solo se permiten archivos en formato de imagen JPG / JPEG. El sistema no permite PDFs ni PNGs aquí.", "⚠️");
+            limpiarFeedbackArchivos();
+            return; 
+        }
+        voucherB64 = await leerArchivoComoBase64(f);
+    }
 
     const p = { 
         usuario: document.getElementById('pago-usuario').value, 
@@ -412,7 +546,6 @@ async function registrarPago(e) {
         valor: parseFloat(document.getElementById('pago-valor').value),
         voucher_b64: voucherB64
     }; 
-    
     try {
         const resp = await fetch(`${API_URL}/pagos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) }); 
         const data = await resp.json();
@@ -422,9 +555,35 @@ async function registrarPago(e) {
             limpiarFeedbackArchivos();
             mostrarAlerta("Pago registrado exitosamente.", "✅"); 
             renderizarTodasLasTablasAdmin(); 
-        } else {
-            mostrarAlerta("Error al guardar en la base de datos: " + data.mensaje, "❌");
-        }
+        } else { mostrarAlerta("Error al guardar: " + data.mensaje, "❌"); }
+    } catch(error) { mostrarAlerta("Error de conexión al servidor.", "❌"); }
+}
+
+async function registrarActividad(e) {
+    e.preventDefault();
+    const file = document.getElementById('act-file').files[0];
+    if(!file) { mostrarAlerta("Debes adjuntar el PDF de respaldo.", "⚠️"); return; }
+    
+    const b64 = await leerArchivoComoBase64(file);
+    const p = {
+        curso: document.getElementById('act-curso').value.trim(),
+        descripcion: document.getElementById('act-desc').value.trim(),
+        fecha: document.getElementById('act-fecha').value,
+        valor: parseFloat(document.getElementById('act-valor').value),
+        archivoNombre: file.name,
+        archivoData: b64
+    };
+    
+    try {
+        const resp = await fetch(`${API_URL}/actividades`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+        const data = await resp.json();
+        if(resp.ok && data.exito) {
+            bootstrap.Modal.getInstance(document.getElementById('modalActividad')).hide();
+            document.getElementById('form-actividad').reset();
+            limpiarFeedbackArchivos();
+            mostrarAlerta("Ingreso por Actividad guardado correctamente.", "✅");
+            renderizarTodasLasTablasAdmin();
+        } else { mostrarAlerta("Error al subir actividad: " + data.mensaje, "❌"); }
     } catch(error) { mostrarAlerta("Error de conexión al servidor.", "❌"); }
 }
 
@@ -442,7 +601,6 @@ async function registrarEgreso(e) {
         archivoNombre: fileName,
         archivoData: b64
     };
-    
     try {
         const resp = await fetch(`${API_URL}/egresos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
         const data = await resp.json();
@@ -452,17 +610,14 @@ async function registrarEgreso(e) {
             limpiarFeedbackArchivos();
             mostrarAlerta("Egreso registrado correctamente.", "✅");
             renderizarTodasLasTablasAdmin();
-        } else {
-            mostrarAlerta("Error al registrar egreso: " + data.mensaje, "❌");
-        }
-    } catch(error) { mostrarAlerta("Error de conexión al servidor.", "❌"); }
+        } else { mostrarAlerta("Error al registrar egreso: " + data.mensaje, "❌"); }
+    } catch(error) { mostrarAlerta("Error de conexión.", "❌"); }
 }
 
 async function subirActa(e) {
     e.preventDefault();
     const file = document.getElementById('acta-file').files[0];
     if(!file) { mostrarAlerta("Por favor, selecciona un documento PDF.", "⚠️"); return; }
-    
     const b64 = await leerArchivoComoBase64(file);
     const p = {
         fecha: document.getElementById('acta-fecha').value,
@@ -470,7 +625,6 @@ async function subirActa(e) {
         archivoNombre: file.name,
         archivoData: b64
     };
-    
     try {
         const resp = await fetch(`${API_URL}/actas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
         const data = await resp.json();
@@ -478,11 +632,9 @@ async function subirActa(e) {
             bootstrap.Modal.getInstance(document.getElementById('modalActa')).hide();
             document.getElementById('form-acta').reset();
             limpiarFeedbackArchivos();
-            mostrarAlerta("Acta subida y guardada correctamente.", "✅");
+            mostrarAlerta("Acta subida correctamente.", "✅");
             renderizarTodasLasTablasAdmin();
-        } else {
-            mostrarAlerta("Error al subir acta: " + data.mensaje, "❌");
-        }
+        } else { mostrarAlerta("Error al subir acta: " + data.mensaje, "❌"); }
     } catch(error) { mostrarAlerta("Error de conexión al servidor.", "❌"); }
 }
 
@@ -519,20 +671,16 @@ async function guardarUsuario(e) {
         curso: document.getElementById('usu-curso').value, 
         password: document.getElementById('usu-clave').value 
     };
-    
     try {
         const method = document.getElementById('usu-modo').value === "CREAR" ? 'POST' : 'PUT';
         const resp = await fetch(`${API_URL}/usuarios`, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         const data = await resp.json();
-        
         if(resp.ok && data.exito) {
             bootstrap.Modal.getInstance(document.getElementById('modalUsuario')).hide();
             mostrarAlerta("Usuario guardado en la base de datos.", "✅");
             renderizarTodasLasTablasAdmin();
-        } else {
-            mostrarAlerta("Error al guardar usuario: " + data.mensaje, "❌");
-        }
-    } catch(error) { mostrarAlerta("Error de conexión al servidor.", "❌"); }
+        } else { mostrarAlerta("Error al guardar usuario: " + data.mensaje, "❌"); }
+    } catch(error) { mostrarAlerta("Error de conexión.", "❌"); }
 }
 
 async function toggleEstadoUsuario(username) {
@@ -540,19 +688,6 @@ async function toggleEstadoUsuario(username) {
     const nuevoEstado = u.estado === "ACTIVO" ? "INACTIVO" : "ACTIVO";
     await fetch(`${API_URL}/usuarios/estado`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: username, estado: nuevoEstado }) });
     renderizarTodasLasTablasAdmin();
-}
-
-function renderizarUsuarios() {
-    const tb = document.getElementById('tabla-usuarios-admin'); 
-    if(!tb) return;
-    tb.innerHTML = '';
-    usuariosBD.forEach(u => {
-        let btnSt = u.estado === "ACTIVO" 
-            ? `<button class="btn btn-sm btn-outline-danger fw-bold mt-1 mt-md-0 shadow-sm" onclick="toggleEstadoUsuario('${u.username}')"><i class="bi bi-x-circle-fill me-1"></i>Desactivar</button>` 
-            : `<button class="btn btn-sm btn-success fw-bold mt-1 mt-md-0 shadow-sm" onclick="toggleEstadoUsuario('${u.username}')"><i class="bi bi-check-circle-fill me-1"></i>Activar</button>`;
-            
-        tb.innerHTML += `<tr><td class="text-primary fw-bold">${u.username}</td><td>${u.nombre}</td><td><span class="badge bg-primary px-2">${u.rol}</span></td><td>${u.curso||'-'}</td><td><span class="badge ${u.estado==='ACTIVO'?'bg-success':'bg-secondary'} px-2 py-1">${u.estado}</span></td><td><div class="d-flex flex-column flex-md-row justify-content-center align-items-center"><button class="btn btn-sm btn-primary fw-bold me-md-1 shadow-sm" onclick="abrirModalUsuario('${u.username}')"><i class="bi bi-pencil-fill me-1"></i>Editar</button>${btnSt}</div></td></tr>`;
-    });
 }
 
 async function validarPago(id) { 
@@ -599,10 +734,8 @@ async function subirDocumento(e, tipo) {
             limpiarFeedbackArchivos();
             mostrarAlerta("Contrato subido y guardado exitosamente.", "✅"); 
             renderizarTodasLasTablasAdmin(); 
-        } else {
-            mostrarAlerta("Error al guardar: " + data.mensaje, "❌");
-        }
-    } catch(error) { mostrarAlerta("Error de conexión al servidor.", "❌"); }
+        } else { mostrarAlerta("Error al guardar: " + data.mensaje, "❌"); }
+    } catch(error) { mostrarAlerta("Error de conexión.", "❌"); }
 }
 
 async function toggleVisibleDoc(id, val) { 
