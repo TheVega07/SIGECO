@@ -5,7 +5,32 @@ let cursoFiltroActual = "TODOS";
 
 const API_URL = "/api"; 
 
+// === FUNCIÓN QUE OBLIGA EL USO DE "SIGECO 28" EN TODA LA PÁGINA DESDE EL INICIO ===
+function forzarNombreSIGECO28() {
+    document.title = "SIGECO 28";
+    
+    // Cambiar la barra de navegación superior (Navbar)
+    const brand = document.querySelector('.navbar-brand');
+    if (brand) brand.innerHTML = '<i class="bi bi-shield-check me-2"></i>SIGECO 28';
+
+    // Cambiar todos los títulos dentro de la pantalla de Iniciar Sesión
+    const titulosLogin = document.querySelectorAll('#vista-login h1, #vista-login h2, #vista-login h3, #vista-login h4, #vista-login .card-title, #vista-login .card-header');
+    titulosLogin.forEach(el => {
+        // Si decía "SIGECO" o "SIGECO Portal", lo cambia a "SIGECO 28"
+        if(el.innerHTML.includes('SIGECO') && !el.innerHTML.includes('28')) {
+            el.innerHTML = el.innerHTML.replace(/SIGECO(\sPortal)?/gi, 'SIGECO 28');
+        } 
+        // Si no decía SIGECO (por ejemplo, solo decía "Iniciar Sesión"), le agrega la marca
+        else if (!el.innerHTML.includes('SIGECO')) {
+            el.innerHTML = 'SIGECO 28 - ' + el.innerHTML;
+        }
+    });
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
+    // 0. FORZAR NOMBRE INMEDIATAMENTE AL CARGAR LA PÁGINA
+    forzarNombreSIGECO28();
+
     // 1. GESTIÓN DE SESIÓN (Evita que F5 cierre la sesión)
     const sesionGuardada = sessionStorage.getItem('sesionSIGECO');
     if (sesionGuardada) {
@@ -97,9 +122,8 @@ function compararCursos(c1, c2) {
 
 // ================= INYECTOR AUTOMÁTICO DE INTERFAZ (UI) =================
 function inyectarNuevasFunciones() {
-    document.title = "SIGECO 28";
-    const brand = document.querySelector('.navbar-brand');
-    if (brand) brand.innerHTML = '<i class="bi bi-shield-check me-2"></i>SIGECO 28';
+    // Asegurarse de que el nombre persista después de inyectar
+    forzarNombreSIGECO28();
 
     const filePago = document.getElementById('pago-voucher-file');
     if(filePago) {
@@ -107,7 +131,7 @@ function inyectarNuevasFunciones() {
         filePago.setAttribute('title', 'Solo se permiten imágenes JPG');
     }
 
-    // INYECTAR TARJETA DE "META A RECAUDAR" SOLICITADA POR EL INGENIERO
+    // INYECTAR TARJETA DE "META A RECAUDAR"
     const saldoCard = document.getElementById('dash-saldo');
     if (saldoCard && !document.getElementById('dash-meta')) {
         const row = saldoCard.closest('.row'); 
@@ -298,6 +322,7 @@ function cerrarSesion() {
     document.getElementById('vista-app').classList.add('oculto');
     document.getElementById('vista-login').classList.remove('oculto');
     document.getElementById('form-login').reset();
+    forzarNombreSIGECO28(); // Nos aseguramos que al salir siga diciendo SIGECO 28
 }
 
 function cerrarMenuMobile() {
@@ -366,7 +391,7 @@ async function renderizarTodasLasTablasAdmin() {
     }
 
     renderizarDashboardAdmin(pagosParaRender, actividadesParaRender);
-    renderizarDashboardCurso(); // Construcción Inteligente del Resumen
+    renderizarDashboardCurso(); 
     
     const tbU = document.getElementById('tabla-usuarios-admin'); 
     if(tbU) {
@@ -501,7 +526,6 @@ function renderizarDashboardCurso() {
     const tc = document.getElementById('tabla-dashboard-curso');
     if(!tc) return;
 
-    // Rediseñar Cabeceras dinámicamente
     const thead = tc.closest('table').querySelector('thead tr');
     if(thead && !thead.innerHTML.includes('Alumnos')) {
         thead.innerHTML = `
@@ -514,7 +538,6 @@ function renderizarDashboardCurso() {
 
     let cursosUnicos = [...new Set(usuariosBD.map(u => u.curso).filter(c => c && c.trim() !== ''))].sort();
     
-    // Aplicar Filtro Global a la tabla
     if(cursoFiltroActual !== "TODOS") {
         cursosUnicos = cursosUnicos.filter(c => compararCursos(c, cursoFiltroActual));
     }
@@ -526,12 +549,10 @@ function renderizarDashboardCurso() {
     }
 
     cursosUnicos.forEach(curso => {
-        // Cálculo Alumnos y Meta
         const alumnos = usuariosBD.filter(u => u.rol === 'PADRE' && compararCursos(u.curso, curso));
         const totalAlumnos = alumnos.length;
         const metaCurso = alumnos.reduce((s, a) => s + parseFloat(a.valor_total_pagar || 0), 0);
         
-        // Cálculo Recaudación Real (Pagos + Actividades)
         const pagosCurso = pagosGlobales.filter(p => p.estado === 'VALIDADO' && usuariosBD.some(u => u.username === p.usuario && compararCursos(u.curso, curso)));
         const actsCurso = actividadesGlobales.filter(a => compararCursos(a.curso, curso));
         
