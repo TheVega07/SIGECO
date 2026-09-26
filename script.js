@@ -5,9 +5,22 @@ let cursoFiltroActual = "TODOS";
 
 const API_URL = "/api"; 
 
-document.addEventListener("DOMContentLoaded", () => {
-    document.getElementById('vista-app').classList.add('oculto');
-    document.getElementById('vista-login').classList.remove('oculto');
+document.addEventListener("DOMContentLoaded", async () => {
+    // 1. GESTIÓN DE SESIÓN (Evita que F5 cierre la sesión)
+    const sesionGuardada = sessionStorage.getItem('sesionSIGECO');
+    if (sesionGuardada) {
+        usuarioActual = JSON.parse(sesionGuardada);
+        document.getElementById('vista-login').classList.add('oculto');
+        document.getElementById('vista-app').style.display = '';
+        document.getElementById('vista-app').classList.remove('oculto');
+        
+        await cargarDatosDesdeServidor();
+        inyectarNuevasFunciones();
+        cargarPortalSegunRol(usuarioActual);
+    } else {
+        document.getElementById('vista-app').classList.add('oculto');
+        document.getElementById('vista-login').classList.remove('oculto');
+    }
 
     if (document.getElementById('form-login')) document.getElementById('form-login').addEventListener('submit', iniciarSesion);
     if (document.getElementById('form-forzar-clave')) document.getElementById('form-forzar-clave').addEventListener('submit', guardarClaveForzada);
@@ -77,6 +90,11 @@ async function cargarDatosDesdeServidor() {
     }
 }
 
+function compararCursos(c1, c2) {
+    if(!c1 || !c2) return false;
+    return c1.toUpperCase().replace(/\s+/g, '') === c2.toUpperCase().replace(/\s+/g, '');
+}
+
 // ================= INYECTOR AUTOMÁTICO DE INTERFAZ (UI) =================
 function inyectarNuevasFunciones() {
     document.title = "SIGECO 28";
@@ -87,6 +105,28 @@ function inyectarNuevasFunciones() {
     if(filePago) {
         filePago.setAttribute('accept', '.jpg, .jpeg');
         filePago.setAttribute('title', 'Solo se permiten imágenes JPG');
+    }
+
+    // INYECTAR TARJETA DE "META A RECAUDAR" SOLICITADA POR EL INGENIERO
+    const saldoCard = document.getElementById('dash-saldo');
+    if (saldoCard && !document.getElementById('dash-meta')) {
+        const row = saldoCard.closest('.row'); 
+        if (row) {
+            row.querySelectorAll('.col-md-4').forEach(col => {
+                col.classList.remove('col-md-4');
+                col.classList.add('col-md-3');
+            });
+            const htmlMeta = `
+            <div class="col-12 col-md-3 mb-3">
+                <div class="card text-white shadow-sm h-100" style="background-color: #6f42c1;">
+                    <div class="card-body">
+                        <h6 class="card-title"><i class="bi bi-bullseye me-2"></i>Meta a Recaudar</h6>
+                        <h3 class="fw-bold mb-0" id="dash-meta">$0.00</h3>
+                    </div>
+                </div>
+            </div>`;
+            row.insertAdjacentHTML('beforeend', htmlMeta);
+        }
     }
 
     const adminModuloCurso = document.getElementById('admin-modulo-curso');
@@ -103,7 +143,6 @@ function inyectarNuevasFunciones() {
         adminModuloCurso.insertAdjacentHTML('afterbegin', filtroHTML);
     }
 
-    // Modal modificado: Ahora el Curso es un <select> en lugar de un <input> de texto libre
     if (!document.getElementById('modalActividad')) {
         const modalHTML = `
         <div class="modal fade" id="modalActividad" tabindex="-1">
@@ -116,10 +155,8 @@ function inyectarNuevasFunciones() {
                     <div class="modal-body">
                         <form id="form-actividad">
                             <div class="mb-3">
-                                <label class="fw-bold">Curso / Paralelo</label>
-                                <select class="form-select" id="act-curso" required>
-                                    <option value="" disabled selected>Cargando cursos...</option>
-                                </select>
+                                <label class="fw-bold">Curso / Paralelo (Manual)</label>
+                                <input type="text" class="form-control" id="act-curso" required placeholder="Ej: 8vo B">
                             </div>
                             <div class="mb-3"><label class="fw-bold">Descripción (Ej. Rifa, Bingo)</label><input type="text" class="form-control" id="act-desc" required></div>
                             <div class="mb-3"><label class="fw-bold">Fecha</label><input type="date" class="form-control" id="act-fecha" required></div>
@@ -178,6 +215,8 @@ async function iniciarSesion(e) {
         });
         const data = await resp.json();
         if (data.exito) {
+            sessionStorage.setItem('sesionSIGECO', JSON.stringify(data.usuario)); // GUARDAR SESIÓN
+            
             await cargarDatosDesdeServidor();
             inyectarNuevasFunciones(); 
             
@@ -200,6 +239,7 @@ async function guardarClaveForzada(e) {
     const data = await resp.json();
     if(resp.ok && data.exito){
         usuarioActual.debe_cambiar_clave = 0;
+        sessionStorage.setItem('sesionSIGECO', JSON.stringify(usuarioActual));
         bootstrap.Modal.getInstance(document.getElementById('modalForzarClave')).hide();
         document.getElementById('form-forzar-clave').reset();
         mostrarAlerta('Contraseña actualizada con éxito.', '🔐');
@@ -241,7 +281,6 @@ function cargarPortalSegunRol(usuario) {
         
         actualizarSelectCursos();
         renderizarTodasLasTablasAdmin();
-        renderizarDashboardCurso();
     } else {
         document.getElementById('menu-navegacion').innerHTML = `
             <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarVistaPadre('estado', this)"><i class="bi bi-clock-history me-2"></i> Estado de Cuenta</a></li>
@@ -255,6 +294,7 @@ function cargarPortalSegunRol(usuario) {
 
 function cerrarSesion() {
     usuarioActual = null;
+    sessionStorage.removeItem('sesionSIGECO'); // LIMPIAR SESION
     document.getElementById('vista-app').classList.add('oculto');
     document.getElementById('vista-login').classList.remove('oculto');
     document.getElementById('form-login').reset();
@@ -266,7 +306,8 @@ function cerrarMenuMobile() {
     if (collapse && collapse.classList.contains('show')) toggler.click();
 }
 
-function cambiarModuloAdmin(modulo, el) {
+// 3. REFRESCO EN TIEMPO REAL AL CAMBIAR PESTAÑAS
+async function cambiarModuloAdmin(modulo, el) {
     document.querySelectorAll('#portal-admin > div').forEach(d => { 
         if(d.id && d.id.startsWith('admin-modulo-')) d.classList.add('oculto'); 
     });
@@ -275,15 +316,19 @@ function cambiarModuloAdmin(modulo, el) {
     if (div) div.classList.remove('oculto');
     if (el) el.classList.add('active');
     cerrarMenuMobile();
+    
+    // Al entrar a una sección, descarga la BD fresca automáticamente
+    await renderizarTodasLasTablasAdmin();
 }
 
-function cambiarVistaPadre(vista, el) {
+async function cambiarVistaPadre(vista, el) {
     document.querySelectorAll('#portal-padre > div').forEach(d => d.classList.add('oculto'));
     document.querySelectorAll('#menu-navegacion .nav-link').forEach(n => n.classList.remove('active'));
     const div = document.getElementById(`padre-vista-${vista}`);
     if (div) div.classList.remove('oculto');
     if(el) el.classList.add('active');
     cerrarMenuMobile();
+    await actualizarDashboardPadre();
 }
 
 function aplicarFiltroCurso(curso) {
@@ -291,26 +336,15 @@ function aplicarFiltroCurso(curso) {
     renderizarTodasLasTablasAdmin();
 }
 
-// ================= SELECTORES ACTUALIZADOS AUTOMÁTICAMENTE =================
 function actualizarSelectCursos() {
     const select = document.getElementById('select-filtro-curso');
-    const selectAct = document.getElementById('act-curso'); // El nuevo select del modal
     const cursos = [...new Set(usuariosBD.map(u => u.curso).filter(c => c && c.trim() !== ''))].sort();
     
-    // 1. Actualizar Filtro General
     if(select) {
         const valorActual = select.value;
         select.innerHTML = '<option value="TODOS">Todos los Cursos (General)</option>';
         cursos.forEach(c => { select.innerHTML += `<option value="${c}">Solo mostrar ${c}</option>`; });
         if(cursos.includes(valorActual)) select.value = valorActual;
-    }
-
-    // 2. Actualizar Select del Modal Actividades
-    if(selectAct && selectAct.tagName === 'SELECT') {
-        const valAct = selectAct.value;
-        selectAct.innerHTML = '<option value="" disabled selected>-- Seleccione el Curso --</option>';
-        cursos.forEach(c => { selectAct.innerHTML += `<option value="${c}">${c}</option>`; });
-        if(cursos.includes(valAct)) selectAct.value = valAct;
     }
 }
 
@@ -322,17 +356,17 @@ async function renderizarTodasLasTablasAdmin() {
     let pagosParaRender = pagosGlobales;
     let actividadesParaRender = actividadesGlobales;
 
-    // Filtro con validación robusta
     if (cursoFiltroActual !== "TODOS") {
-        usuariosParaRender = usuariosBD.filter(u => (u.curso||'').trim().toUpperCase() === cursoFiltroActual.trim().toUpperCase());
+        usuariosParaRender = usuariosBD.filter(u => compararCursos(u.curso, cursoFiltroActual));
         pagosParaRender = pagosGlobales.filter(p => {
             let u = usuariosBD.find(x => x.username === p.usuario);
-            return u && (u.curso||'').trim().toUpperCase() === cursoFiltroActual.trim().toUpperCase();
+            return u && compararCursos(u.curso, cursoFiltroActual);
         });
-        actividadesParaRender = actividadesGlobales.filter(a => (a.curso||'').trim().toUpperCase() === cursoFiltroActual.trim().toUpperCase());
+        actividadesParaRender = actividadesGlobales.filter(a => compararCursos(a.curso, cursoFiltroActual));
     }
 
     renderizarDashboardAdmin(pagosParaRender, actividadesParaRender);
+    renderizarDashboardCurso(); // Construcción Inteligente del Resumen
     
     const tbU = document.getElementById('tabla-usuarios-admin'); 
     if(tbU) {
@@ -399,7 +433,31 @@ async function renderizarTodasLasTablasAdmin() {
     if(tc) {
         tc.innerHTML = '';
         usuariosParaRender.filter(u => u.rol === 'PADRE').forEach(u => {
-            tc.innerHTML += `<tr><td class="text-primary fw-bold">${u.username}</td><td>${u.nombre}</td><td class="fw-bold text-dark">$${parseFloat(u.valor_total_pagar || 0).toFixed(2)}</td><td><button class="btn btn-sm btn-warning fw-bold shadow-sm" onclick="abrirModalCuota('${u.username}', ${parseFloat(u.valor_total_pagar || 0)})"><i class="bi bi-pencil-fill me-1"></i>Modificar</button></td></tr>`;
+            const actsCurso = actividadesGlobales.filter(a => compararCursos(a.curso, u.curso));
+            const totalActs = actsCurso.reduce((sum, a) => sum + parseFloat(a.valor || 0), 0);
+            
+            const cuotaBase = parseFloat(u.valor_total_pagar || 0);
+            const totalDeuda = cuotaBase + totalActs;
+            
+            const pagosPadre = pagosGlobales.filter(p => p.usuario === u.username && p.estado === 'VALIDADO');
+            const totalPagadoPadre = pagosPadre.reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
+            const saldoPadre = totalDeuda - totalPagadoPadre;
+
+            tc.innerHTML += `
+            <tr>
+                <td class="text-primary fw-bold">${u.username}</td>
+                <td>${u.nombre} <br><span class="badge bg-dark">${u.curso||'Sin curso'}</span></td>
+                <td>
+                    <div class="small">Cuota Base: <span class="fw-bold">$${cuotaBase.toFixed(2)}</span></div>
+                    <div class="small text-success mb-1">Actividades Extras: <span class="fw-bold">+$${totalActs.toFixed(2)}</span></div>
+                    <div class="fw-bold text-dark border-top pt-1">Total a Pagar: $${totalDeuda.toFixed(2)}</div>
+                </td>
+                <td>
+                    <div class="small text-success mb-1">Total Abonado: <span class="fw-bold">$${totalPagadoPadre.toFixed(2)}</span></div>
+                    <div class="fw-bold text-danger border-top pt-1">Saldo Pendiente: $${saldoPadre.toFixed(2)}</div>
+                </td>
+                <td><button class="btn btn-sm btn-warning fw-bold shadow-sm" onclick="abrirModalCuota('${u.username}', ${cuotaBase})"><i class="bi bi-pencil-fill me-1"></i>Modificar Base</button></td>
+            </tr>`;
         });
     }
     
@@ -424,42 +482,87 @@ function renderizarDashboardAdmin(pagosRender, actiRender) {
     let totalIngresos = totalIngresosBase + pagosValidados + totalIngresosAct;
     let totalEgresos = (cursoFiltroActual === "TODOS") ? egresosGlobales.reduce((s, e) => s + parseFloat(e.valor || 0), 0) : 0;
     
+    // Cálculo Dinámico de Meta a Recaudar
+    let metaTotal = 0;
+    if (cursoFiltroActual === "TODOS") {
+        metaTotal = usuariosBD.filter(u => u.rol === 'PADRE').reduce((s, u) => s + parseFloat(u.valor_total_pagar || 0), 0);
+    } else {
+        metaTotal = usuariosBD.filter(u => u.rol === 'PADRE' && compararCursos(u.curso, cursoFiltroActual)).reduce((s, u) => s + parseFloat(u.valor_total_pagar || 0), 0);
+    }
+    
     if(document.getElementById('dash-ingresos')) document.getElementById('dash-ingresos').innerText = `$${totalIngresos.toFixed(2)}`;
     if(document.getElementById('dash-egresos')) document.getElementById('dash-egresos').innerText = `$${totalEgresos.toFixed(2)}`;
     if(document.getElementById('dash-saldo')) document.getElementById('dash-saldo').innerText = `$${(totalIngresos - totalEgresos).toFixed(2)}`;
+    if(document.getElementById('dash-meta')) document.getElementById('dash-meta').innerText = `$${metaTotal.toFixed(2)}`;
 }
 
-async function renderizarDashboardCurso() {
-    try {
-        const urlSinCache = `${API_URL}/dashboard/curso?t=${new Date().getTime()}`;
-        const resp = await fetch(urlSinCache);
-        const data = await resp.json();
-        if(data.exito) {
-            const tc = document.getElementById('tabla-dashboard-curso');
-            if(tc) {
-                tc.innerHTML = '';
-                if(data.datos.length === 0) tc.innerHTML = `<tr><td colspan="2" class="text-muted py-4">Aún no hay recaudaciones por curso.</td></tr>`;
-                data.datos.forEach(d => {
-                    tc.innerHTML += `<tr>
-                        <td class="fw-bold" style="color: #1e3c72;">${d.curso || 'Sin asignar'}</td>
-                        <td class="fw-bold text-success fs-5">$${parseFloat(d.total_recaudado || 0).toFixed(2)}</td>
-                    </tr>`;
-                });
-            }
-        }
-    } catch (e) { console.error("Error cargando dashboard", e); }
+// ================= 4. TABLA INTELIGENTE DE RESUMEN POR CURSO =================
+function renderizarDashboardCurso() {
+    const tc = document.getElementById('tabla-dashboard-curso');
+    if(!tc) return;
+
+    // Rediseñar Cabeceras dinámicamente
+    const thead = tc.closest('table').querySelector('thead tr');
+    if(thead && !thead.innerHTML.includes('Alumnos')) {
+        thead.innerHTML = `
+            <th class="bg-primary text-white">Curso / Paralelo</th>
+            <th class="bg-primary text-white">Total Alumnos</th>
+            <th class="bg-primary text-white">Total Recaudado</th>
+            <th class="bg-primary text-white">Meta a Recaudar</th>
+        `;
+    }
+
+    let cursosUnicos = [...new Set(usuariosBD.map(u => u.curso).filter(c => c && c.trim() !== ''))].sort();
+    
+    // Aplicar Filtro Global a la tabla
+    if(cursoFiltroActual !== "TODOS") {
+        cursosUnicos = cursosUnicos.filter(c => compararCursos(c, cursoFiltroActual));
+    }
+
+    tc.innerHTML = '';
+    if(cursosUnicos.length === 0) {
+        tc.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay datos para mostrar.</td></tr>`;
+        return;
+    }
+
+    cursosUnicos.forEach(curso => {
+        // Cálculo Alumnos y Meta
+        const alumnos = usuariosBD.filter(u => u.rol === 'PADRE' && compararCursos(u.curso, curso));
+        const totalAlumnos = alumnos.length;
+        const metaCurso = alumnos.reduce((s, a) => s + parseFloat(a.valor_total_pagar || 0), 0);
+        
+        // Cálculo Recaudación Real (Pagos + Actividades)
+        const pagosCurso = pagosGlobales.filter(p => p.estado === 'VALIDADO' && usuariosBD.some(u => u.username === p.usuario && compararCursos(u.curso, curso)));
+        const actsCurso = actividadesGlobales.filter(a => compararCursos(a.curso, curso));
+        
+        const recPagos = pagosCurso.reduce((s, p) => s + parseFloat(p.valor || 0), 0);
+        const recActs = actsCurso.reduce((s, a) => s + parseFloat(a.valor || 0), 0);
+        const totalRecaudado = recPagos + recActs;
+
+        tc.innerHTML += `<tr>
+            <td class="fw-bold" style="color: #1e3c72;">${curso}</td>
+            <td class="fw-bold fs-6">${totalAlumnos}</td>
+            <td class="fw-bold text-success fs-6">$${totalRecaudado.toFixed(2)}</td>
+            <td class="fw-bold text-info fs-6">$${metaCurso.toFixed(2)}</td>
+        </tr>`;
+    });
 }
 
-// ================= FILTRO A PRUEBA DE BALAS PARA PADRES =================
 function actualizarDashboardPadre() {
     cargarDatosDesdeServidor().then(() => {
         const userDatos = usuariosBD.find(u => u.username === usuarioActual.username);
         const misPagos = pagosGlobales.filter(p => p.usuario === usuarioActual.username);
         
+        const misActividades = actividadesGlobales.filter(a => compararCursos(a.curso, userDatos.curso));
+        let totalActividades = misActividades.reduce((sum, a) => sum + parseFloat(a.valor || 0), 0);
+        
+        let cuotaBase = parseFloat(userDatos.valor_total_pagar || 0);
+        let totalAPagar = cuotaBase + totalActividades;
+        
         let totalPagado = misPagos.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
-        let pendiente = parseFloat(userDatos.valor_total_pagar || 0) - totalPagado;
+        let pendiente = totalAPagar - totalPagado;
 
-        if(document.getElementById('lbl-total-pagar')) document.getElementById('lbl-total-pagar').innerText = `$${parseFloat(userDatos.valor_total_pagar || 0).toFixed(2)}`;
+        if(document.getElementById('lbl-total-pagar')) document.getElementById('lbl-total-pagar').innerText = `$${totalAPagar.toFixed(2)}`;
         if(document.getElementById('lbl-pagado')) document.getElementById('lbl-pagado').innerText = `$${totalPagado.toFixed(2)}`;
         if(document.getElementById('lbl-pendiente')) document.getElementById('lbl-pendiente').innerText = `$${pendiente.toFixed(2)}`;
 
@@ -475,13 +578,6 @@ function actualizarDashboardPadre() {
         const vistaDocs = document.getElementById('padre-vista-documentos'); 
         if(vistaDocs) {
             const docsVisibles = contratosGlobales.filter(c => c.visible);
-            
-            // FILTRO A PRUEBA DE BALAS: Compara en mayúsculas y sin espacios
-            const cursoPadreLimpio = (userDatos.curso || '').trim().toUpperCase();
-            const misActividades = actividadesGlobales.filter(a => {
-                const cursoActLimpio = (a.curso || '').trim().toUpperCase();
-                return cursoActLimpio === cursoPadreLimpio;
-            });
             
             let htmlContratos = docsVisibles.length === 0 ? `<tr><td colspan="3" class="text-muted py-4">No hay contratos públicos habilitados.</td></tr>` : '';
             docsVisibles.forEach(c => {
