@@ -9,13 +9,13 @@ const API_URL = "/api";
 function forzarNombreSIGECO28() {
     document.title = "SIGECO 28";
     
-    // Marca en la barra de navegación superior
+    // Marca en la barra de navegación superior con el tamaño de letra aumentado
     const brand = document.querySelector('.navbar-brand');
     if (brand) {
         brand.innerHTML = `
             <div class="d-flex flex-column">
                 <span class="fw-bold"><i class="bi bi-shield-check me-2"></i>SIGECO 28</span>
-                <span style="font-size: 0.60rem; font-weight: normal; opacity: 0.9; line-height: 1.2; margin-top: 2px; text-transform: none;">
+                <span style="font-size: 0.85rem; font-weight: normal; opacity: 0.9; line-height: 1.2; margin-top: 2px; text-transform: none;">
                     Desarrollado por SmartFastSolution LATAM<br>infosfs@sfslatams.com
                 </span>
             </div>
@@ -161,7 +161,6 @@ function inyectarNuevasFunciones() {
         filePago.setAttribute('title', 'Solo se permiten imágenes JPG');
     }
 
-    // 1. Inyectar Tarjeta de Meta a Recaudar en Resumen
     const saldoCard = document.getElementById('dash-saldo');
     if (saldoCard && !document.getElementById('dash-meta')) {
         const row = saldoCard.closest('.row'); 
@@ -183,7 +182,6 @@ function inyectarNuevasFunciones() {
         }
     }
 
-    // 2. FILTRO MEJORADO Y RESPONSIVO
     const adminModuloCurso = document.getElementById('admin-modulo-curso');
     if (adminModuloCurso && !document.getElementById('filtro-curso-global')) {
         const filtroHTML = `
@@ -202,7 +200,6 @@ function inyectarNuevasFunciones() {
         adminModuloCurso.insertAdjacentHTML('afterbegin', filtroHTML);
     }
 
-    // 3. INYECTAR SECCIÓN DE GRÁFICOS (BARRAS DE PROGRESO)
     if (adminModuloCurso && !document.getElementById('contenedor-graficos-progreso')) {
         const graficosHTML = `
         <div class="card shadow-sm mt-4" id="contenedor-graficos-progreso">
@@ -210,7 +207,6 @@ function inyectarNuevasFunciones() {
                 <h5 class="card-title fw-bold text-dark mb-0"><i class="bi bi-bar-chart-steps me-2 text-primary"></i>Avance por Paralelo</h5>
             </div>
             <div class="card-body p-3" id="lista-barras-progreso">
-                <!-- Las barras se inyectan aquí con JS -->
             </div>
         </div>`;
         adminModuloCurso.insertAdjacentHTML('beforeend', graficosHTML);
@@ -420,7 +416,7 @@ function actualizarSelectCursos() {
     if(selectFiltro) {
         const valorActual = selectFiltro.value;
         selectFiltro.innerHTML = '<option value="TODOS">Todos los Cursos (General)</option>';
-        cursos.forEach(c => { selectFiltro.innerHTML += `<option value="${c}">${c}</option>`; });
+        cursos.forEach(c => { selectFiltro.innerHTML += `<option value="${c}">Solo mostrar ${c}</option>`; });
         if(cursos.includes(valorActual)) selectFiltro.value = valorActual;
     }
 
@@ -620,7 +616,6 @@ function renderizarDashboardCurso() {
         const recActs = actsCurso.reduce((s, a) => s + parseFloat(a.valor || 0), 0);
         const totalRecaudado = recPagos + recActs;
 
-        // Renderizar fila en la tabla
         tc.innerHTML += `<tr>
             <td class="fw-bold" style="color: #1e3c72;">${curso}</td>
             <td class="fw-bold fs-6">${totalAlumnos}</td>
@@ -628,7 +623,6 @@ function renderizarDashboardCurso() {
             <td class="fw-bold text-info fs-6">$${metaCurso.toFixed(2)}</td>
         </tr>`;
 
-        // Renderizar barra de progreso dinámica
         if (contenedorBarras) {
             let porcentaje = metaCurso > 0 ? Math.round((totalRecaudado / metaCurso) * 100) : 0;
             if (porcentaje > 100) porcentaje = 100;
