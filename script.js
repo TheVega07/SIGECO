@@ -5,23 +5,24 @@ let cursoFiltroActual = "TODOS";
 
 const API_URL = "/api"; 
 
-// === FUNCIÓN QUE OBLIGA EL USO DE "SIGECO 28" Y LA MARCA DE LA EMPRESA EN TODA LA PÁGINA ===
+// === FUNCIÓN QUE OBLIGA EL USO DE "SIGECO 28" Y LA MARCA DE DESARROLLO ===
 function forzarNombreSIGECO28() {
     document.title = "SIGECO 28";
     
+    // Marca en la barra de navegación superior
     const brand = document.querySelector('.navbar-brand');
     if (brand) {
         brand.innerHTML = `
-            <div class="d-flex flex-column justify-content-center" style="line-height: 1.1;">
-                <div style="font-size: 1.25rem;"><i class="bi bi-shield-check me-2"></i>SIGECO 28</div>
-                <div style="font-size: 0.6rem; color: rgba(255,255,255,0.85); margin-top: 3px; letter-spacing: 0.5px;">
-                    Desarrollado por SmartFasrSolution LATAM<br>
-                    infosfs@sfslatams.com
-                </div>
+            <div class="d-flex flex-column">
+                <span class="fw-bold"><i class="bi bi-shield-check me-2"></i>SIGECO 28</span>
+                <span style="font-size: 0.60rem; font-weight: normal; opacity: 0.9; line-height: 1.2; margin-top: 2px; text-transform: none;">
+                    Desarrollado por SmartFastSolution LATAM<br>infosfs@sfslatams.com
+                </span>
             </div>
         `;
     }
 
+    // Cambiar títulos en el Login
     const titulosLogin = document.querySelectorAll('#vista-login h1, #vista-login h2, #vista-login h3, #vista-login h4, #vista-login .card-title, #vista-login .card-header');
     titulosLogin.forEach(el => {
         if(el.innerHTML.includes('SIGECO') && !el.innerHTML.includes('28')) {
@@ -31,19 +32,20 @@ function forzarNombreSIGECO28() {
         }
     });
 
-    // Añadir créditos también a la pantalla de Login
-    const loginCard = document.querySelector('#vista-login .card-body');
-    if (loginCard && !document.getElementById('login-creditos-sfs')) {
-        loginCard.insertAdjacentHTML('beforeend', `
-            <div id="login-creditos-sfs" class="text-center mt-4 pt-3 border-top text-muted" style="font-size: 0.75rem;">
-                Desarrollado por <strong>SmartFasrSolution LATAM</strong><br>
-                infosfs@sfslatams.com
+    // Inyectar marca debajo del botón de Iniciar Sesión (solo si no existe)
+    const formLogin = document.getElementById('form-login');
+    if (formLogin && !document.getElementById('marca-login-sfs')) {
+        const marcaHTML = `
+            <div id="marca-login-sfs" class="text-center mt-4 pt-3 border-top">
+                <p class="mb-0 fw-bold text-dark">SIGECO 28</p>
+                <p class="mb-0 text-muted small">Desarrollado por SmartFastSolution LATAM</p>
+                <a href="mailto:infosfs@sfslatams.com" class="text-success small text-decoration-none">infosfs@sfslatams.com</a>
             </div>
-        `);
+        `;
+        formLogin.insertAdjacentHTML('beforeend', marcaHTML);
     }
 }
 
-// === FORZAR SCROLL HORIZONTAL EN TODAS LAS TABLAS (PARA CELULARES) ===
 function hacerTablasResponsivas() {
     const tablas = document.querySelectorAll('table');
     tablas.forEach(tabla => {
@@ -69,7 +71,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         
         await cargarDatosDesdeServidor();
         inyectarNuevasFunciones();
-        hacerTablasResponsivas(); 
+        hacerTablasResponsivas();
         cargarPortalSegunRol(usuarioActual);
     } else {
         document.getElementById('vista-app').classList.add('oculto');
@@ -159,6 +161,7 @@ function inyectarNuevasFunciones() {
         filePago.setAttribute('title', 'Solo se permiten imágenes JPG');
     }
 
+    // 1. Inyectar Tarjeta de Meta a Recaudar en Resumen
     const saldoCard = document.getElementById('dash-saldo');
     if (saldoCard && !document.getElementById('dash-meta')) {
         const row = saldoCard.closest('.row'); 
@@ -180,18 +183,37 @@ function inyectarNuevasFunciones() {
         }
     }
 
+    // 2. FILTRO MEJORADO Y RESPONSIVO
     const adminModuloCurso = document.getElementById('admin-modulo-curso');
     if (adminModuloCurso && !document.getElementById('filtro-curso-global')) {
         const filtroHTML = `
         <div class="card shadow-sm mb-4 border-primary" id="filtro-curso-global">
-            <div class="card-body d-flex align-items-center bg-light rounded">
-                <label class="fw-bold me-3 mb-0 text-primary"><i class="bi bi-funnel-fill me-2"></i>Filtrar vistas por Curso:</label>
-                <select class="form-select w-auto border-primary shadow-sm" id="select-filtro-curso" onchange="aplicarFiltroCurso(this.value)">
-                    <option value="TODOS">Todos los Cursos (General)</option>
-                </select>
+            <div class="card-body p-3 bg-light rounded">
+                <div class="d-flex flex-column flex-md-row align-items-md-center">
+                    <label class="fw-bold text-primary mb-2 mb-md-0 me-md-3 text-nowrap">
+                        <i class="bi bi-funnel-fill me-2"></i>Filtrar vistas por Curso:
+                    </label>
+                    <select class="form-select border-primary shadow-sm w-100" id="select-filtro-curso" onchange="aplicarFiltroCurso(this.value)">
+                        <option value="TODOS">Todos los Cursos (General)</option>
+                    </select>
+                </div>
             </div>
         </div>`;
         adminModuloCurso.insertAdjacentHTML('afterbegin', filtroHTML);
+    }
+
+    // 3. INYECTAR SECCIÓN DE GRÁFICOS (BARRAS DE PROGRESO)
+    if (adminModuloCurso && !document.getElementById('contenedor-graficos-progreso')) {
+        const graficosHTML = `
+        <div class="card shadow-sm mt-4" id="contenedor-graficos-progreso">
+            <div class="card-header bg-white border-bottom">
+                <h5 class="card-title fw-bold text-dark mb-0"><i class="bi bi-bar-chart-steps me-2 text-primary"></i>Avance por Paralelo</h5>
+            </div>
+            <div class="card-body p-3" id="lista-barras-progreso">
+                <!-- Las barras se inyectan aquí con JS -->
+            </div>
+        </div>`;
+        adminModuloCurso.insertAdjacentHTML('beforeend', graficosHTML);
     }
 
     if (!document.getElementById('modalActividad')) {
@@ -398,7 +420,7 @@ function actualizarSelectCursos() {
     if(selectFiltro) {
         const valorActual = selectFiltro.value;
         selectFiltro.innerHTML = '<option value="TODOS">Todos los Cursos (General)</option>';
-        cursos.forEach(c => { selectFiltro.innerHTML += `<option value="${c}">Solo mostrar ${c}</option>`; });
+        cursos.forEach(c => { selectFiltro.innerHTML += `<option value="${c}">${c}</option>`; });
         if(cursos.includes(valorActual)) selectFiltro.value = valorActual;
     }
 
@@ -557,6 +579,8 @@ function renderizarDashboardAdmin(pagosRender, actiRender) {
 
 function renderizarDashboardCurso() {
     const tc = document.getElementById('tabla-dashboard-curso');
+    const contenedorBarras = document.getElementById('lista-barras-progreso');
+    
     if(!tc) return;
 
     const thead = tc.closest('table').querySelector('thead tr');
@@ -576,8 +600,11 @@ function renderizarDashboardCurso() {
     }
 
     tc.innerHTML = '';
+    if (contenedorBarras) contenedorBarras.innerHTML = '';
+
     if(cursosUnicos.length === 0) {
         tc.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay datos para mostrar.</td></tr>`;
+        if (contenedorBarras) contenedorBarras.innerHTML = `<p class="text-muted mb-0">No hay datos de avance para mostrar.</p>`;
         return;
     }
 
@@ -593,12 +620,36 @@ function renderizarDashboardCurso() {
         const recActs = actsCurso.reduce((s, a) => s + parseFloat(a.valor || 0), 0);
         const totalRecaudado = recPagos + recActs;
 
+        // Renderizar fila en la tabla
         tc.innerHTML += `<tr>
             <td class="fw-bold" style="color: #1e3c72;">${curso}</td>
             <td class="fw-bold fs-6">${totalAlumnos}</td>
             <td class="fw-bold text-success fs-6">$${totalRecaudado.toFixed(2)}</td>
             <td class="fw-bold text-info fs-6">$${metaCurso.toFixed(2)}</td>
         </tr>`;
+
+        // Renderizar barra de progreso dinámica
+        if (contenedorBarras) {
+            let porcentaje = metaCurso > 0 ? Math.round((totalRecaudado / metaCurso) * 100) : 0;
+            if (porcentaje > 100) porcentaje = 100;
+            
+            let colorClase = 'bg-danger';
+            if (porcentaje > 40) colorClase = 'bg-warning text-dark';
+            if (porcentaje > 80) colorClase = 'bg-success';
+
+            contenedorBarras.innerHTML += `
+            <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-end mb-1">
+                    <span class="fw-bold text-dark" style="font-size: 0.9rem;">${curso}</span>
+                    <span class="fw-bold text-muted" style="font-size: 0.8rem;">$${totalRecaudado.toFixed(2)} / $${metaCurso.toFixed(2)}</span>
+                </div>
+                <div class="progress" style="height: 20px; border-radius: 10px; background-color: #e9ecef;">
+                    <div class="progress-bar ${colorClase} fw-bold" role="progressbar" style="width: ${porcentaje}%" aria-valuenow="${porcentaje}" aria-valuemin="0" aria-valuemax="100">
+                        ${porcentaje > 5 ? porcentaje + '%' : ''}
+                    </div>
+                </div>
+            </div>`;
+        }
     });
 }
 
