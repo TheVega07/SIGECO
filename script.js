@@ -5,33 +5,61 @@ let cursoFiltroActual = "TODOS";
 
 const API_URL = "/api"; 
 
-// === FUNCIÓN QUE OBLIGA EL USO DE "SIGECO 28" EN TODA LA PÁGINA DESDE EL INICIO ===
+// === FUNCIÓN QUE OBLIGA EL USO DE "SIGECO 28" Y LA MARCA DE LA EMPRESA EN TODA LA PÁGINA ===
 function forzarNombreSIGECO28() {
     document.title = "SIGECO 28";
     
-    // Cambiar la barra de navegación superior (Navbar)
     const brand = document.querySelector('.navbar-brand');
-    if (brand) brand.innerHTML = '<i class="bi bi-shield-check me-2"></i>SIGECO 28';
+    if (brand) {
+        brand.innerHTML = `
+            <div class="d-flex flex-column justify-content-center" style="line-height: 1.1;">
+                <div style="font-size: 1.25rem;"><i class="bi bi-shield-check me-2"></i>SIGECO 28</div>
+                <div style="font-size: 0.6rem; color: rgba(255,255,255,0.85); margin-top: 3px; letter-spacing: 0.5px;">
+                    Desarrollado por SmartFasrSolution LATAM<br>
+                    infosfs@sfslatams.com
+                </div>
+            </div>
+        `;
+    }
 
-    // Cambiar todos los títulos dentro de la pantalla de Iniciar Sesión
     const titulosLogin = document.querySelectorAll('#vista-login h1, #vista-login h2, #vista-login h3, #vista-login h4, #vista-login .card-title, #vista-login .card-header');
     titulosLogin.forEach(el => {
-        // Si decía "SIGECO" o "SIGECO Portal", lo cambia a "SIGECO 28"
         if(el.innerHTML.includes('SIGECO') && !el.innerHTML.includes('28')) {
             el.innerHTML = el.innerHTML.replace(/SIGECO(\sPortal)?/gi, 'SIGECO 28');
-        } 
-        // Si no decía SIGECO (por ejemplo, solo decía "Iniciar Sesión"), le agrega la marca
-        else if (!el.innerHTML.includes('SIGECO')) {
+        } else if (!el.innerHTML.includes('SIGECO')) {
             el.innerHTML = 'SIGECO 28 - ' + el.innerHTML;
         }
+    });
+
+    // Añadir créditos también a la pantalla de Login
+    const loginCard = document.querySelector('#vista-login .card-body');
+    if (loginCard && !document.getElementById('login-creditos-sfs')) {
+        loginCard.insertAdjacentHTML('beforeend', `
+            <div id="login-creditos-sfs" class="text-center mt-4 pt-3 border-top text-muted" style="font-size: 0.75rem;">
+                Desarrollado por <strong>SmartFasrSolution LATAM</strong><br>
+                infosfs@sfslatams.com
+            </div>
+        `);
+    }
+}
+
+// === FORZAR SCROLL HORIZONTAL EN TODAS LAS TABLAS (PARA CELULARES) ===
+function hacerTablasResponsivas() {
+    const tablas = document.querySelectorAll('table');
+    tablas.forEach(tabla => {
+        if (!tabla.parentElement.classList.contains('table-responsive')) {
+            const wrapper = document.createElement('div');
+            wrapper.classList.add('table-responsive', 'mb-3');
+            tabla.parentNode.insertBefore(wrapper, tabla);
+            wrapper.appendChild(tabla);
+        }
+        tabla.classList.add('text-nowrap');
     });
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-    // 0. FORZAR NOMBRE INMEDIATAMENTE AL CARGAR LA PÁGINA
     forzarNombreSIGECO28();
 
-    // 1. GESTIÓN DE SESIÓN (Evita que F5 cierre la sesión)
     const sesionGuardada = sessionStorage.getItem('sesionSIGECO');
     if (sesionGuardada) {
         usuarioActual = JSON.parse(sesionGuardada);
@@ -41,6 +69,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         
         await cargarDatosDesdeServidor();
         inyectarNuevasFunciones();
+        hacerTablasResponsivas(); 
         cargarPortalSegunRol(usuarioActual);
     } else {
         document.getElementById('vista-app').classList.add('oculto');
@@ -122,7 +151,6 @@ function compararCursos(c1, c2) {
 
 // ================= INYECTOR AUTOMÁTICO DE INTERFAZ (UI) =================
 function inyectarNuevasFunciones() {
-    // Asegurarse de que el nombre persista después de inyectar
     forzarNombreSIGECO28();
 
     const filePago = document.getElementById('pago-voucher-file');
@@ -131,7 +159,6 @@ function inyectarNuevasFunciones() {
         filePago.setAttribute('title', 'Solo se permiten imágenes JPG');
     }
 
-    // INYECTAR TARJETA DE "META A RECAUDAR"
     const saldoCard = document.getElementById('dash-saldo');
     if (saldoCard && !document.getElementById('dash-meta')) {
         const row = saldoCard.closest('.row'); 
@@ -179,8 +206,10 @@ function inyectarNuevasFunciones() {
                     <div class="modal-body">
                         <form id="form-actividad">
                             <div class="mb-3">
-                                <label class="fw-bold">Curso / Paralelo (Manual)</label>
-                                <input type="text" class="form-control" id="act-curso" required placeholder="Ej: 8vo B">
+                                <label class="fw-bold">Curso / Paralelo</label>
+                                <select class="form-select" id="act-curso" required>
+                                    <option value="">-- Seleccione un Curso --</option>
+                                </select>
                             </div>
                             <div class="mb-3"><label class="fw-bold">Descripción (Ej. Rifa, Bingo)</label><input type="text" class="form-control" id="act-desc" required></div>
                             <div class="mb-3"><label class="fw-bold">Fecha</label><input type="date" class="form-control" id="act-fecha" required></div>
@@ -239,7 +268,7 @@ async function iniciarSesion(e) {
         });
         const data = await resp.json();
         if (data.exito) {
-            sessionStorage.setItem('sesionSIGECO', JSON.stringify(data.usuario)); // GUARDAR SESIÓN
+            sessionStorage.setItem('sesionSIGECO', JSON.stringify(data.usuario));
             
             await cargarDatosDesdeServidor();
             inyectarNuevasFunciones(); 
@@ -314,15 +343,17 @@ function cargarPortalSegunRol(usuario) {
         document.getElementById('portal-admin').classList.add('oculto');
         actualizarDashboardPadre();
     }
+    
+    setTimeout(hacerTablasResponsivas, 500); 
 }
 
 function cerrarSesion() {
     usuarioActual = null;
-    sessionStorage.removeItem('sesionSIGECO'); // LIMPIAR SESION
+    sessionStorage.removeItem('sesionSIGECO');
     document.getElementById('vista-app').classList.add('oculto');
     document.getElementById('vista-login').classList.remove('oculto');
     document.getElementById('form-login').reset();
-    forzarNombreSIGECO28(); // Nos aseguramos que al salir siga diciendo SIGECO 28
+    forzarNombreSIGECO28();
 }
 
 function cerrarMenuMobile() {
@@ -331,7 +362,6 @@ function cerrarMenuMobile() {
     if (collapse && collapse.classList.contains('show')) toggler.click();
 }
 
-// 3. REFRESCO EN TIEMPO REAL AL CAMBIAR PESTAÑAS
 async function cambiarModuloAdmin(modulo, el) {
     document.querySelectorAll('#portal-admin > div').forEach(d => { 
         if(d.id && d.id.startsWith('admin-modulo-')) d.classList.add('oculto'); 
@@ -341,8 +371,6 @@ async function cambiarModuloAdmin(modulo, el) {
     if (div) div.classList.remove('oculto');
     if (el) el.classList.add('active');
     cerrarMenuMobile();
-    
-    // Al entrar a una sección, descarga la BD fresca automáticamente
     await renderizarTodasLasTablasAdmin();
 }
 
@@ -362,14 +390,23 @@ function aplicarFiltroCurso(curso) {
 }
 
 function actualizarSelectCursos() {
-    const select = document.getElementById('select-filtro-curso');
+    const selectFiltro = document.getElementById('select-filtro-curso');
+    const selectModal = document.getElementById('act-curso'); 
+    
     const cursos = [...new Set(usuariosBD.map(u => u.curso).filter(c => c && c.trim() !== ''))].sort();
     
-    if(select) {
-        const valorActual = select.value;
-        select.innerHTML = '<option value="TODOS">Todos los Cursos (General)</option>';
-        cursos.forEach(c => { select.innerHTML += `<option value="${c}">Solo mostrar ${c}</option>`; });
-        if(cursos.includes(valorActual)) select.value = valorActual;
+    if(selectFiltro) {
+        const valorActual = selectFiltro.value;
+        selectFiltro.innerHTML = '<option value="TODOS">Todos los Cursos (General)</option>';
+        cursos.forEach(c => { selectFiltro.innerHTML += `<option value="${c}">Solo mostrar ${c}</option>`; });
+        if(cursos.includes(valorActual)) selectFiltro.value = valorActual;
+    }
+
+    if(selectModal) {
+        const valModal = selectModal.value;
+        selectModal.innerHTML = '<option value="">-- Seleccione un Curso --</option>';
+        cursos.forEach(c => { selectModal.innerHTML += `<option value="${c}">${c}</option>`; });
+        if(cursos.includes(valModal)) selectModal.value = valModal;
     }
 }
 
@@ -458,11 +495,8 @@ async function renderizarTodasLasTablasAdmin() {
     if(tc) {
         tc.innerHTML = '';
         usuariosParaRender.filter(u => u.rol === 'PADRE').forEach(u => {
-            const actsCurso = actividadesGlobales.filter(a => compararCursos(a.curso, u.curso));
-            const totalActs = actsCurso.reduce((sum, a) => sum + parseFloat(a.valor || 0), 0);
-            
             const cuotaBase = parseFloat(u.valor_total_pagar || 0);
-            const totalDeuda = cuotaBase + totalActs;
+            const totalDeuda = cuotaBase; 
             
             const pagosPadre = pagosGlobales.filter(p => p.usuario === u.username && p.estado === 'VALIDADO');
             const totalPagadoPadre = pagosPadre.reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
@@ -474,8 +508,7 @@ async function renderizarTodasLasTablasAdmin() {
                 <td>${u.nombre} <br><span class="badge bg-dark">${u.curso||'Sin curso'}</span></td>
                 <td>
                     <div class="small">Cuota Base: <span class="fw-bold">$${cuotaBase.toFixed(2)}</span></div>
-                    <div class="small text-success mb-1">Actividades Extras: <span class="fw-bold">+$${totalActs.toFixed(2)}</span></div>
-                    <div class="fw-bold text-dark border-top pt-1">Total a Pagar: $${totalDeuda.toFixed(2)}</div>
+                    <div class="fw-bold text-dark border-top pt-1 mt-1">Total a Pagar: $${totalDeuda.toFixed(2)}</div>
                 </td>
                 <td>
                     <div class="small text-success mb-1">Total Abonado: <span class="fw-bold">$${totalPagadoPadre.toFixed(2)}</span></div>
@@ -497,6 +530,8 @@ async function renderizarTodasLasTablasAdmin() {
             tbDocs.innerHTML += `<tr><td>${c.fecha}</td><td class="fw-bold text-dark">${descripcionC}</td><td>${proveedorC}</td><td class="fw-bold text-success">$${parseFloat(c.valor || 0).toFixed(2)}</td><td>${btnVisible}</td></tr>`;
         });
     }
+    
+    setTimeout(hacerTablasResponsivas, 200);
 }
 
 function renderizarDashboardAdmin(pagosRender, actiRender) {
@@ -507,7 +542,6 @@ function renderizarDashboardAdmin(pagosRender, actiRender) {
     let totalIngresos = totalIngresosBase + pagosValidados + totalIngresosAct;
     let totalEgresos = (cursoFiltroActual === "TODOS") ? egresosGlobales.reduce((s, e) => s + parseFloat(e.valor || 0), 0) : 0;
     
-    // Cálculo Dinámico de Meta a Recaudar
     let metaTotal = 0;
     if (cursoFiltroActual === "TODOS") {
         metaTotal = usuariosBD.filter(u => u.rol === 'PADRE').reduce((s, u) => s + parseFloat(u.valor_total_pagar || 0), 0);
@@ -521,7 +555,6 @@ function renderizarDashboardAdmin(pagosRender, actiRender) {
     if(document.getElementById('dash-meta')) document.getElementById('dash-meta').innerText = `$${metaTotal.toFixed(2)}`;
 }
 
-// ================= 4. TABLA INTELIGENTE DE RESUMEN POR CURSO =================
 function renderizarDashboardCurso() {
     const tc = document.getElementById('tabla-dashboard-curso');
     if(!tc) return;
@@ -575,10 +608,9 @@ function actualizarDashboardPadre() {
         const misPagos = pagosGlobales.filter(p => p.usuario === usuarioActual.username);
         
         const misActividades = actividadesGlobales.filter(a => compararCursos(a.curso, userDatos.curso));
-        let totalActividades = misActividades.reduce((sum, a) => sum + parseFloat(a.valor || 0), 0);
         
         let cuotaBase = parseFloat(userDatos.valor_total_pagar || 0);
-        let totalAPagar = cuotaBase + totalActividades;
+        let totalAPagar = cuotaBase;
         
         let totalPagado = misPagos.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
         let pendiente = totalAPagar - totalPagado;
@@ -606,7 +638,7 @@ function actualizarDashboardPadre() {
                 htmlContratos += `<tr><td>${c.fecha}</td><td class="fw-bold text-dark">${descripcionC}</td><td><button class="btn btn-sm btn-outline-primary fw-bold shadow-sm" onclick="verDocumentoPDF(${c.id})"><i class="bi bi-file-pdf-fill me-1"></i>Ver Documento</button></td></tr>`;
             });
 
-            let htmlActividades = misActividades.length === 0 ? `<tr><td colspan="3" class="text-muted py-4">No hay actividades extra registradas en tu curso.</td></tr>` : '';
+            let htmlActividades = misActividades.length === 0 ? `<tr><td colspan="3" class="text-muted py-4">No hay fondos recaudados en tu curso.</td></tr>` : '';
             misActividades.forEach(a => {
                 const btnDoc = a.tiene_doc ? `<button class="btn btn-sm btn-outline-success fw-bold shadow-sm" onclick="verActividadPDF(${a.id})"><i class="bi bi-file-pdf-fill me-1"></i>Ver Respaldo</button>` : '-';
                 htmlActividades += `<tr><td>${a.fecha}</td><td class="fw-bold text-dark">${a.descripcion} <br><small class="text-success">+$${parseFloat(a.valor||0).toFixed(2)}</small></td><td>${btnDoc}</td></tr>`;
@@ -626,7 +658,7 @@ function actualizarDashboardPadre() {
                 </div>
 
                 <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-success text-white fw-bold"><i class="bi bi-cash-coin me-2"></i>2. Ingresos por Actividades (Tu Curso: ${userDatos.curso})</div>
+                    <div class="card-header bg-success text-white fw-bold"><i class="bi bi-cash-coin me-2"></i>2. Fondos Extra Recaudados (Tu Curso: ${userDatos.curso})</div>
                     <div class="table-responsive"><table class="table table-hover align-middle text-center mb-0"><thead class="table-light"><tr><th>Fecha</th><th>Descripción</th><th>Documento</th></tr></thead><tbody>${htmlActividades}</tbody></table></div>
                 </div>
 
@@ -636,6 +668,7 @@ function actualizarDashboardPadre() {
                 </div>
             `;
         }
+        setTimeout(hacerTablasResponsivas, 200);
     });
 }
 
