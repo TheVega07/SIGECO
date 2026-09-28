@@ -18,7 +18,7 @@ db_config = {
     'host': '74.50.76.122',
     'user': 'sfslatam_usigeco',
     'password': 'Sigeco123*',
-    'database': 'bofka0yvxs4omirhgxov',
+    'database': 'sfslatam_sigeco',
     'port': 3306
 }
 
