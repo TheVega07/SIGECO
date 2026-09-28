@@ -15,9 +15,9 @@ def add_header(response):
     return response
 
 db_config = {
-    'host': 'bofka0yvxs4omirhgxov-mysql.services.clever-cloud.com',
-    'user': 'uqhndfmb7n4qeitj',
-    'password': 'pCgS8AdKvbLpLdCSpvqK',
+    'host': '74.50.76.122',
+    'user': 'sfslatam_usigeco',
+    'password': 'Sigeco123*',
     'database': 'bofka0yvxs4omirhgxov',
     'port': 3306
 }
