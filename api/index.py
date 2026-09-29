@@ -14,6 +14,7 @@ def add_header(response):
     response.headers["Expires"] = "0"
     return response
 
+# Credenciales restauradas a Clever Cloud
 db_config = {
     'host': 'bofka0yvxs4omirhgxov-mysql.services.clever-cloud.com',
     'user': 'uqhndfmb7n4qeitj',
@@ -47,6 +48,8 @@ def sanitize_list(rows):
 
 @app.route('/api/login', methods=['POST'])
 def login():
+    conexion = None
+    cursor = None
     try:
         data = request.get_json()
         usuario = data.get('username')
@@ -56,8 +59,6 @@ def login():
         cursor = conexion.cursor(dictionary=True)
         cursor.execute("SELECT * FROM usuarios WHERE username = %s AND password = %s", (usuario, password))
         user = sanitize_row(cursor.fetchone())
-        cursor.close()
-        conexion.close()
 
         if user:
             if user.get('estado') == 'INACTIVO':
@@ -67,9 +68,14 @@ def login():
             return jsonify({"exito": False, "mensaje": "Credenciales incorrectas"}), 401
     except Exception as e:
         return jsonify({"exito": False, "error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
 
 @app.route('/api/datos', methods=['GET'])
 def obtener_datos():
+    conexion = None
+    cursor = None
     try:
         conexion = get_db_connection()
         cursor = conexion.cursor(dictionary=True)
@@ -134,16 +140,18 @@ def obtener_datos():
             resp_data["actividades"] = sanitize_list(actividades)
         except: pass
 
-        cursor.close()
-        conexion.close()
-
         return jsonify(resp_data)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
 
 # ================= RUTAS USUARIOS =================
 @app.route('/api/usuarios', methods=['POST', 'PUT'])
 def guardar_usuario():
+    conexion = None
+    cursor = None
     try:
         data = request.get_json()
         conexion = get_db_connection()
@@ -156,57 +164,69 @@ def guardar_usuario():
             val = (data['nombre'], data['rol'], data['curso'], data['username'])
         cursor.execute(sql, val)
         conexion.commit()
-        cursor.close()
-        conexion.close()
         return jsonify({"exito": True})
     except Exception as e:
         return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
 
 @app.route('/api/usuarios/estado', methods=['POST'])
 def estado_usuario():
+    conexion = None
+    cursor = None
     try:
         data = request.get_json()
         conexion = get_db_connection()
         cursor = conexion.cursor()
         cursor.execute("UPDATE usuarios SET estado=%s WHERE username=%s", (data['estado'], data['username']))
         conexion.commit()
-        cursor.close()
-        conexion.close()
         return jsonify({"exito": True})
     except Exception as e:
         return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
 
 @app.route('/api/usuarios/clave', methods=['POST'])
 def clave_usuario():
+    conexion = None
+    cursor = None
     try:
         data = request.get_json()
         conexion = get_db_connection()
         cursor = conexion.cursor()
         cursor.execute("UPDATE usuarios SET password=%s, debe_cambiar_clave=%s WHERE username=%s", (data['password'], data['forzar'], data['username']))
         conexion.commit()
-        cursor.close()
-        conexion.close()
         return jsonify({"exito": True})
     except Exception as e:
         return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
 
 @app.route('/api/usuarios/cuota', methods=['POST'])
 def cuota_usuario():
+    conexion = None
+    cursor = None
     try:
         data = request.get_json()
         conexion = get_db_connection()
         cursor = conexion.cursor()
         cursor.execute("UPDATE usuarios SET valor_total_pagar=%s WHERE username=%s", (data['valor'], data['username']))
         conexion.commit()
-        cursor.close()
-        conexion.close()
         return jsonify({"exito": True})
     except Exception as e:
         return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
 
 # ================= RUTAS PAGOS Y DOCUMENTOS =================
 @app.route('/api/pagos', methods=['POST'])
 def registrar_pago():
+    conexion = None
+    cursor = None
     try:
         data = request.get_json()
         conexion = get_db_connection()
@@ -215,28 +235,34 @@ def registrar_pago():
         val = (data['usuario'], data['fecha'], data['voucher'], data['valor'], data.get('voucher_b64', ''))
         cursor.execute(sql, val)
         conexion.commit()
-        cursor.close()
-        conexion.close()
         return jsonify({"exito": True})
     except Exception as e:
         return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
 
 @app.route('/api/pagos/validar', methods=['POST'])
 def validar_pago():
+    conexion = None
+    cursor = None
     try:
         data = request.get_json()
         conexion = get_db_connection()
         cursor = conexion.cursor()
         cursor.execute("UPDATE pagos SET estado = 'VALIDADO' WHERE id = %s", (data['id'],))
         conexion.commit()
-        cursor.close()
-        conexion.close()
         return jsonify({"exito": True})
     except Exception as e:
         return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
 
 @app.route('/api/documentos', methods=['POST'])
 def subir_documento():
+    conexion = None
+    cursor = None
     try:
         data = request.get_json()
         conexion = get_db_connection()
@@ -245,55 +271,69 @@ def subir_documento():
         val = (data['tipo'], data['fecha'], data['desc'], data['prov'], data['valor'], data['archivoNombre'], data['archivoData'], data['visible'])
         cursor.execute(sql, val)
         conexion.commit()
-        cursor.close()
-        conexion.close()
         return jsonify({"exito": True})
     except Exception as e:
         return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
 
 @app.route('/api/documentos/visible', methods=['POST'])
 def visible_documento():
+    conexion = None
+    cursor = None
     try:
         data = request.get_json()
         conexion = get_db_connection()
         cursor = conexion.cursor()
         cursor.execute("UPDATE documentos SET visible=%s WHERE id=%s", (data['visible'], data['id']))
         conexion.commit()
-        cursor.close()
-        conexion.close()
         return jsonify({"exito": True})
     except Exception as e:
         return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
 
 @app.route('/api/documentos/ver/<int:id>', methods=['GET'])
 def ver_documento(id):
+    conexion = None
+    cursor = None
     try:
         conexion = get_db_connection()
         cursor = conexion.cursor(dictionary=True)
         cursor.execute("SELECT archivoData FROM documentos WHERE id = %s", (id,))
         doc = cursor.fetchone()
-        cursor.close()
-        conexion.close()
         if doc and doc['archivoData']: return jsonify({"exito": True, "base64": doc['archivoData']})
         return jsonify({"exito": False, "mensaje": "No encontrado"})
-    except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
+    except Exception as e: 
+        return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
 
 @app.route('/api/pagos/ver/<int:id>', methods=['GET'])
 def ver_voucher(id):
+    conexion = None
+    cursor = None
     try:
         conexion = get_db_connection()
         cursor = conexion.cursor(dictionary=True)
         cursor.execute("SELECT voucher_b64 FROM pagos WHERE id = %s", (id,))
         doc = cursor.fetchone()
-        cursor.close()
-        conexion.close()
         if doc and doc['voucher_b64']: return jsonify({"exito": True, "base64": doc['voucher_b64']})
         return jsonify({"exito": False, "mensaje": "No encontrado"})
-    except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
+    except Exception as e: 
+        return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
 
 # ================= RUTAS EGRESOS, ACTAS Y ACTIVIDADES =================
 @app.route('/api/egresos', methods=['POST'])
 def registrar_egreso():
+    conexion = None
+    cursor = None
     try:
         data = request.get_json()
         conexion = get_db_connection()
@@ -302,26 +342,34 @@ def registrar_egreso():
         val = (data['fecha'], data['descripcion'], data['proveedor'], data['valor'], data.get('archivoNombre', ''), data.get('archivoData', ''))
         cursor.execute(sql, val)
         conexion.commit()
-        cursor.close()
-        conexion.close()
         return jsonify({"exito": True})
-    except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
+    except Exception as e: 
+        return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
 
 @app.route('/api/egresos/ver/<int:id>', methods=['GET'])
 def ver_egreso(id):
+    conexion = None
+    cursor = None
     try:
         conexion = get_db_connection()
         cursor = conexion.cursor(dictionary=True)
         cursor.execute("SELECT archivoData FROM egresos WHERE id = %s", (id,))
         doc = cursor.fetchone()
-        cursor.close()
-        conexion.close()
         if doc and doc['archivoData']: return jsonify({"exito": True, "base64": doc['archivoData']})
         return jsonify({"exito": False, "mensaje": "No encontrado"})
-    except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
+    except Exception as e: 
+        return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
 
 @app.route('/api/actas', methods=['POST'])
 def subir_acta():
+    conexion = None
+    cursor = None
     try:
         data = request.get_json()
         conexion = get_db_connection()
@@ -330,26 +378,34 @@ def subir_acta():
         val = (data['fecha'], data['descripcion'], data['archivoNombre'], data['archivoData'])
         cursor.execute(sql, val)
         conexion.commit()
-        cursor.close()
-        conexion.close()
         return jsonify({"exito": True})
-    except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
+    except Exception as e: 
+        return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
 
 @app.route('/api/actas/ver/<int:id>', methods=['GET'])
 def ver_acta(id):
+    conexion = None
+    cursor = None
     try:
         conexion = get_db_connection()
         cursor = conexion.cursor(dictionary=True)
         cursor.execute("SELECT archivoData FROM actas WHERE id = %s", (id,))
         doc = cursor.fetchone()
-        cursor.close()
-        conexion.close()
         if doc and doc['archivoData']: return jsonify({"exito": True, "base64": doc['archivoData']})
         return jsonify({"exito": False, "mensaje": "No encontrado"})
-    except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
+    except Exception as e: 
+        return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
 
 @app.route('/api/actividades', methods=['POST'])
 def subir_actividad():
+    conexion = None
+    cursor = None
     try:
         data = request.get_json()
         conexion = get_db_connection()
@@ -358,26 +414,34 @@ def subir_actividad():
         val = (data['curso'], data['descripcion'], data['fecha'], data['valor'], data['archivoNombre'], data['archivoData'])
         cursor.execute(sql, val)
         conexion.commit()
-        cursor.close()
-        conexion.close()
         return jsonify({"exito": True})
-    except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
+    except Exception as e: 
+        return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
 
 @app.route('/api/actividades/ver/<int:id>', methods=['GET'])
 def ver_actividad(id):
+    conexion = None
+    cursor = None
     try:
         conexion = get_db_connection()
         cursor = conexion.cursor(dictionary=True)
         cursor.execute("SELECT archivoData FROM actividades WHERE id = %s", (id,))
         doc = cursor.fetchone()
-        cursor.close()
-        conexion.close()
         if doc and doc['archivoData']: return jsonify({"exito": True, "base64": doc['archivoData']})
         return jsonify({"exito": False, "mensaje": "No encontrado"})
-    except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
+    except Exception as e: 
+        return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
 
 @app.route('/api/dashboard/curso', methods=['GET'])
 def dashboard_curso():
+    conexion = None
+    cursor = None
     try:
         conexion = get_db_connection()
         cursor = conexion.cursor(dictionary=True)
@@ -390,8 +454,9 @@ def dashboard_curso():
         """
         cursor.execute(sql)
         recaudado_curso = sanitize_list(cursor.fetchall())
-        cursor.close()
-        conexion.close()
         return jsonify({"exito": True, "datos": recaudado_curso})
     except Exception as e:
         return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
