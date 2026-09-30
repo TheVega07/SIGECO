@@ -9,7 +9,6 @@ const API_URL = "/api";
 function forzarNombreSIGECO28() {
     document.title = "SIGECO 28";
     
-    // Marca en la barra de navegación superior con el tamaño de letra aumentado
     const brand = document.querySelector('.navbar-brand');
     if (brand) {
         brand.innerHTML = `
@@ -22,7 +21,6 @@ function forzarNombreSIGECO28() {
         `;
     }
 
-    // Cambiar títulos en el Login
     const titulosLogin = document.querySelectorAll('#vista-login h1, #vista-login h2, #vista-login h3, #vista-login h4, #vista-login .card-title, #vista-login .card-header');
     titulosLogin.forEach(el => {
         if(el.innerHTML.includes('SIGECO') && !el.innerHTML.includes('28')) {
@@ -32,7 +30,6 @@ function forzarNombreSIGECO28() {
         }
     });
 
-    // Inyectar marca debajo del botón de Iniciar Sesión (solo si no existe)
     const formLogin = document.getElementById('form-login');
     if (formLogin && !document.getElementById('marca-login-sfs')) {
         const marcaHTML = `
@@ -151,7 +148,6 @@ function compararCursos(c1, c2) {
     return c1.toUpperCase().replace(/\s+/g, '') === c2.toUpperCase().replace(/\s+/g, '');
 }
 
-// ================= INYECTOR AUTOMÁTICO DE INTERFAZ (UI) =================
 function inyectarNuevasFunciones() {
     forzarNombreSIGECO28();
 
@@ -227,6 +223,7 @@ function inyectarNuevasFunciones() {
                                 <label class="fw-bold">Curso / Paralelo</label>
                                 <select class="form-select" id="act-curso" required>
                                     <option value="">-- Seleccione un Curso --</option>
+                                    <option value="TODOS">🌐 Todos los Cursos (General)</option>
                                 </select>
                             </div>
                             <div class="mb-3"><label class="fw-bold">Descripción (Ej. Rifa, Bingo)</label><input type="text" class="form-control" id="act-desc" required></div>
@@ -353,25 +350,23 @@ function cargarPortalSegunRol(usuario) {
         actualizarSelectCursos();
         renderizarTodasLasTablasAdmin();
     } else {
-        // MENÚ PARA PADRES CON LA NUEVA PESTAÑA DE GASTOS
         document.getElementById('menu-navegacion').innerHTML = `
             <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarVistaPadre('estado', this)"><i class="bi bi-clock-history me-2"></i> Estado de Cuenta</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('gastos', this)"><i class="bi bi-cart-x-fill me-2"></i> Transparencia de Gastos</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('documentos', this)"><i class="bi bi-folder2-open-fill me-2"></i> Documentos y Actas</a></li>
         `;
         
-        // INYECTAR LA NUEVA VISTA DE GASTOS SI NO EXISTE
         const portalPadre = document.getElementById('portal-padre');
         if (portalPadre && !document.getElementById('padre-vista-gastos')) {
             const gastosHTML = `
             <div id="padre-vista-gastos" class="oculto">
-                <h4 class="fw-bold text-danger mb-4 border-bottom pb-2"><i class="bi bi-cart-x-fill me-2"></i>Detalle de Gastos del Comité</h4>
+                <h4 class="fw-bold text-danger mb-4 border-bottom pb-2"><i class="bi bi-cart-x-fill me-2"></i>Detalle de Gastos</h4>
                 <div class="card shadow-sm mb-4">
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-hover align-middle text-center mb-0">
                                 <thead class="table-danger">
-                                    <tr><th>Fecha</th><th>Concepto de Gasto</th><th>Monto Invertido</th><th>Comprobante</th></tr>
+                                    <tr><th>Fecha</th><th>Concepto de Gasto</th><th>Valor</th><th>Estado (pagado o pendiente)</th><th>Comprobante</th></tr>
                                 </thead>
                                 <tbody id="tabla-egresos-padre"></tbody>
                             </table>
@@ -447,9 +442,12 @@ function actualizarSelectCursos() {
 
     if(selectModal) {
         const valModal = selectModal.value;
-        selectModal.innerHTML = '<option value="">-- Seleccione un Curso --</option>';
+        selectModal.innerHTML = `
+            <option value="">-- Seleccione un Curso --</option>
+            <option value="TODOS">🌐 Todos los Cursos (General)</option>
+        `;
         cursos.forEach(c => { selectModal.innerHTML += `<option value="${c}">${c}</option>`; });
-        if(cursos.includes(valModal)) selectModal.value = valModal;
+        if(cursos.includes(valModal) || valModal === "TODOS") selectModal.value = valModal;
     }
 }
 
@@ -467,7 +465,7 @@ async function renderizarTodasLasTablasAdmin() {
             let u = usuariosBD.find(x => x.username === p.usuario);
             return u && compararCursos(u.curso, cursoFiltroActual);
         });
-        actividadesParaRender = actividadesGlobales.filter(a => compararCursos(a.curso, cursoFiltroActual));
+        actividadesParaRender = actividadesGlobales.filter(a => compararCursos(a.curso, cursoFiltroActual) || a.curso.toUpperCase() === 'TODOS');
     }
 
     renderizarDashboardAdmin(pagosParaRender, actividadesParaRender);
@@ -516,11 +514,30 @@ async function renderizarTodasLasTablasAdmin() {
 
     const te = document.getElementById('tabla-egresos');
     if(te) {
+        const theadE = te.closest('table').querySelector('thead tr');
+        if (theadE && !theadE.innerHTML.includes('Estado')) {
+            theadE.innerHTML = `<th>Fecha</th><th>Descripción</th><th>Proveedor</th><th>Valor</th><th>Estado</th><th>Acciones</th>`;
+        }
         te.innerHTML = '';
-        if(egresosGlobales.length === 0) te.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay egresos registrados.</td></tr>`;
+        if(egresosGlobales.length === 0) te.innerHTML = `<tr><td colspan="6" class="text-muted py-4">No hay egresos registrados.</td></tr>`;
+        
         egresosGlobales.forEach(e => {
             const btnDoc = e.tiene_doc ? `<button class="btn btn-sm btn-outline-danger fw-bold shadow-sm" onclick="verEgresoPDF(${e.id})"><i class="bi bi-file-pdf-fill me-1"></i>Factura</button>` : '-';
-            te.innerHTML += `<tr><td>${e.fecha}</td><td class="fw-bold text-dark">${e.descripcion}</td><td>${e.proveedor}</td><td class="fw-bold text-danger">-$${parseFloat(e.valor || 0).toFixed(2)}</td><td>${btnDoc}</td></tr>`;
+            const estadoActual = e.estado_pago || 'PENDIENTE';
+            const nuevoEstado = estadoActual === 'PAGADO' ? 'PENDIENTE' : 'PAGADO';
+            
+            const btnEstado = estadoActual === 'PENDIENTE' 
+                ? `<button class="btn btn-sm btn-success fw-bold shadow-sm" onclick="marcarEgresoEstado(${e.id}, '${nuevoEstado}')"><i class="bi bi-check2"></i> Marcar Pagado</button>`
+                : `<button class="btn btn-sm btn-warning fw-bold shadow-sm" onclick="marcarEgresoEstado(${e.id}, '${nuevoEstado}')"><i class="bi bi-arrow-counterclockwise"></i> Revertir</button>`;
+
+            te.innerHTML += `<tr>
+                <td>${e.fecha}</td>
+                <td class="fw-bold text-dark">${e.descripcion}</td>
+                <td>${e.proveedor}</td>
+                <td class="fw-bold text-danger">-$${parseFloat(e.valor || 0).toFixed(2)}</td>
+                <td><span class="badge ${estadoActual === 'PAGADO' ? 'bg-success' : 'bg-warning text-dark'} px-2 py-1">${estadoActual}</span></td>
+                <td><div class="d-flex gap-1 justify-content-center">${btnDoc} ${btnEstado}</div></td>
+            </tr>`;
         });
     }
 
@@ -677,7 +694,8 @@ function actualizarDashboardPadre() {
         const userDatos = usuariosBD.find(u => u.username === usuarioActual.username);
         const misPagos = pagosGlobales.filter(p => p.usuario === usuarioActual.username);
         
-        const misActividades = actividadesGlobales.filter(a => compararCursos(a.curso, userDatos.curso));
+        // Incluye las actividades de su curso o las globales ("TODOS")
+        const misActividades = actividadesGlobales.filter(a => compararCursos(a.curso, userDatos.curso) || a.curso.toUpperCase() === 'TODOS');
         
         let cuotaBase = parseFloat(userDatos.valor_total_pagar || 0);
         let totalAPagar = cuotaBase;
@@ -691,11 +709,28 @@ function actualizarDashboardPadre() {
 
         const tb = document.getElementById('tabla-pagos-padre'); 
         if(tb) {
+            const theadP = tb.closest('table').querySelector('thead tr');
+            if (theadP && !theadP.innerHTML.includes('Acción')) {
+                theadP.innerHTML = `<th>Fecha</th><th>Nº Comprobante</th><th>Valor</th><th>Estado</th><th>Acción</th>`;
+            }
             tb.innerHTML = '';
-            if(misPagos.length === 0) tb.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay transferencias registradas.</td></tr>`;
-            misPagos.forEach(p => {
-                tb.innerHTML += `<tr><td>${p.fecha}</td><td class="fw-bold">${p.voucher}</td><td class="text-success fw-bold">$${parseFloat(p.valor || 0).toFixed(2)}</td><td><span class="badge ${p.estado==='VALIDADO'?'bg-success':'bg-warning text-dark'} px-2 py-1">${p.estado}</span></td></tr>`;
-            });
+            if(misPagos.length === 0) {
+                tb.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay transferencias registradas.</td></tr>`;
+            } else {
+                misPagos.forEach(p => {
+                    const btnDescargarVoucher = p.tiene_voucher 
+                        ? `<button class="btn btn-sm btn-info text-white fw-bold shadow-sm" onclick="abrirVoucher(${p.id})"><i class="bi bi-download me-1"></i>Descargar</button>` 
+                        : '<span class="text-muted small">Sin archivo</span>';
+
+                    tb.innerHTML += `<tr>
+                        <td>${p.fecha}</td>
+                        <td class="fw-bold">${p.voucher}</td>
+                        <td class="text-success fw-bold">$${parseFloat(p.valor || 0).toFixed(2)}</td>
+                        <td><span class="badge ${p.estado==='VALIDADO'?'bg-success':'bg-warning text-dark'} px-2 py-1">${p.estado}</span></td>
+                        <td>${btnDescargarVoucher}</td>
+                    </tr>`;
+                });
+            }
         }
 
         const vistaDocs = document.getElementById('padre-vista-documentos'); 
@@ -739,19 +774,23 @@ function actualizarDashboardPadre() {
             `;
         }
 
-        // LLENAR LA TABLA DE GASTOS (EGRESOS) PARA EL PADRE
         const tbGastos = document.getElementById('tabla-egresos-padre');
         if (tbGastos) {
             tbGastos.innerHTML = '';
             if (!egresosGlobales || egresosGlobales.length === 0) {
-                tbGastos.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay gastos registrados por el comité.</td></tr>`;
+                tbGastos.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay gastos registrados por el comité.</td></tr>`;
             } else {
                 egresosGlobales.forEach(e => {
-                    const btnDoc = e.tiene_doc ? `<button class="btn btn-sm btn-outline-danger fw-bold shadow-sm" onclick="verEgresoPDF(${e.id})"><i class="bi bi-file-pdf-fill me-1"></i>Ver Factura</button>` : '-';
+                    const btnDoc = e.tiene_doc ? `<button class="btn btn-sm btn-outline-danger fw-bold shadow-sm" onclick="verEgresoPDF(${e.id})"><i class="bi bi-file-pdf-fill me-1"></i>Ver</button>` : '-';
+                    const estadoTexto = e.estado_pago || 'PENDIENTE';
+                    const colorValor = estadoTexto === 'PAGADO' ? 'text-success' : 'text-danger';
+                    const signo = estadoTexto === 'PAGADO' ? '' : '-';
+                    
                     tbGastos.innerHTML += `<tr>
                         <td>${e.fecha}</td>
                         <td class="fw-bold text-dark">${e.descripcion}</td>
-                        <td class="fw-bold text-danger">-$${parseFloat(e.valor || 0).toFixed(2)}</td>
+                        <td class="fw-bold ${colorValor}">${signo}$${parseFloat(e.valor || 0).toFixed(2)}</td>
+                        <td><span class="badge ${estadoTexto === 'PAGADO' ? 'bg-success' : 'bg-warning text-dark'} px-2 py-1">${estadoTexto}</span></td>
                         <td>${btnDoc}</td>
                     </tr>`;
                 });
@@ -1044,4 +1083,23 @@ async function subirDocumento(e, tipo) {
 async function toggleVisibleDoc(id, val) { 
     await fetch(`${API_URL}/documentos/visible`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, visible: val ? 1 : 0 }) }); 
     renderizarTodasLasTablasAdmin(); 
+}
+
+async function marcarEgresoEstado(id, nuevoEstado) {
+    try {
+        const resp = await fetch(`${API_URL}/egresos/estado`, { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ id: id, estado: nuevoEstado }) 
+        });
+        const data = await resp.json();
+        if (resp.ok && data.exito) {
+            mostrarAlerta(`Egreso marcado como ${nuevoEstado}.`, "✅");
+            renderizarTodasLasTablasAdmin();
+        } else {
+            mostrarAlerta("Error al cambiar estado: " + data.mensaje, "❌");
+        }
+    } catch (error) {
+        mostrarAlerta("Error de conexión.", "❌");
+    }
 }
