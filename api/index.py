@@ -14,7 +14,7 @@ def add_header(response):
     response.headers["Expires"] = "0"
     return response
 
-# Credenciales restauradas a Clever Cloud
+# Credenciales de Clever Cloud
 db_config = {
     'host': 'bofka0yvxs4omirhgxov-mysql.services.clever-cloud.com',
     'user': 'uqhndfmb7n4qeitj',
@@ -95,7 +95,7 @@ def obtener_datos():
             pagos = cursor.fetchall()
             for p in pagos:
                 p['tiene_voucher'] = 1 if p.get('voucher_b64') else 0
-                p.pop('voucher_b64', None) 
+                # Se eliminó p.pop('voucher_b64', None) para que el padre pueda descargar el comprobante
             resp_data["pagos"] = sanitize_list(pagos)
         except: pass
         
@@ -338,12 +338,29 @@ def registrar_egreso():
         data = request.get_json()
         conexion = get_db_connection()
         cursor = conexion.cursor()
-        sql = "INSERT INTO egresos (fecha, descripcion, proveedor, valor, archivoNombre, archivoData) VALUES (%s, %s, %s, %s, %s, %s)"
+        sql = "INSERT INTO egresos (fecha, descripcion, proveedor, valor, archivoNombre, archivoData, estado_pago) VALUES (%s, %s, %s, %s, %s, %s, 'PENDIENTE')"
         val = (data['fecha'], data['descripcion'], data['proveedor'], data['valor'], data.get('archivoNombre', ''), data.get('archivoData', ''))
         cursor.execute(sql, val)
         conexion.commit()
         return jsonify({"exito": True})
     except Exception as e: 
+        return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
+
+@app.route('/api/egresos/estado', methods=['POST'])
+def estado_egreso():
+    conexion = None
+    cursor = None
+    try:
+        data = request.get_json()
+        conexion = get_db_connection()
+        cursor = conexion.cursor()
+        cursor.execute("UPDATE egresos SET estado_pago=%s WHERE id=%s", (data['estado'], data['id']))
+        conexion.commit()
+        return jsonify({"exito": True})
+    except Exception as e:
         return jsonify({"exito": False, "mensaje": str(e)})
     finally:
         if cursor: cursor.close()
