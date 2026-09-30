@@ -353,10 +353,35 @@ function cargarPortalSegunRol(usuario) {
         actualizarSelectCursos();
         renderizarTodasLasTablasAdmin();
     } else {
+        // MENÚ PARA PADRES CON LA NUEVA PESTAÑA DE GASTOS
         document.getElementById('menu-navegacion').innerHTML = `
             <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarVistaPadre('estado', this)"><i class="bi bi-clock-history me-2"></i> Estado de Cuenta</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('gastos', this)"><i class="bi bi-cart-x-fill me-2"></i> Transparencia de Gastos</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('documentos', this)"><i class="bi bi-folder2-open-fill me-2"></i> Documentos y Actas</a></li>
         `;
+        
+        // INYECTAR LA NUEVA VISTA DE GASTOS SI NO EXISTE
+        const portalPadre = document.getElementById('portal-padre');
+        if (portalPadre && !document.getElementById('padre-vista-gastos')) {
+            const gastosHTML = `
+            <div id="padre-vista-gastos" class="oculto">
+                <h4 class="fw-bold text-danger mb-4 border-bottom pb-2"><i class="bi bi-cart-x-fill me-2"></i>Detalle de Gastos del Comité</h4>
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle text-center mb-0">
+                                <thead class="table-danger">
+                                    <tr><th>Fecha</th><th>Concepto de Gasto</th><th>Monto Invertido</th><th>Comprobante</th></tr>
+                                </thead>
+                                <tbody id="tabla-egresos-padre"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            portalPadre.insertAdjacentHTML('beforeend', gastosHTML);
+        }
+
         document.getElementById('portal-padre').classList.remove('oculto');
         document.getElementById('portal-admin').classList.add('oculto');
         actualizarDashboardPadre();
@@ -713,6 +738,26 @@ function actualizarDashboardPadre() {
                 </div>
             `;
         }
+
+        // LLENAR LA TABLA DE GASTOS (EGRESOS) PARA EL PADRE
+        const tbGastos = document.getElementById('tabla-egresos-padre');
+        if (tbGastos) {
+            tbGastos.innerHTML = '';
+            if (!egresosGlobales || egresosGlobales.length === 0) {
+                tbGastos.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay gastos registrados por el comité.</td></tr>`;
+            } else {
+                egresosGlobales.forEach(e => {
+                    const btnDoc = e.tiene_doc ? `<button class="btn btn-sm btn-outline-danger fw-bold shadow-sm" onclick="verEgresoPDF(${e.id})"><i class="bi bi-file-pdf-fill me-1"></i>Ver Factura</button>` : '-';
+                    tbGastos.innerHTML += `<tr>
+                        <td>${e.fecha}</td>
+                        <td class="fw-bold text-dark">${e.descripcion}</td>
+                        <td class="fw-bold text-danger">-$${parseFloat(e.valor || 0).toFixed(2)}</td>
+                        <td>${btnDoc}</td>
+                    </tr>`;
+                });
+            }
+        }
+
         setTimeout(hacerTablasResponsivas, 200);
     });
 }
