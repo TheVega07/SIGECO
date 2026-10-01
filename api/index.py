@@ -95,7 +95,7 @@ def obtener_datos():
             pagos = cursor.fetchall()
             for p in pagos:
                 p['tiene_voucher'] = 1 if p.get('voucher_b64') else 0
-                # Se eliminó p.pop('voucher_b64', None) para que el padre pueda descargar el comprobante
+                # No eliminamos el voucher para que el padre pueda descargarlo
             resp_data["pagos"] = sanitize_list(pagos)
         except: pass
         
@@ -156,12 +156,22 @@ def guardar_usuario():
         data = request.get_json()
         conexion = get_db_connection()
         cursor = conexion.cursor()
+        
+        fiesta = data.get('asiste_fiesta', 'NO')
+        adultos = data.get('adultos_fiesta', 0)
+        ninos = data.get('ninos_fiesta', 0)
+
         if request.method == 'POST':
-            sql = "INSERT INTO usuarios (username, nombre, rol, curso, password, estado, valor_total_pagar, debe_cambiar_clave) VALUES (%s, %s, %s, %s, %s, 'ACTIVO', 0, 1)"
-            val = (data['username'], data['nombre'], data['rol'], data['curso'], data['password'])
+            sql = """INSERT INTO usuarios 
+                     (username, nombre, rol, curso, password, estado, valor_total_pagar, debe_cambiar_clave, asiste_fiesta, adultos_fiesta, ninos_fiesta) 
+                     VALUES (%s, %s, %s, %s, %s, 'ACTIVO', 0, 1, %s, %s, %s)"""
+            val = (data['username'], data['nombre'], data['rol'], data['curso'], data['password'], fiesta, adultos, ninos)
         else:
-            sql = "UPDATE usuarios SET nombre=%s, rol=%s, curso=%s WHERE username=%s"
-            val = (data['nombre'], data['rol'], data['curso'], data['username'])
+            sql = """UPDATE usuarios 
+                     SET nombre=%s, rol=%s, curso=%s, asiste_fiesta=%s, adultos_fiesta=%s, ninos_fiesta=%s 
+                     WHERE username=%s"""
+            val = (data['nombre'], data['rol'], data['curso'], fiesta, adultos, ninos, data['username'])
+            
         cursor.execute(sql, val)
         conexion.commit()
         return jsonify({"exito": True})
