@@ -349,6 +349,7 @@ function cargarPortalSegunRol(usuario) {
         
         actualizarSelectCursos();
         renderizarTodasLasTablasAdmin();
+        cambiarModuloAdmin('resumen', document.querySelector('#menu-navegacion .nav-link')); // FORZA QUE EL RESUMEN SEA VISIBLE AL INICIAR
     } else {
         document.getElementById('menu-navegacion').innerHTML = `
             <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarVistaPadre('estado', this)"><i class="bi bi-clock-history me-2"></i> Estado de Cuenta</a></li>
@@ -717,19 +718,14 @@ function actualizarDashboardPadre() {
         let totalPagado = misPagos.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
         let pendiente = totalAPagar - totalPagado;
 
-        if(document.getElementById('lbl-total-pagar')) document.getElementById('lbl-total-pagar').innerText = `$${totalAPagar.toFixed(2)}`;
-        if(document.getElementById('lbl-pagado')) document.getElementById('lbl-pagado').innerText = `$${totalPagado.toFixed(2)}`;
-        if(document.getElementById('lbl-pendiente')) document.getElementById('lbl-pendiente').innerText = `$${pendiente.toFixed(2)}`;
-
-        // CONSTRUCCIÓN DEL ESTADO DE CUENTA (FORMATO LIBRO MAYOR)
+        // CONSTRUCCIÓN DEL ESTADO DE CUENTA (FORMATO LIBRO MAYOR CON CUADROS)
         const vistaEstado = document.getElementById('padre-vista-estado');
         if (vistaEstado) {
             let transacciones = [];
             
-            // 1. Añadimos la Cuota/Gastos Asignados como un GASTO inicial
             if (cuotaBase > 0) {
                 transacciones.push({
-                    fecha: '2024-01-01', // Fecha base simbólica
+                    fecha: '2024-01-01',
                     fechaTexto: 'Inicial',
                     comprobante: '-',
                     concepto: 'Total Gastos Asignados',
@@ -738,7 +734,6 @@ function actualizarDashboardPadre() {
                 });
             }
 
-            // 2. Añadimos todos los pagos validados como INGRESOS
             misPagos.forEach(p => {
                 if (p.estado === 'VALIDADO') {
                     transacciones.push({
@@ -752,7 +747,6 @@ function actualizarDashboardPadre() {
                 }
             });
 
-            // Ordenamos cronológicamente
             transacciones.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
             let htmlFilas = '';
@@ -762,7 +756,6 @@ function actualizarDashboardPadre() {
                 htmlFilas = `<tr><td colspan="6" class="text-muted py-4">No hay movimientos en tu cuenta.</td></tr>`;
             } else {
                 transacciones.forEach(t => {
-                    // La lógica del libro: Ingreso es positivo (a favor), Gasto es negativo (deuda).
                     saldoAcumulado += (t.ingreso - t.gasto);
                     const colorSaldo = saldoAcumulado >= 0 ? 'text-success' : 'text-danger';
                     
@@ -777,7 +770,35 @@ function actualizarDashboardPadre() {
                 });
             }
 
+            // AQUÍ RECONSTRUIMOS LOS CUADROS AZUL, VERDE Y ROJO
             vistaEstado.innerHTML = `
+                <div class="row mb-4">
+                    <div class="col-md-4 mb-3">
+                        <div class="card text-white bg-primary shadow-sm h-100">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="bi bi-wallet2 me-2"></i>Total a Pagar</h6>
+                                <h3 class="fw-bold mb-0" id="lbl-total-pagar">$${totalAPagar.toFixed(2)}</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card text-white bg-success shadow-sm h-100">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="bi bi-piggy-bank-fill me-2"></i>Total Abonado</h6>
+                                <h3 class="fw-bold mb-0" id="lbl-pagado">$${totalPagado.toFixed(2)}</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card text-white bg-danger shadow-sm h-100">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="bi bi-exclamation-triangle-fill me-2"></i>Saldo Pendiente</h6>
+                                <h3 class="fw-bold mb-0" id="lbl-pendiente">$${pendiente.toFixed(2)}</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
                     <h4 class="fw-bold text-primary mb-0"><i class="bi bi-clock-history me-2"></i>Estado de Cuenta</h4>
                     <button class="btn btn-success fw-bold shadow-sm" onclick="abrirModalPagoPadre()"><i class="bi bi-currency-dollar me-1"></i> Registrar Pago</button>
