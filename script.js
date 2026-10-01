@@ -689,17 +689,31 @@ function renderizarDashboardCurso() {
     });
 }
 
+function abrirModalPagoPadre() {
+    const selectPadre = document.getElementById('pago-usuario');
+    const form = document.getElementById('form-pago');
+    form.reset();
+    limpiarFeedbackArchivos();
+    
+    // Si es padre, forzamos su usuario y ocultamos el select
+    if (usuarioActual.rol === 'PADRE') {
+        selectPadre.innerHTML = `<option value="${usuarioActual.username}">${usuarioActual.nombre}</option>`;
+        selectPadre.value = usuarioActual.username;
+        selectPadre.style.pointerEvents = "none";
+        selectPadre.style.backgroundColor = "#e9ecef";
+    }
+    
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalPago')).show();
+}
+
 function actualizarDashboardPadre() {
     cargarDatosDesdeServidor().then(() => {
         const userDatos = usuariosBD.find(u => u.username === usuarioActual.username);
         const misPagos = pagosGlobales.filter(p => p.usuario === usuarioActual.username);
-        
-        // Incluye las actividades de su curso o las globales ("TODOS")
         const misActividades = actividadesGlobales.filter(a => compararCursos(a.curso, userDatos.curso) || a.curso.toUpperCase() === 'TODOS');
         
         let cuotaBase = parseFloat(userDatos.valor_total_pagar || 0);
         let totalAPagar = cuotaBase;
-        
         let totalPagado = misPagos.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
         let pendiente = totalAPagar - totalPagado;
 
@@ -707,30 +721,90 @@ function actualizarDashboardPadre() {
         if(document.getElementById('lbl-pagado')) document.getElementById('lbl-pagado').innerText = `$${totalPagado.toFixed(2)}`;
         if(document.getElementById('lbl-pendiente')) document.getElementById('lbl-pendiente').innerText = `$${pendiente.toFixed(2)}`;
 
-        const tb = document.getElementById('tabla-pagos-padre'); 
-        if(tb) {
-            const theadP = tb.closest('table').querySelector('thead tr');
-            if (theadP && !theadP.innerHTML.includes('Acción')) {
-                theadP.innerHTML = `<th>Fecha</th><th>Nº Comprobante</th><th>Valor</th><th>Estado</th><th>Acción</th>`;
+        // CONSTRUCCIÓN DEL ESTADO DE CUENTA (FORMATO LIBRO MAYOR)
+        const vistaEstado = document.getElementById('padre-vista-estado');
+        if (vistaEstado) {
+            let transacciones = [];
+            
+            // 1. Añadimos la Cuota/Gastos Asignados como un GASTO inicial
+            if (cuotaBase > 0) {
+                transacciones.push({
+                    fecha: '2024-01-01', // Fecha base simbólica
+                    fechaTexto: 'Inicial',
+                    comprobante: '-',
+                    concepto: 'Total Gastos Asignados',
+                    ingreso: 0,
+                    gasto: cuotaBase
+                });
             }
-            tb.innerHTML = '';
-            if(misPagos.length === 0) {
-                tb.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay transferencias registradas.</td></tr>`;
-            } else {
-                misPagos.forEach(p => {
-                    const btnDescargarVoucher = p.tiene_voucher 
-                        ? `<button class="btn btn-sm btn-info text-white fw-bold shadow-sm" onclick="abrirVoucher(${p.id})"><i class="bi bi-download me-1"></i>Descargar</button>` 
-                        : '<span class="text-muted small">Sin archivo</span>';
 
-                    tb.innerHTML += `<tr>
-                        <td>${p.fecha}</td>
-                        <td class="fw-bold">${p.voucher}</td>
-                        <td class="text-success fw-bold">$${parseFloat(p.valor || 0).toFixed(2)}</td>
-                        <td><span class="badge ${p.estado==='VALIDADO'?'bg-success':'bg-warning text-dark'} px-2 py-1">${p.estado}</span></td>
-                        <td>${btnDescargarVoucher}</td>
+            // 2. Añadimos todos los pagos validados como INGRESOS
+            misPagos.forEach(p => {
+                if (p.estado === 'VALIDADO') {
+                    transacciones.push({
+                        fecha: p.fecha,
+                        fechaTexto: p.fecha,
+                        comprobante: p.voucher || '-',
+                        concepto: 'Abono / Transferencia',
+                        ingreso: parseFloat(p.valor || 0),
+                        gasto: 0
+                    });
+                }
+            });
+
+            // Ordenamos cronológicamente
+            transacciones.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+            let htmlFilas = '';
+            let saldoAcumulado = 0;
+
+            if (transacciones.length === 0) {
+                htmlFilas = `<tr><td colspan="6" class="text-muted py-4">No hay movimientos en tu cuenta.</td></tr>`;
+            } else {
+                transacciones.forEach(t => {
+                    // La lógica del libro: Ingreso es positivo (a favor), Gasto es negativo (deuda).
+                    saldoAcumulado += (t.ingreso - t.gasto);
+                    const colorSaldo = saldoAcumulado >= 0 ? 'text-success' : 'text-danger';
+                    
+                    htmlFilas += `<tr>
+                        <td>${t.fechaTexto}</td>
+                        <td>${t.comprobante}</td>
+                        <td class="fw-bold">${t.concepto}</td>
+                        <td class="text-success fw-bold">${t.ingreso > 0 ? '$'+t.ingreso.toFixed(2) : '-'}</td>
+                        <td class="text-danger fw-bold">${t.gasto > 0 ? '-$'+t.gasto.toFixed(2) : '-'}</td>
+                        <td class="fw-bold ${colorSaldo}">$${saldoAcumulado.toFixed(2)}</td>
                     </tr>`;
                 });
             }
+
+            vistaEstado.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
+                    <h4 class="fw-bold text-primary mb-0"><i class="bi bi-clock-history me-2"></i>Estado de Cuenta</h4>
+                    <button class="btn btn-success fw-bold shadow-sm" onclick="abrirModalPagoPadre()"><i class="bi bi-currency-dollar me-1"></i> Registrar Pago</button>
+                </div>
+                
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle text-center mb-0">
+                                <thead class="table-primary">
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Comprobante</th>
+                                        <th>Concepto</th>
+                                        <th>Ingreso</th>
+                                        <th>Gastos</th>
+                                        <th>Saldo</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${htmlFilas}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
 
         const vistaDocs = document.getElementById('padre-vista-documentos'); 
@@ -987,6 +1061,14 @@ function abrirModalUsuario(username = null) {
         document.getElementById('usu-nombre').value = u.nombre; 
         document.getElementById('usu-rol').value = u.rol; 
         document.getElementById('usu-curso').value = u.curso;
+        
+        const fiestaEl = document.getElementById('usu-fiesta');
+        if(fiestaEl) fiestaEl.value = u.asiste_fiesta || 'NO';
+        const adEl = document.getElementById('usu-adultos');
+        if(adEl) adEl.value = u.adultos_fiesta || 0;
+        const niEl = document.getElementById('usu-ninos');
+        if(niEl) niEl.value = u.ninos_fiesta || 0;
+
         document.getElementById('div-usu-clave').classList.add('oculto'); 
         document.getElementById('usu-clave').required = false; 
         document.getElementById('titulo-modal-usuario').innerText = "Modificar Usuario";
@@ -994,6 +1076,14 @@ function abrirModalUsuario(username = null) {
         form.reset(); 
         document.getElementById('usu-modo').value = "CREAR"; 
         document.getElementById('usu-id').readOnly = false;
+        
+        const fiestaEl = document.getElementById('usu-fiesta');
+        if(fiestaEl) fiestaEl.value = 'NO';
+        const adEl = document.getElementById('usu-adultos');
+        if(adEl) adEl.value = 0;
+        const niEl = document.getElementById('usu-ninos');
+        if(niEl) niEl.value = 0;
+
         document.getElementById('div-usu-clave').classList.remove('oculto'); 
         document.getElementById('usu-clave').required = true; 
         document.getElementById('titulo-modal-usuario').innerText = "Nuevo Usuario";
@@ -1003,12 +1093,19 @@ function abrirModalUsuario(username = null) {
 
 async function guardarUsuario(e) {
     e.preventDefault();
+    const usuFiesta = document.getElementById('usu-fiesta') ? document.getElementById('usu-fiesta').value : 'NO';
+    const usuAdultos = document.getElementById('usu-adultos') ? parseInt(document.getElementById('usu-adultos').value) || 0 : 0;
+    const usuNinos = document.getElementById('usu-ninos') ? parseInt(document.getElementById('usu-ninos').value) || 0 : 0;
+
     const payload = { 
         username: document.getElementById('usu-id').value.trim(), 
         nombre: document.getElementById('usu-nombre').value, 
         rol: document.getElementById('usu-rol').value, 
         curso: document.getElementById('usu-curso').value, 
-        password: document.getElementById('usu-clave').value 
+        password: document.getElementById('usu-clave').value,
+        asiste_fiesta: usuFiesta,
+        adultos_fiesta: usuAdultos,
+        ninos_fiesta: usuNinos
     };
     try {
         const method = document.getElementById('usu-modo').value === "CREAR" ? 'POST' : 'PUT';
