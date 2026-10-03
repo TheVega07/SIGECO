@@ -8,6 +8,7 @@ let actividadesGlobales = [];
 let gastosPadres = [];
 let usuarioActual = null;
 let cursoFiltroActual = "TODOS";
+let cursoFiltroGastos = "TODOS"; // Nuevo filtro específico para Gastos a Padres
 
 const API_URL = "/api"; 
 const PRECIO_ADULTO = 101.00;
@@ -196,6 +197,17 @@ function compararCursos(c1, c2) {
     return c1.toUpperCase().replace(/\s+/g, '') === c2.toUpperCase().replace(/\s+/g, '');
 }
 
+function abrirModalActividad() {
+    document.getElementById('form-actividad').reset();
+    limpiarFeedbackArchivos();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalActividad')).show();
+}
+
+function aplicarFiltroGastos(curso) {
+    cursoFiltroGastos = curso;
+    renderizarTodasLasTablasAdmin();
+}
+
 function inyectarNuevasFunciones() {
     forzarNombreSIGECO28();
 
@@ -249,6 +261,7 @@ function inyectarNuevasFunciones() {
         adminModuloCurso.insertAdjacentHTML('afterbegin', filtroHTML);
     }
 
+    // Modal de Actividades
     if (!document.getElementById('modalActividad')) {
         const modalHTML = `
         <div class="modal fade" id="modalActividad" tabindex="-1">
@@ -306,6 +319,7 @@ function inyectarNuevasFunciones() {
         });
     }
 
+    // Modal de Gastos de Padres
     if (!document.getElementById('modalGastosPadreAdmin')) {
         const modalGastosHTML = `
         <div class="modal fade" id="modalGastosPadreAdmin" tabindex="-1">
@@ -321,21 +335,12 @@ function inyectarNuevasFunciones() {
                                 Utiliza esta opción para cobrar ítems específicos (Ej. Abrigo, Anuario, Kit). 
                                 Aparecerá como deuda en la cuenta del padre seleccionado.
                             </div>
-                            
-                            <div class="mb-3 p-2 bg-light border rounded">
-                                <label class="fw-bold text-primary small mb-1"><i class="bi bi-funnel-fill me-1"></i> 1. Filtrar lista por Paralelo:</label>
-                                <select class="form-select form-select-sm border-primary shadow-sm" id="filtro-modal-gasto-curso" onchange="llenarSelectPadresGasto()">
-                                    <option value="TODOS">Todos los Paralelos</option>
-                                </select>
-                            </div>
-
                             <div class="mb-3">
-                                <label class="fw-bold">2. Asignar a (Seleccione el Padre):</label>
+                                <label class="fw-bold">Seleccionar Padre:</label>
                                 <select class="form-select" id="gasto-asignar-usuario" required>
-                                    <!-- Se llena automáticamente con llenarSelectPadresGasto() -->
+                                    <!-- Se llena automáticamente -->
                                 </select>
                             </div>
-
                             <div class="mb-3">
                                 <label class="fw-bold">Concepto (Ej. Anuario, Chompa, Abrigo)</label>
                                 <input type="text" class="form-control" id="gasto-asignar-desc" required>
@@ -358,6 +363,7 @@ function inyectarNuevasFunciones() {
         document.getElementById('form-asignar-gasto').addEventListener('submit', guardarNuevoGastoAdmin);
     }
 
+    // Modal Fiesta Familiar
     if (!document.getElementById('modalFiestaPadre')) {
         const modalFiestaHTML = `
         <div class="modal fade" id="modalFiestaPadre" tabindex="-1">
@@ -397,18 +403,59 @@ function inyectarNuevasFunciones() {
     }
 
     const adminPortal = document.getElementById('portal-admin');
+
+    // SOLUCIÓN PANTALLA BLANCA DE ACTIVIDADES: Inyectar módulo si no existe
+    if (adminPortal && !document.getElementById('admin-modulo-actividades')) {
+        const moduloActividadesHTML = `
+        <div id="admin-modulo-actividades" class="oculto mb-4">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3 border-bottom pb-2">
+                <h4 class="text-primary fw-bold mb-3 mb-md-0"><i class="bi bi-cash-coin me-2"></i>Ingresos por Actividades Extra</h4>
+                <button class="btn btn-success shadow-sm fw-bold" onclick="abrirModalActividad()">
+                    <i class="bi bi-plus-circle me-1"></i> Registrar Ingreso
+                </button>
+            </div>
+            <div class="alert alert-secondary small">
+                Aquí se registran los ingresos generados por actividades extracurriculares (Rifas, Bingos, Kermesse, etc.).
+            </div>
+            <div class="table-responsive bg-white rounded shadow border p-3">
+                <table class="table table-hover align-middle text-center">
+                    <thead class="table-success">
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Paralelo</th>
+                            <th>Descripción</th>
+                            <th>Valor Recaudado</th>
+                            <th>Respaldo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-actividades"></tbody>
+                </table>
+            </div>
+        </div>`;
+        adminPortal.insertAdjacentHTML('beforeend', moduloActividadesHTML);
+    }
+
+    // INYECCIÓN MÓDULO GASTOS PADRES CON FILTRO EXTERNO
     if (adminPortal && !document.getElementById('admin-modulo-gastospadres')) {
         const moduloGastosHTML = `
         <div id="admin-modulo-gastospadres" class="oculto mb-4">
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3 border-bottom pb-2">
-                <h4 class="text-danger fw-bold mb-3 mb-md-0"><i class="bi bi-bag-x-fill me-2"></i>Control de Gastos (Deudas de Padres)</h4>
-                <button class="btn btn-danger shadow-sm fw-bold" onclick="abrirModalGastoAdmin()">
-                    <i class="bi bi-plus-circle me-1"></i> Asignar Gasto a Padre
-                </button>
+                <h4 class="text-danger fw-bold mb-3 mb-md-0"><i class="bi bi-bag-x-fill me-2"></i>Deudas por Rubros (Padres)</h4>
+                
+                <div class="d-flex flex-column flex-md-row gap-2 align-items-md-center">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-danger text-danger fw-bold"><i class="bi bi-funnel-fill"></i></span>
+                        <select id="filtro-local-gastos" class="form-select border-danger fw-bold shadow-sm" onchange="aplicarFiltroGastos(this.value)">
+                            <option value="TODOS">Todos los Paralelos</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-danger shadow-sm fw-bold text-nowrap" onclick="abrirModalGastoAdmin()">
+                        <i class="bi bi-plus-circle me-1"></i> Asignar Gasto
+                    </button>
+                </div>
             </div>
             <div class="alert alert-secondary small">
-                Aquí administras lo que <strong>cada padre</strong> tiene que pagar individualmente. 
-                Utiliza el menú de <strong>"Filtrar vistas por Curso"</strong> arriba para ver las deudas de un paralelo específico (A, B, C, D).
+                Aquí administras lo que <strong>cada padre</strong> tiene que pagar individualmente. Filtra por paralelo en el menú rojo de arriba para buscar fácilmente.
             </div>
             <div class="table-responsive bg-white rounded shadow border p-3">
                 <table class="table table-hover align-middle text-center">
@@ -672,6 +719,7 @@ function aplicarFiltroCurso(curso) {
 function actualizarSelectCursos() {
     const selectFiltro = document.getElementById('select-filtro-curso');
     const selectModal = document.getElementById('act-curso'); 
+    const selectGastos = document.getElementById('filtro-local-gastos');
     
     const cursosBrutos = usuariosBD.map(u => u.curso).filter(c => c && c.trim() !== '');
     const cursosUnicos = [...new Set(cursosBrutos)].sort();
@@ -684,6 +732,17 @@ function actualizarSelectCursos() {
         });
         if(cursosUnicos.includes(valorActual)) {
             selectFiltro.value = valorActual;
+        }
+    }
+
+    if(selectGastos) {
+        const valorGastos = selectGastos.value;
+        selectGastos.innerHTML = '<option value="TODOS">Todos los Paralelos</option>';
+        cursosUnicos.forEach(c => { 
+            selectGastos.innerHTML += `<option value="${c}">Paralelo ${c}</option>`; 
+        });
+        if(cursosUnicos.includes(valorGastos)) {
+            selectGastos.value = valorGastos;
         }
     }
 
@@ -702,42 +761,28 @@ function actualizarSelectCursos() {
     }
 }
 
-// NUEVA FUNCIÓN PARA EL FILTRO DEL MODAL DE GASTOS
-function llenarSelectPadresGasto() {
-    const sel = document.getElementById('gasto-asignar-usuario');
-    const filtroC = document.getElementById('filtro-modal-gasto-curso') ? document.getElementById('filtro-modal-gasto-curso').value : 'TODOS';
+function abrirModalGastoAdmin() {
+    document.getElementById('form-asignar-gasto').reset();
     
+    const sel = document.getElementById('gasto-asignar-usuario');
     sel.innerHTML = `
         <option value="">-- Seleccione a quién cobrar --</option>
-        <option value="TODOS" class="fw-bold text-danger">⚠️ A TODOS LOS PADRES MOSTRADOS</option>
+        <option value="TODOS" class="fw-bold text-danger">⚠️ A TODOS LOS PADRES (COBRO GENERAL)</option>
     `;
     
     let padres = usuariosBD.filter(u => u.rol === 'PADRE');
     
-    if (filtroC !== "TODOS") {
-        padres = padres.filter(u => compararCursos(u.curso, filtroC));
-    }
+    // Ordenar alfabéticamente por Paralelo y luego por Nombre
+    padres.sort((a, b) => {
+        let cursoA = a.curso || "";
+        let cursoB = b.curso || "";
+        return cursoA.localeCompare(cursoB) || a.nombre.localeCompare(b.nombre);
+    });
     
     padres.forEach(u => {
-        sel.innerHTML += `<option value="${u.username}">${u.nombre} (${u.curso||'Sin curso'})</option>`;
+        sel.innerHTML += `<option value="${u.username}">${u.nombre} (Paralelo ${u.curso||'Sin curso'})</option>`;
     });
-}
-
-function abrirModalGastoAdmin() {
-    document.getElementById('form-asignar-gasto').reset();
     
-    const selectFiltro = document.getElementById('filtro-modal-gasto-curso');
-    if (selectFiltro) {
-        const cursosBrutos = usuariosBD.map(u => u.curso).filter(c => c && c.trim() !== '');
-        const cursosUnicos = [...new Set(cursosBrutos)].sort();
-        selectFiltro.innerHTML = '<option value="TODOS">Todos los Paralelos</option>';
-        cursosUnicos.forEach(c => { 
-            selectFiltro.innerHTML += `<option value="${c}">Paralelo ${c}</option>`; 
-        });
-        selectFiltro.value = "TODOS";
-    }
-    
-    llenarSelectPadresGasto();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGastosPadreAdmin')).show();
 }
 
@@ -803,8 +848,9 @@ async function renderizarTodasLasTablasAdmin() {
     let usuariosParaRender = usuariosBD;
     let pagosParaRender = pagosGlobales;
     let actividadesParaRender = actividadesGlobales;
-    let gastosParaRender = gastosPadres; // NUEVO: Aplicamos filtro global a gastos
+    let gastosParaRender = gastosPadres;
 
+    // Filtro Global
     if (cursoFiltroActual !== "TODOS") {
         usuariosParaRender = usuariosBD.filter(u => compararCursos(u.curso, cursoFiltroActual));
         
@@ -814,11 +860,13 @@ async function renderizarTodasLasTablasAdmin() {
         });
         
         actividadesParaRender = actividadesGlobales.filter(a => compararCursos(a.curso, cursoFiltroActual) || a.curso.toUpperCase() === 'TODOS');
-        
-        // Filtro a la tabla de Gastos
+    }
+
+    // Filtro Específico para tabla de Gastos (Independiente)
+    if (cursoFiltroGastos !== "TODOS") {
         gastosParaRender = gastosPadres.filter(g => {
             let u = usuariosBD.find(x => x.username === g.username);
-            return u && compararCursos(u.curso, cursoFiltroActual);
+            return u && compararCursos(u.curso, cursoFiltroGastos);
         });
     }
 
