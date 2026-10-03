@@ -25,6 +25,32 @@ db_config = {
 def get_db_connection():
     return mysql.connector.connect(**db_config)
 
+# ==========================================
+# AUTO-CREAR TABLA DE GASTOS SI NO EXISTE
+# ==========================================
+def init_db():
+    try:
+        conexion = get_db_connection()
+        cursor = conexion.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS gastos_padres (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(255),
+                concepto VARCHAR(255),
+                valor DECIMAL(10,2),
+                estado VARCHAR(50) DEFAULT 'PENDIENTE',
+                fecha DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+    except Exception as e:
+        print("Error inicializando base de datos:", e)
+
+init_db()
+# ==========================================
+
 def sanitize_row(row):
     if not row: return row
     for key, val in row.items():
@@ -63,7 +89,7 @@ def obtener_datos():
     try:
         conexion = get_db_connection()
         cursor = conexion.cursor(dictionary=True)
-        resp_data = {"usuarios": [], "pagos": [], "ingresos": [], "egresos": [], "contratos": [], "actas": [], "actividades": []}
+        resp_data = {"usuarios": [], "pagos": [], "ingresos": [], "egresos": [], "contratos": [], "actas": [], "actividades": [], "gastos": []}
         
         try: cursor.execute("SELECT * FROM usuarios"); resp_data["usuarios"] = sanitize_list(cursor.fetchall())
         except: pass
@@ -80,6 +106,9 @@ def obtener_datos():
                 e['tiene_doc'] = 1 if e.get('archivoData') else 0
                 e.pop('archivoData', None)
             resp_data["egresos"] = sanitize_list(egresos)
+        except: pass
+        try:
+            cursor.execute("SELECT * FROM gastos_padres"); resp_data["gastos"] = sanitize_list(cursor.fetchall())
         except: pass
         try:
             cursor.execute("SELECT * FROM documentos")
@@ -142,10 +171,31 @@ def actualizar_fiesta_padre():
     try:
         data = request.get_json()
         conexion = get_db_connection()
-        cursor = conexion.cursor()
-        asiste = "SI" if (int(data['adultos']) > 0 or int(data['ninos']) > 0) else "NO"
+        cursor = conexion.cursor(dictionary=True)
+        
+        username = data['username']
+        adultos = int(data['adultos'])
+        ninos = int(data['ninos'])
+        asiste = "SI" if (adultos > 0 or ninos > 0) else "NO"
+        
         cursor.execute("UPDATE usuarios SET asiste_fiesta=%s, adultos_fiesta=%s, ninos_fiesta=%s WHERE username=%s", 
-                       (asiste, data['adultos'], data['ninos'], data['username']))
+                       (asiste, adultos, ninos, username))
+        
+        valor_fiesta = (adultos * 101.00) + (ninos * 81.00)
+        concepto = f"Fiesta Familiar ({adultos} Adultos, {ninos} Niños)"
+        
+        cursor.execute("SELECT id FROM gastos_padres WHERE username=%s AND concepto LIKE 'Fiesta Familiar%%'", (username,))
+        row = cursor.fetchone()
+        
+        if row:
+            if valor_fiesta > 0:
+                cursor.execute("UPDATE gastos_padres SET concepto=%s, valor=%s WHERE id=%s", (concepto, valor_fiesta, row['id']))
+            else:
+                cursor.execute("DELETE FROM gastos_padres WHERE id=%s", (row['id'],))
+        else:
+            if valor_fiesta > 0:
+                cursor.execute("INSERT INTO gastos_padres (username, concepto, valor, estado) VALUES (%s, %s, %s, 'PENDIENTE')", (username, concepto, valor_fiesta))
+
         conexion.commit()
         return jsonify({"exito": True})
     except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
@@ -197,6 +247,70 @@ def cuota_usuario():
     finally:
         if cursor: cursor.close()
         if conexion: conexion.close()
+
+# ==========================================
+# RUTAS PARA LOS GASTOS DE LOS PADRES (NUEVO)
+# ==========================================
+@app.route('/api/gastos', methods=['POST'])
+def asignar_gasto():
+    conexion, cursor = None, None
+    try:
+        data = request.get_json()
+        conexion = get_db_connection()
+        cursor = conexion.cursor(dictionary=True)
+        
+        usuario_dest = data['usuario']
+        concepto = data['concepto']
+        valor = data['valor']
+        fecha = data['fecha']
+        
+        if usuario_dest == 'TODOS':
+            cursor.execute("SELECT username FROM usuarios WHERE rol='PADRE'")
+            padres = cursor.fetchall()
+            for p in padres:
+                cursor.execute("INSERT INTO gastos_padres (username, concepto, valor, fecha, estado) VALUES (%s, %s, %s, %s, 'PENDIENTE')", 
+                               (p['username'], concepto, valor, fecha))
+        else:
+            cursor.execute("INSERT INTO gastos_padres (username, concepto, valor, fecha, estado) VALUES (%s, %s, %s, %s, 'PENDIENTE')", 
+                           (usuario_dest, concepto, valor, fecha))
+            
+        conexion.commit()
+        return jsonify({"exito": True})
+    except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
+
+@app.route('/api/gastos/estado', methods=['POST'])
+def estado_gasto():
+    conexion, cursor = None, None
+    try:
+        data = request.get_json()
+        conexion = get_db_connection()
+        cursor = conexion.cursor()
+        cursor.execute("UPDATE gastos_padres SET estado=%s WHERE id=%s", (data['estado'], data['id']))
+        conexion.commit()
+        return jsonify({"exito": True})
+    except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
+
+@app.route('/api/gastos/<int:id>', methods=['DELETE'])
+def eliminar_gasto(id):
+    conexion, cursor = None, None
+    try:
+        conexion = get_db_connection()
+        cursor = conexion.cursor()
+        cursor.execute("DELETE FROM gastos_padres WHERE id = %s", (id,))
+        conexion.commit()
+        return jsonify({"exito": True})
+    except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
+
+# ==========================================
 
 @app.route('/api/pagos', methods=['POST'])
 def registrar_pago():
@@ -342,7 +456,6 @@ def visible_documento():
         if cursor: cursor.close()
         if conexion: conexion.close()
 
-# ======= RUTAS PARA DESCARGAR ARCHIVOS ========
 def obtener_base64(tabla, campo, id):
     conexion, cursor = None, None
     try:
