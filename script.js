@@ -205,6 +205,32 @@ function inyectarNuevasFunciones() {
         filePago.setAttribute('title', 'Solo se permiten imágenes JPG');
     }
 
+    const formEgreso = document.getElementById('form-egreso');
+    if (formEgreso && !document.getElementById('egreso-file')) {
+        const btnSubmit = formEgreso.querySelector('button[type="submit"]');
+        if (btnSubmit) {
+            btnSubmit.insertAdjacentHTML('beforebegin', `
+                <div class="mb-3">
+                    <label class="fw-bold"><i class="bi bi-cloud-arrow-up-fill me-1"></i> Comprobante de Pago / Factura</label>
+                    <input type="file" class="form-control" id="egreso-file" accept=".pdf, .jpg, .jpeg">
+                    <div id="feedback-egreso-file" class="text-success small mt-1 oculto"></div>
+                </div>
+            `);
+            
+            document.getElementById('egreso-file').addEventListener('change', function(e) {
+                const fb = document.getElementById('feedback-egreso-file');
+                if (this.files.length > 0) { 
+                    fb.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i> ${this.files[0].name}`; 
+                    fb.classList.remove('oculto'); 
+                    this.classList.add('is-valid'); 
+                } else { 
+                    fb.classList.add('oculto'); 
+                    this.classList.remove('is-valid'); 
+                }
+            });
+        }
+    }
+
     const adminModuloCurso = document.getElementById('admin-modulo-curso');
     if (adminModuloCurso && !document.getElementById('filtro-curso-global')) {
         const filtroHTML = `
@@ -212,7 +238,7 @@ function inyectarNuevasFunciones() {
             <div class="card-body p-3 bg-light rounded">
                 <div class="d-flex flex-column flex-md-row align-items-md-center">
                     <label class="fw-bold text-primary mb-2 mb-md-0 me-md-3 text-nowrap">
-                        <i class="bi bi-funnel-fill me-2"></i>Filtrar vistas por Curso:
+                        <i class="bi bi-funnel-fill me-2"></i>Filtrar vistas por Curso/Paralelo:
                     </label>
                     <select class="form-select border-primary shadow-sm w-100" id="select-filtro-curso" onchange="aplicarFiltroCurso(this.value)">
                         <option value="TODOS">Todos los Cursos (General)</option>
@@ -295,13 +321,21 @@ function inyectarNuevasFunciones() {
                                 Utiliza esta opción para cobrar ítems específicos (Ej. Abrigo, Anuario, Kit). 
                                 Aparecerá como deuda en la cuenta del padre seleccionado.
                             </div>
-                            <div class="mb-3">
-                                <label class="fw-bold">Asignar a:</label>
-                                <select class="form-select" id="gasto-asignar-usuario" required>
-                                    <option value="">-- Seleccione a quién cobrar --</option>
-                                    <option value="TODOS" class="fw-bold text-danger">⚠️️ A TODOS LOS PADRES (COBRO GENERAL)</option>
+                            
+                            <div class="mb-3 p-2 bg-light border rounded">
+                                <label class="fw-bold text-primary small mb-1"><i class="bi bi-funnel-fill me-1"></i> 1. Filtrar lista por Paralelo:</label>
+                                <select class="form-select form-select-sm border-primary shadow-sm" id="filtro-modal-gasto-curso" onchange="llenarSelectPadresGasto()">
+                                    <option value="TODOS">Todos los Paralelos</option>
                                 </select>
                             </div>
+
+                            <div class="mb-3">
+                                <label class="fw-bold">2. Asignar a (Seleccione el Padre):</label>
+                                <select class="form-select" id="gasto-asignar-usuario" required>
+                                    <!-- Se llena automáticamente con llenarSelectPadresGasto() -->
+                                </select>
+                            </div>
+
                             <div class="mb-3">
                                 <label class="fw-bold">Concepto (Ej. Anuario, Chompa, Abrigo)</label>
                                 <input type="text" class="form-control" id="gasto-asignar-desc" required>
@@ -373,8 +407,8 @@ function inyectarNuevasFunciones() {
                 </button>
             </div>
             <div class="alert alert-secondary small">
-                Aquí administras lo que <strong>cada padre</strong> tiene que pagar individualmente (ej. Abrigo, Foto, Fiesta). 
-                Si te pagan un rubro específico, márcalo como PAGADO aquí.
+                Aquí administras lo que <strong>cada padre</strong> tiene que pagar individualmente. 
+                Utiliza el menú de <strong>"Filtrar vistas por Curso"</strong> arriba para ver las deudas de un paralelo específico (A, B, C, D).
             </div>
             <div class="table-responsive bg-white rounded shadow border p-3">
                 <table class="table table-hover align-middle text-center">
@@ -519,7 +553,6 @@ function cargarPortalSegunRol(usuario) {
         document.getElementById('menu-navegacion').innerHTML = `
             <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarVistaPadre('estado', this)"><i class="bi bi-clock-history me-2"></i> Mi Libro Mayor</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('misgastos', this)"><i class="bi bi-bag-x-fill me-2"></i> Mis Gastos Asignados</a></li>
-            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('gastos', this)"><i class="bi bi-cart-x-fill me-2"></i> Egresos (Comité)</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('documentos', this)"><i class="bi bi-folder2-open-fill me-2"></i> Documentos</a></li>
         `;
         
@@ -551,34 +584,6 @@ function cargarPortalSegunRol(usuario) {
                                     </tr>
                                 </thead>
                                 <tbody id="tabla-misgastos-padre"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>`);
-        }
-
-        if (portalPadre && !document.getElementById('padre-vista-gastos')) {
-            portalPadre.insertAdjacentHTML('beforeend', `
-            <div id="padre-vista-gastos" class="oculto">
-                <h4 class="fw-bold text-secondary mb-4 border-bottom pb-2"><i class="bi bi-cart-x-fill me-2"></i>Transparencia: Gastos de la Directiva</h4>
-                <div class="alert alert-warning small">
-                    Estos son los gastos de la directiva con los fondos generales. <strong>No son deudas suyas.</strong>
-                </div>
-                <div class="card shadow-sm mb-4">
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle text-center mb-0">
-                                <thead class="table-secondary">
-                                    <tr>
-                                        <th>Fecha</th>
-                                        <th>Concepto de Gasto (Comité)</th>
-                                        <th>Valor Pagado</th>
-                                        <th>Estado</th>
-                                        <th>Factura</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tabla-egresos-padre"></tbody>
                             </table>
                         </div>
                     </div>
@@ -619,8 +624,15 @@ async function cambiarModuloAdmin(modulo, el) {
         n.classList.remove('active');
     });
     
-    if (document.getElementById(`admin-modulo-${modulo}`)) {
-        document.getElementById(`admin-modulo-${modulo}`).classList.remove('oculto');
+    const targetModule = document.getElementById(`admin-modulo-${modulo}`);
+    if (targetModule) {
+        targetModule.classList.remove('oculto');
+    } else {
+        if (modulo === 'actividades' && document.getElementById('admin-modulo-actividad')) {
+            document.getElementById('admin-modulo-actividad').classList.remove('oculto');
+        } else if (modulo === 'actividad' && document.getElementById('admin-modulo-actividades')) {
+            document.getElementById('admin-modulo-actividades').classList.remove('oculto');
+        }
     }
     
     if (el) {
@@ -668,7 +680,7 @@ function actualizarSelectCursos() {
         const valorActual = selectFiltro.value;
         selectFiltro.innerHTML = '<option value="TODOS">Todos los Cursos (General)</option>';
         cursosUnicos.forEach(c => { 
-            selectFiltro.innerHTML += `<option value="${c}">Solo mostrar ${c}</option>`; 
+            selectFiltro.innerHTML += `<option value="${c}">Solo mostrar Paralelo ${c}</option>`; 
         });
         if(cursosUnicos.includes(valorActual)) {
             selectFiltro.value = valorActual;
@@ -682,7 +694,7 @@ function actualizarSelectCursos() {
             <option value="TODOS">🌐 Todos los Cursos (General)</option>
         `;
         cursosUnicos.forEach(c => { 
-            selectModal.innerHTML += `<option value="${c}">${c}</option>`; 
+            selectModal.innerHTML += `<option value="${c}">Paralelo ${c}</option>`; 
         });
         if(cursosUnicos.includes(valModal) || valModal === "TODOS") {
             selectModal.value = valModal;
@@ -690,18 +702,42 @@ function actualizarSelectCursos() {
     }
 }
 
-function abrirModalGastoAdmin() {
-    document.getElementById('form-asignar-gasto').reset();
+// NUEVA FUNCIÓN PARA EL FILTRO DEL MODAL DE GASTOS
+function llenarSelectPadresGasto() {
     const sel = document.getElementById('gasto-asignar-usuario');
+    const filtroC = document.getElementById('filtro-modal-gasto-curso') ? document.getElementById('filtro-modal-gasto-curso').value : 'TODOS';
+    
     sel.innerHTML = `
         <option value="">-- Seleccione a quién cobrar --</option>
-        <option value="TODOS" class="fw-bold text-danger">⚠️ A TODOS LOS PADRES</option>
+        <option value="TODOS" class="fw-bold text-danger">⚠️ A TODOS LOS PADRES MOSTRADOS</option>
     `;
     
-    usuariosBD.filter(u => u.rol === 'PADRE').forEach(u => {
+    let padres = usuariosBD.filter(u => u.rol === 'PADRE');
+    
+    if (filtroC !== "TODOS") {
+        padres = padres.filter(u => compararCursos(u.curso, filtroC));
+    }
+    
+    padres.forEach(u => {
         sel.innerHTML += `<option value="${u.username}">${u.nombre} (${u.curso||'Sin curso'})</option>`;
     });
+}
+
+function abrirModalGastoAdmin() {
+    document.getElementById('form-asignar-gasto').reset();
     
+    const selectFiltro = document.getElementById('filtro-modal-gasto-curso');
+    if (selectFiltro) {
+        const cursosBrutos = usuariosBD.map(u => u.curso).filter(c => c && c.trim() !== '');
+        const cursosUnicos = [...new Set(cursosBrutos)].sort();
+        selectFiltro.innerHTML = '<option value="TODOS">Todos los Paralelos</option>';
+        cursosUnicos.forEach(c => { 
+            selectFiltro.innerHTML += `<option value="${c}">Paralelo ${c}</option>`; 
+        });
+        selectFiltro.value = "TODOS";
+    }
+    
+    llenarSelectPadresGasto();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGastosPadreAdmin')).show();
 }
 
@@ -767,14 +803,23 @@ async function renderizarTodasLasTablasAdmin() {
     let usuariosParaRender = usuariosBD;
     let pagosParaRender = pagosGlobales;
     let actividadesParaRender = actividadesGlobales;
+    let gastosParaRender = gastosPadres; // NUEVO: Aplicamos filtro global a gastos
 
     if (cursoFiltroActual !== "TODOS") {
         usuariosParaRender = usuariosBD.filter(u => compararCursos(u.curso, cursoFiltroActual));
+        
         pagosParaRender = pagosGlobales.filter(p => {
             let u = usuariosBD.find(x => x.username === p.usuario);
             return u && compararCursos(u.curso, cursoFiltroActual);
         });
+        
         actividadesParaRender = actividadesGlobales.filter(a => compararCursos(a.curso, cursoFiltroActual) || a.curso.toUpperCase() === 'TODOS');
+        
+        // Filtro a la tabla de Gastos
+        gastosParaRender = gastosPadres.filter(g => {
+            let u = usuariosBD.find(x => x.username === g.username);
+            return u && compararCursos(u.curso, cursoFiltroActual);
+        });
     }
 
     renderizarDashboardAdmin(pagosParaRender, actividadesParaRender);
@@ -784,12 +829,13 @@ async function renderizarTodasLasTablasAdmin() {
     const tgp = document.getElementById('tabla-gastos-admin');
     if(tgp) {
         tgp.innerHTML = '';
-        if(gastosPadres.length === 0) {
-            tgp.innerHTML = `<tr><td colspan="6" class="text-muted py-4">No hay gastos asignados a los padres.</td></tr>`;
+        if(gastosParaRender.length === 0) {
+            tgp.innerHTML = `<tr><td colspan="6" class="text-muted py-4">No hay gastos asignados a los padres en este paralelo.</td></tr>`;
         } else {
-            gastosPadres.forEach(g => {
+            gastosParaRender.forEach(g => {
                 const userObj = usuariosBD.find(u => u.username === g.username);
                 const nombreUser = userObj ? userObj.nombre : g.username;
+                const cursoUser = userObj ? userObj.curso : 'Sin curso';
                 
                 const btnSt = g.estado === 'PENDIENTE' 
                     ? `<button class="btn btn-sm btn-success fw-bold shadow-sm me-1" onclick="cambiarEstadoGastoAdmin(${g.id}, 'PAGADO')"><i class="bi bi-check2"></i> Pagar</button>`
@@ -800,7 +846,7 @@ async function renderizarTodasLasTablasAdmin() {
                 tgp.innerHTML += `
                 <tr>
                     <td>${g.fecha}</td>
-                    <td class="fw-bold">${nombreUser}</td>
+                    <td class="fw-bold">${nombreUser} <br><small class="text-muted">${cursoUser}</small></td>
                     <td class="fw-bold text-dark text-start">${g.concepto}</td>
                     <td class="fw-bold text-danger">$${parseFloat(g.valor||0).toFixed(2)}</td>
                     <td><span class="badge ${claseInsignia}">${g.estado}</span></td>
@@ -923,7 +969,6 @@ async function renderizarTodasLasTablasAdmin() {
         usuariosParaRender.filter(u => u.rol === 'PADRE').forEach(u => {
             const cuotaBase = parseFloat(u.valor_total_pagar || 0);
             
-            // Sumar todos los gastos de este padre
             const misGastos = gastosPadres.filter(g => g.username === u.username);
             const totalGastosRubros = misGastos.reduce((s, g) => s + parseFloat(g.valor||0), 0);
             const totalDeuda = cuotaBase + totalGastosRubros; 
@@ -1174,7 +1219,6 @@ function actualizarDashboardPadre() {
         let totalPagado = misPagos.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
         let pendiente = totalAPagar - totalPagado;
 
-        // VISTA 1: MIS GASTOS DETALLADOS
         const vistaMisGastos = document.getElementById('tabla-misgastos-padre');
         if(vistaMisGastos) {
             vistaMisGastos.innerHTML = '';
@@ -1218,7 +1262,6 @@ function actualizarDashboardPadre() {
             });
         }
 
-        // VISTA 2: LIBRO MAYOR (ESTADO DE CUENTA CRONOLÓGICO)
         const vistaEstado = document.getElementById('padre-vista-estado');
         if (vistaEstado) {
             let transacciones = [];
@@ -1323,32 +1366,7 @@ function actualizarDashboardPadre() {
                 </div>
             `;
         }
-
-        // VISTA 3: EGRESOS COMITÉ
-        const tbGastos = document.getElementById('tabla-egresos-padre');
-        if (tbGastos) {
-            tbGastos.innerHTML = '';
-            if (egresosGlobales.length === 0) {
-                tbGastos.innerHTML = `<tr><td colspan="5" class="text-muted py-4">Sin egresos registrados.</td></tr>`;
-            } else {
-                egresosGlobales.forEach(e => {
-                    const btnDoc = e.tiene_doc 
-                        ? `<button class="btn btn-sm btn-outline-danger shadow-sm" onclick="verEgresoPDF(${e.id})">Factura</button>` 
-                        : '-';
-                    const estadoTexto = e.estado_pago || 'PENDIENTE';
-                    let claseEstado = estadoTexto === 'PAGADO' ? 'bg-success' : 'bg-warning text-dark';
-                    
-                    tbGastos.innerHTML += `
-                    <tr>
-                        <td>${e.fecha}</td>
-                        <td class="fw-bold text-dark text-start">${e.descripcion}</td>
-                        <td class="fw-bold text-danger">-$${parseFloat(e.valor || 0).toFixed(2)}</td>
-                        <td><span class="badge ${claseEstado}">${estadoTexto}</span></td>
-                        <td>${btnDoc}</td>
-                    </tr>`;
-                });
-            }
-        }
+        
         setTimeout(hacerTablasResponsivas, 200);
     });
 }
@@ -1504,7 +1522,8 @@ async function validarPago(id) {
 
 async function registrarActividad(e) { 
     e.preventDefault();
-    const file = document.getElementById('act-file').files[0];
+    const fileInput = document.getElementById('act-file');
+    const file = fileInput ? fileInput.files[0] : null;
     
     if(!file) { 
         mostrarAlerta("Debes adjuntar el archivo PDF de respaldo obligatoriamente.", "⚠️"); 
@@ -1552,7 +1571,9 @@ async function registrarActividad(e) {
 
 async function registrarEgreso(e) {
     e.preventDefault();
-    const file = document.getElementById('egreso-file').files[0];
+    const fileInput = document.getElementById('egreso-file');
+    const file = fileInput ? fileInput.files[0] : null;
+    
     let b64 = "";
     let fileName = "";
     
@@ -1599,7 +1620,8 @@ async function registrarEgreso(e) {
 
 async function subirActa(e) { 
     e.preventDefault();
-    const file = document.getElementById('acta-file').files[0];
+    const fileInput = document.getElementById('acta-file');
+    const file = fileInput ? fileInput.files[0] : null;
     
     if(!file) { 
         mostrarAlerta("Por favor, selecciona un documento PDF obligatoriamente.", "⚠️"); 
@@ -1798,7 +1820,8 @@ async function guardarNuevaCuota(e) {
 
 async function subirDocumento(e, tipo) { 
     e.preventDefault(); 
-    const file = document.getElementById('ctr-file').files[0];
+    const fileInput = document.getElementById('ctr-file');
+    const file = fileInput ? fileInput.files[0] : null;
     
     if(!file) { 
         mostrarAlerta("Por favor, selecciona un documento obligatoriamente.", "⚠️"); 
