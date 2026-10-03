@@ -8,7 +8,8 @@ let actividadesGlobales = [];
 let gastosPadres = [];
 let usuarioActual = null;
 let cursoFiltroActual = "TODOS";
-let cursoFiltroGastos = "TODOS"; // Nuevo filtro específico para Gastos a Padres
+let cursoFiltroGastos = "TODOS"; 
+let padreViendoGastosActual = null; // Controla qué padre se está viendo en el detalle
 
 const API_URL = "/api"; 
 const PRECIO_ADULTO = 101.00;
@@ -205,7 +206,73 @@ function abrirModalActividad() {
 
 function aplicarFiltroGastos(curso) {
     cursoFiltroGastos = curso;
+    volverListaPadresGastos(); // Volver a la lista si estábamos viendo un detalle
     renderizarTodasLasTablasAdmin();
+}
+
+// NUEVA FUNCIÓN BÚSQUEDA EN TIEMPO REAL
+function filtrarPadresGastos() {
+    const input = document.getElementById('buscador-padres-gastos').value.toLowerCase();
+    const filas = document.querySelectorAll('.fila-padre-gasto');
+    filas.forEach(fila => {
+        const nombre = fila.querySelector('.nombre-padre-gasto').innerText.toLowerCase();
+        if (nombre.includes(input)) {
+            fila.style.display = '';
+        } else {
+            fila.style.display = 'none';
+        }
+    });
+}
+
+function verDetalleGastosPadre(username, reRender = false) {
+    padreViendoGastosActual = username;
+    const u = usuariosBD.find(x => x.username === username);
+    if(!u) return;
+
+    document.getElementById('vista-lista-padres-gastos').classList.add('oculto');
+    document.getElementById('vista-detalle-padre-gastos').classList.remove('oculto');
+    document.getElementById('titulo-detalle-gastos-padre').innerHTML = `<i class="bi bi-person-lines-fill me-2"></i>Deudas de: <span class="text-primary">${u.nombre}</span>`;
+
+    const tbody = document.getElementById('tabla-detalle-gastos');
+    tbody.innerHTML = '';
+
+    const deudas = gastosPadres.filter(g => g.username === username);
+
+    if (deudas.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-muted py-4">Este padre no tiene deudas registradas.</td></tr>`;
+    } else {
+        deudas.forEach(g => {
+            const btnSt = g.estado === 'PENDIENTE'
+                ? `<button class="btn btn-sm btn-success fw-bold shadow-sm me-1" onclick="cambiarEstadoGastoAdmin(${g.id}, 'PAGADO')"><i class="bi bi-check2"></i> Pagar</button>`
+                : `<button class="btn btn-sm btn-warning fw-bold shadow-sm me-1" onclick="cambiarEstadoGastoAdmin(${g.id}, 'PENDIENTE')"><i class="bi bi-arrow-counterclockwise"></i> Revertir</button>`;
+
+            let claseInsignia = g.estado === 'PAGADO' ? 'bg-success' : 'bg-warning text-dark';
+
+            tbody.innerHTML += `
+            <tr>
+                <td>${g.fecha}</td>
+                <td class="fw-bold text-dark text-start">${g.concepto}</td>
+                <td class="fw-bold text-danger">$${parseFloat(g.valor||0).toFixed(2)}</td>
+                <td><span class="badge ${claseInsignia}">${g.estado}</span></td>
+                <td>
+                    <div class="d-flex justify-content-center">
+                        ${btnSt}
+                        <button class="btn btn-sm btn-danger fw-bold shadow-sm" onclick="eliminarGastoAdmin(${g.id})"><i class="bi bi-trash-fill"></i></button>
+                    </div>
+                </td>
+            </tr>`;
+        });
+    }
+}
+
+function volverListaPadresGastos() {
+    padreViendoGastosActual = null;
+    if(document.getElementById('vista-detalle-padre-gastos')) {
+        document.getElementById('vista-detalle-padre-gastos').classList.add('oculto');
+        document.getElementById('vista-lista-padres-gastos').classList.remove('oculto');
+        document.getElementById('buscador-padres-gastos').value = '';
+        filtrarPadresGastos();
+    }
 }
 
 function inyectarNuevasFunciones() {
@@ -261,7 +328,6 @@ function inyectarNuevasFunciones() {
         adminModuloCurso.insertAdjacentHTML('afterbegin', filtroHTML);
     }
 
-    // Modal de Actividades
     if (!document.getElementById('modalActividad')) {
         const modalHTML = `
         <div class="modal fade" id="modalActividad" tabindex="-1">
@@ -319,7 +385,6 @@ function inyectarNuevasFunciones() {
         });
     }
 
-    // Modal de Gastos de Padres
     if (!document.getElementById('modalGastosPadreAdmin')) {
         const modalGastosHTML = `
         <div class="modal fade" id="modalGastosPadreAdmin" tabindex="-1">
@@ -363,7 +428,6 @@ function inyectarNuevasFunciones() {
         document.getElementById('form-asignar-gasto').addEventListener('submit', guardarNuevoGastoAdmin);
     }
 
-    // Modal Fiesta Familiar
     if (!document.getElementById('modalFiestaPadre')) {
         const modalFiestaHTML = `
         <div class="modal fade" id="modalFiestaPadre" tabindex="-1">
@@ -404,7 +468,6 @@ function inyectarNuevasFunciones() {
 
     const adminPortal = document.getElementById('portal-admin');
 
-    // SOLUCIÓN PANTALLA BLANCA DE ACTIVIDADES: Inyectar módulo si no existe
     if (adminPortal && !document.getElementById('admin-modulo-actividades')) {
         const moduloActividadesHTML = `
         <div id="admin-modulo-actividades" class="oculto mb-4">
@@ -435,43 +498,73 @@ function inyectarNuevasFunciones() {
         adminPortal.insertAdjacentHTML('beforeend', moduloActividadesHTML);
     }
 
-    // INYECCIÓN MÓDULO GASTOS PADRES CON FILTRO EXTERNO
+    // NUEVO MÓDULO GASTOS PADRES: MAESTRO DETALLE CON BUSCADOR
     if (adminPortal && !document.getElementById('admin-modulo-gastospadres')) {
         const moduloGastosHTML = `
         <div id="admin-modulo-gastospadres" class="oculto mb-4">
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3 border-bottom pb-2">
                 <h4 class="text-danger fw-bold mb-3 mb-md-0"><i class="bi bi-bag-x-fill me-2"></i>Deudas por Rubros (Padres)</h4>
+                <button class="btn btn-danger shadow-sm fw-bold text-nowrap" onclick="abrirModalGastoAdmin()">
+                    <i class="bi bi-plus-circle me-1"></i> Asignar Gasto
+                </button>
+            </div>
+            
+            <div id="vista-lista-padres-gastos">
+                <div class="alert alert-secondary small mb-3">
+                    Aquí administras lo que <strong>cada padre</strong> tiene que pagar individualmente. Busca al padre o selecciona el paralelo, dale clic en <strong>Ver Deudas</strong> y gestiona sus cobros.
+                </div>
                 
-                <div class="d-flex flex-column flex-md-row gap-2 align-items-md-center">
-                    <div class="input-group">
-                        <span class="input-group-text bg-white border-danger text-danger fw-bold"><i class="bi bi-funnel-fill"></i></span>
+                <div class="row mb-3">
+                    <div class="col-md-6 mb-2 mb-md-0">
+                        <div class="input-group shadow-sm">
+                            <span class="input-group-text bg-white border-danger text-danger"><i class="bi bi-search"></i></span>
+                            <input type="text" id="buscador-padres-gastos" class="form-control border-danger" placeholder="Buscar padre por nombre..." onkeyup="filtrarPadresGastos()">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
                         <select id="filtro-local-gastos" class="form-select border-danger fw-bold shadow-sm" onchange="aplicarFiltroGastos(this.value)">
                             <option value="TODOS">Todos los Paralelos</option>
                         </select>
                     </div>
-                    <button class="btn btn-danger shadow-sm fw-bold text-nowrap" onclick="abrirModalGastoAdmin()">
-                        <i class="bi bi-plus-circle me-1"></i> Asignar Gasto
-                    </button>
+                </div>
+
+                <div class="table-responsive bg-white rounded shadow border p-3">
+                    <table class="table table-hover align-middle text-center">
+                        <thead class="table-danger">
+                            <tr>
+                                <th>Padre de Familia</th>
+                                <th>Paralelo</th>
+                                <th>Total Deuda Rubros</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-padres-gastos"></tbody>
+                    </table>
                 </div>
             </div>
-            <div class="alert alert-secondary small">
-                Aquí administras lo que <strong>cada padre</strong> tiene que pagar individualmente. Filtra por paralelo en el menú rojo de arriba para buscar fácilmente.
+
+            <!-- VISTA DETALLE OCULTA POR DEFECTO -->
+            <div id="vista-detalle-padre-gastos" class="oculto">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3 p-3 bg-light rounded border">
+                    <h5 class="fw-bold text-dark mb-3 mb-md-0" id="titulo-detalle-gastos-padre"></h5>
+                    <button class="btn btn-sm btn-secondary fw-bold shadow-sm" onclick="volverListaPadresGastos()"><i class="bi bi-arrow-left-circle-fill me-1"></i>Volver a la lista</button>
+                </div>
+                <div class="table-responsive bg-white rounded shadow border p-3">
+                    <table class="table table-hover align-middle text-center">
+                        <thead class="table-danger">
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Concepto (Deuda)</th>
+                                <th>Valor</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-detalle-gastos"></tbody>
+                    </table>
+                </div>
             </div>
-            <div class="table-responsive bg-white rounded shadow border p-3">
-                <table class="table table-hover align-middle text-center">
-                    <thead class="table-danger">
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Padre de Familia</th>
-                            <th>Concepto (Deuda)</th>
-                            <th>Valor</th>
-                            <th>Estado</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tabla-gastos-admin"></tbody>
-                </table>
-            </div>
+
         </div>`;
         adminPortal.insertAdjacentHTML('afterbegin', moduloGastosHTML);
     }
@@ -772,7 +865,6 @@ function abrirModalGastoAdmin() {
     
     let padres = usuariosBD.filter(u => u.rol === 'PADRE');
     
-    // Ordenar alfabéticamente por Paralelo y luego por Nombre
     padres.sort((a, b) => {
         let cursoA = a.curso || "";
         let cursoB = b.curso || "";
@@ -848,9 +940,22 @@ async function renderizarTodasLasTablasAdmin() {
     let usuariosParaRender = usuariosBD;
     let pagosParaRender = pagosGlobales;
     let actividadesParaRender = actividadesGlobales;
-    let gastosParaRender = gastosPadres;
 
-    // Filtro Global
+    // CORRECCIÓN CAPTURA 1: Llenar siempre la lista del Modal "Registrar Pago" para los Administradores
+    const selPagoAdmin = document.getElementById('pago-usuario');
+    if (selPagoAdmin && usuarioActual && (usuarioActual.rol === 'ADMIN' || usuarioActual.rol === 'COMITE')) {
+        const valAnterior = selPagoAdmin.value;
+        selPagoAdmin.innerHTML = `<option value="">-- Seleccione un Padre --</option>`;
+        let listaPadres = usuariosBD.filter(u => u.rol === 'PADRE');
+        listaPadres.sort((a, b) => a.nombre.localeCompare(b.nombre)); // Ordenar alfabéticamente
+        listaPadres.forEach(u => {
+            selPagoAdmin.innerHTML += `<option value="${u.username}">${u.nombre} (Paralelo ${u.curso || 'Sin curso'})</option>`;
+        });
+        if(listaPadres.some(p => p.username === valAnterior)) {
+            selPagoAdmin.value = valAnterior;
+        }
+    }
+
     if (cursoFiltroActual !== "TODOS") {
         usuariosParaRender = usuariosBD.filter(u => compararCursos(u.curso, cursoFiltroActual));
         
@@ -862,50 +967,50 @@ async function renderizarTodasLasTablasAdmin() {
         actividadesParaRender = actividadesGlobales.filter(a => compararCursos(a.curso, cursoFiltroActual) || a.curso.toUpperCase() === 'TODOS');
     }
 
-    // Filtro Específico para tabla de Gastos (Independiente)
-    if (cursoFiltroGastos !== "TODOS") {
-        gastosParaRender = gastosPadres.filter(g => {
-            let u = usuariosBD.find(x => x.username === g.username);
-            return u && compararCursos(u.curso, cursoFiltroGastos);
-        });
-    }
-
     renderizarDashboardAdmin(pagosParaRender, actividadesParaRender);
     renderizarDashboardCurso(); 
     
-    // TABLA GASTOS A PADRES
-    const tgp = document.getElementById('tabla-gastos-admin');
-    if(tgp) {
-        tgp.innerHTML = '';
-        if(gastosParaRender.length === 0) {
-            tgp.innerHTML = `<tr><td colspan="6" class="text-muted py-4">No hay gastos asignados a los padres en este paralelo.</td></tr>`;
-        } else {
-            gastosParaRender.forEach(g => {
-                const userObj = usuariosBD.find(u => u.username === g.username);
-                const nombreUser = userObj ? userObj.nombre : g.username;
-                const cursoUser = userObj ? userObj.curso : 'Sin curso';
-                
-                const btnSt = g.estado === 'PENDIENTE' 
-                    ? `<button class="btn btn-sm btn-success fw-bold shadow-sm me-1" onclick="cambiarEstadoGastoAdmin(${g.id}, 'PAGADO')"><i class="bi bi-check2"></i> Pagar</button>`
-                    : `<button class="btn btn-sm btn-warning fw-bold shadow-sm me-1" onclick="cambiarEstadoGastoAdmin(${g.id}, 'PENDIENTE')"><i class="bi bi-arrow-counterclockwise"></i> Revertir</button>`;
-                
-                let claseInsignia = g.estado === 'PAGADO' ? 'bg-success' : 'bg-warning text-dark';
+    // TABLA MAESTRA GASTOS A PADRES
+    const tbPadresG = document.getElementById('tabla-padres-gastos');
+    if (tbPadresG) {
+        tbPadresG.innerHTML = '';
+        let padresMostrar = usuariosBD.filter(u => u.rol === 'PADRE');
 
-                tgp.innerHTML += `
-                <tr>
-                    <td>${g.fecha}</td>
-                    <td class="fw-bold">${nombreUser} <br><small class="text-muted">${cursoUser}</small></td>
-                    <td class="fw-bold text-dark text-start">${g.concepto}</td>
-                    <td class="fw-bold text-danger">$${parseFloat(g.valor||0).toFixed(2)}</td>
-                    <td><span class="badge ${claseInsignia}">${g.estado}</span></td>
+        if (cursoFiltroGastos !== "TODOS") {
+            padresMostrar = padresMostrar.filter(u => compararCursos(u.curso, cursoFiltroGastos));
+        }
+
+        padresMostrar.sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+        if (padresMostrar.length === 0) {
+            tbPadresG.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay padres en este paralelo.</td></tr>`;
+        } else {
+            padresMostrar.forEach(u => {
+                const deudasPadre = gastosPadres.filter(g => g.username === u.username);
+                const totalDeuda = deudasPadre.reduce((s, g) => s + parseFloat(g.valor || 0), 0);
+                const deudasPendientes = deudasPadre.filter(g => g.estado === 'PENDIENTE').length;
+
+                let badgePendientes = deudasPendientes > 0
+                    ? `<span class="badge bg-warning text-dark ms-2 shadow-sm">${deudasPendientes} Pendiente(s)</span>`
+                    : `<span class="badge bg-success ms-2 shadow-sm"><i class="bi bi-check-circle me-1"></i>Al día</span>`;
+
+                tbPadresG.innerHTML += `
+                <tr class="fila-padre-gasto">
+                    <td class="fw-bold nombre-padre-gasto text-start"><i class="bi bi-person-fill me-2 text-secondary"></i>${u.nombre}</td>
+                    <td><span class="badge bg-dark px-3 py-2">${u.curso || 'Sin curso'}</span></td>
+                    <td class="fw-bold text-danger fs-6">$${totalDeuda.toFixed(2)} ${badgePendientes}</td>
                     <td>
-                        <div class="d-flex justify-content-center">
-                            ${btnSt} 
-                            <button class="btn btn-sm btn-danger fw-bold shadow-sm" onclick="eliminarGastoAdmin(${g.id})"><i class="bi bi-trash-fill"></i></button>
-                        </div>
+                        <button class="btn btn-sm btn-primary fw-bold shadow-sm" onclick="verDetalleGastosPadre('${u.username}')">
+                            <i class="bi bi-eye-fill me-1"></i> Ver Deudas
+                        </button>
                     </td>
                 </tr>`;
             });
+        }
+        
+        // Si estábamos viendo el detalle de un padre y se recargó la tabla, lo actualizamos.
+        if (padreViendoGastosActual) {
+            verDetalleGastosPadre(padreViendoGastosActual, true);
         }
     }
 
@@ -1205,11 +1310,15 @@ function abrirModalPagoPrellenado(valorPredeterminado = null) {
     
     const sel = document.getElementById('pago-usuario');
     
-    if (usuarioActual.rol === 'PADRE') {
+    if (usuarioActual && usuarioActual.rol === 'PADRE') {
         sel.innerHTML = `<option value="${usuarioActual.username}">${usuarioActual.nombre}</option>`;
         sel.value = usuarioActual.username;
         sel.style.pointerEvents = "none"; 
         sel.style.backgroundColor = "#e9ecef";
+    } else {
+        // Modo Admin/Comité, rehabilitamos la caja que ya fue llenada por renderizarTodasLasTablasAdmin
+        sel.style.pointerEvents = "auto";
+        sel.style.backgroundColor = "";
     }
     
     if(valorPredeterminado) {
