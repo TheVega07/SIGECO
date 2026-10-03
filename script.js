@@ -4,11 +4,11 @@ let usuarioActual = null;
 let cursoFiltroActual = "TODOS";
 
 const API_URL = "/api"; 
+const PRECIO_ADULTO = 101.00;
+const PRECIO_NINO = 81.00;
 
-// === FUNCIÓN QUE OBLIGA EL USO DE "SIGECO 28" Y LA MARCA DE DESARROLLO ===
 function forzarNombreSIGECO28() {
     document.title = "SIGECO 28";
-    
     const brand = document.querySelector('.navbar-brand');
     if (brand) {
         brand.innerHTML = `
@@ -157,27 +157,6 @@ function inyectarNuevasFunciones() {
         filePago.setAttribute('title', 'Solo se permiten imágenes JPG');
     }
 
-    const saldoCard = document.getElementById('dash-saldo');
-    if (saldoCard && !document.getElementById('dash-meta')) {
-        const row = saldoCard.closest('.row'); 
-        if (row) {
-            row.querySelectorAll('.col-md-4').forEach(col => {
-                col.classList.remove('col-md-4');
-                col.classList.add('col-md-3');
-            });
-            const htmlMeta = `
-            <div class="col-12 col-md-3 mb-3">
-                <div class="card text-white shadow-sm h-100" style="background-color: #6f42c1;">
-                    <div class="card-body">
-                        <h6 class="card-title"><i class="bi bi-bullseye me-2"></i>Meta a Recaudar</h6>
-                        <h3 class="fw-bold mb-0" id="dash-meta">$0.00</h3>
-                    </div>
-                </div>
-            </div>`;
-            row.insertAdjacentHTML('beforeend', htmlMeta);
-        }
-    }
-
     const adminModuloCurso = document.getElementById('admin-modulo-curso');
     if (adminModuloCurso && !document.getElementById('filtro-curso-global')) {
         const filtroHTML = `
@@ -251,6 +230,45 @@ function inyectarNuevasFunciones() {
                 this.classList.add('is-valid');
             } else { fb.classList.add('oculto'); this.classList.remove('is-valid'); }
         });
+    }
+
+    // INYECTAR MODAL DE FIESTA PARA EL PADRE
+    if (!document.getElementById('modalFiestaPadre')) {
+        const modalFiestaHTML = `
+        <div class="modal fade" id="modalFiestaPadre" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title"><i class="bi bi-balloon-fill me-2"></i>Invitados a la Fiesta Familiar</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="form-fiesta-padre">
+                            <div class="alert alert-info small">
+                                <strong>Valores Oficiales del Comité:</strong><br>
+                                - Adultos: $${PRECIO_ADULTO.toFixed(2)} c/u<br>
+                                - Niños: $${PRECIO_NINO.toFixed(2)} c/u<br>
+                                <br>
+                                <em>Nota: Estos valores se agregarán automáticamente como un nuevo gasto (deuda) en su Estado de Cuenta.</em>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="fw-bold">Cantidad de Adultos</label>
+                                    <input type="number" class="form-control" id="padre-adultos" min="0" value="0" required>
+                                </div>
+                                <div class="col-6">
+                                    <label class="fw-bold">Cantidad de Niños</label>
+                                    <input type="number" class="form-control" id="padre-ninos" min="0" value="0" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100 fw-bold">Confirmar Asistencia y Actualizar Mis Gastos</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', modalFiestaHTML);
+        document.getElementById('form-fiesta-padre').addEventListener('submit', guardarFiestaPadre);
     }
 
     const adminPortal = document.getElementById('portal-admin');
@@ -332,7 +350,7 @@ function cargarPortalSegunRol(usuario) {
             <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarModuloAdmin('resumen', this)"><i class="bi bi-grid-1x2-fill me-2"></i> Resumen General</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('curso', this)"><i class="bi bi-bar-chart-fill me-2"></i> Resumen por Curso</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('pagos', this)"><i class="bi bi-journal-check me-2"></i> Control de Pagos</a></li>
-            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('egresos', this)"><i class="bi bi-cart-fill me-2"></i> Egresos</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('egresos', this)"><i class="bi bi-cart-fill me-2"></i> Egresos Comité</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('actividades', this)"><i class="bi bi-cash-coin me-2"></i> Actividades Extra</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('contratos', this)"><i class="bi bi-file-earmark-text-fill me-2"></i> Contratos</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('actas', this)"><i class="bi bi-briefcase-fill me-2"></i> Actas de Comité</a></li>
@@ -349,11 +367,11 @@ function cargarPortalSegunRol(usuario) {
         
         actualizarSelectCursos();
         renderizarTodasLasTablasAdmin();
-        cambiarModuloAdmin('resumen', document.querySelector('#menu-navegacion .nav-link')); // FORZA QUE EL RESUMEN SEA VISIBLE AL INICIAR
+        cambiarModuloAdmin('resumen', document.querySelector('#menu-navegacion .nav-link')); 
     } else {
         document.getElementById('menu-navegacion').innerHTML = `
-            <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarVistaPadre('estado', this)"><i class="bi bi-clock-history me-2"></i> Estado de Cuenta</a></li>
-            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('gastos', this)"><i class="bi bi-cart-x-fill me-2"></i> Transparencia de Gastos</a></li>
+            <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarVistaPadre('estado', this)"><i class="bi bi-clock-history me-2"></i> Mi Estado de Cuenta</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('gastos', this)"><i class="bi bi-cart-x-fill me-2"></i> Transparencia del Comité</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('documentos', this)"><i class="bi bi-folder2-open-fill me-2"></i> Documentos y Actas</a></li>
         `;
         
@@ -361,13 +379,16 @@ function cargarPortalSegunRol(usuario) {
         if (portalPadre && !document.getElementById('padre-vista-gastos')) {
             const gastosHTML = `
             <div id="padre-vista-gastos" class="oculto">
-                <h4 class="fw-bold text-danger mb-4 border-bottom pb-2"><i class="bi bi-cart-x-fill me-2"></i>Detalle de Gastos</h4>
+                <h4 class="fw-bold text-danger mb-4 border-bottom pb-2"><i class="bi bi-cart-x-fill me-2"></i>Transparencia: Gastos de la Directiva</h4>
+                <div class="alert alert-warning small">
+                    <strong>Nota Importante:</strong> Estos son los gastos generales realizados por la directiva del comité con el dinero recaudado. <strong>Estos valores no representan deudas suyas.</strong>
+                </div>
                 <div class="card shadow-sm mb-4">
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-hover align-middle text-center mb-0">
                                 <thead class="table-danger">
-                                    <tr><th>Fecha</th><th>Concepto de Gasto</th><th>Valor</th><th>Estado (pagado o pendiente)</th><th>Comprobante</th></tr>
+                                    <tr><th>Fecha</th><th>Concepto de Gasto (Comité)</th><th>Valor Pagado</th><th>Estado</th><th>Comprobante / Factura</th></tr>
                                 </thead>
                                 <tbody id="tabla-egresos-padre"></tbody>
                             </table>
@@ -528,8 +549,10 @@ async function renderizarTodasLasTablasAdmin() {
             const nuevoEstado = estadoActual === 'PAGADO' ? 'PENDIENTE' : 'PAGADO';
             
             const btnEstado = estadoActual === 'PENDIENTE' 
-                ? `<button class="btn btn-sm btn-success fw-bold shadow-sm" onclick="marcarEgresoEstado(${e.id}, '${nuevoEstado}')"><i class="bi bi-check2"></i> Marcar Pagado</button>`
+                ? `<button class="btn btn-sm btn-success fw-bold shadow-sm" onclick="marcarEgresoEstado(${e.id}, '${nuevoEstado}')"><i class="bi bi-check2"></i> Pagar</button>`
                 : `<button class="btn btn-sm btn-warning fw-bold shadow-sm" onclick="marcarEgresoEstado(${e.id}, '${nuevoEstado}')"><i class="bi bi-arrow-counterclockwise"></i> Revertir</button>`;
+            
+            const btnEliminar = `<button class="btn btn-sm btn-danger fw-bold shadow-sm" onclick="eliminarEgreso(${e.id})" title="Eliminar Egreso de la Base de Datos"><i class="bi bi-trash-fill"></i></button>`;
 
             te.innerHTML += `<tr>
                 <td>${e.fecha}</td>
@@ -537,7 +560,7 @@ async function renderizarTodasLasTablasAdmin() {
                 <td>${e.proveedor}</td>
                 <td class="fw-bold text-danger">-$${parseFloat(e.valor || 0).toFixed(2)}</td>
                 <td><span class="badge ${estadoActual === 'PAGADO' ? 'bg-success' : 'bg-warning text-dark'} px-2 py-1">${estadoActual}</span></td>
-                <td><div class="d-flex gap-1 justify-content-center">${btnDoc} ${btnEstado}</div></td>
+                <td><div class="d-flex gap-1 justify-content-center">${btnDoc} ${btnEstado} ${btnEliminar}</div></td>
             </tr>`;
         });
     }
@@ -557,7 +580,9 @@ async function renderizarTodasLasTablasAdmin() {
         tc.innerHTML = '';
         usuariosParaRender.filter(u => u.rol === 'PADRE').forEach(u => {
             const cuotaBase = parseFloat(u.valor_total_pagar || 0);
-            const totalDeuda = cuotaBase; 
+            const cantAdultos = parseInt(u.adultos_fiesta || 0);
+            const cantNinos = parseInt(u.ninos_fiesta || 0);
+            const totalDeuda = cuotaBase + (cantAdultos * PRECIO_ADULTO) + (cantNinos * PRECIO_NINO); 
             
             const pagosPadre = pagosGlobales.filter(p => p.usuario === u.username && p.estado === 'VALIDADO');
             const totalPagadoPadre = pagosPadre.reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
@@ -569,6 +594,7 @@ async function renderizarTodasLasTablasAdmin() {
                 <td>${u.nombre} <br><span class="badge bg-dark">${u.curso||'Sin curso'}</span></td>
                 <td>
                     <div class="small">Cuota Base: <span class="fw-bold">$${cuotaBase.toFixed(2)}</span></div>
+                    <div class="small text-muted">Fiesta: <span class="fw-bold">$${((cantAdultos * PRECIO_ADULTO) + (cantNinos * PRECIO_NINO)).toFixed(2)}</span></div>
                     <div class="fw-bold text-dark border-top pt-1 mt-1">Total a Pagar: $${totalDeuda.toFixed(2)}</div>
                 </td>
                 <td>
@@ -604,11 +630,13 @@ function renderizarDashboardAdmin(pagosRender, actiRender) {
     let totalEgresos = (cursoFiltroActual === "TODOS") ? egresosGlobales.reduce((s, e) => s + parseFloat(e.valor || 0), 0) : 0;
     
     let metaTotal = 0;
-    if (cursoFiltroActual === "TODOS") {
-        metaTotal = usuariosBD.filter(u => u.rol === 'PADRE').reduce((s, u) => s + parseFloat(u.valor_total_pagar || 0), 0);
-    } else {
-        metaTotal = usuariosBD.filter(u => u.rol === 'PADRE' && compararCursos(u.curso, cursoFiltroActual)).reduce((s, u) => s + parseFloat(u.valor_total_pagar || 0), 0);
-    }
+    let usuariosParaMeta = (cursoFiltroActual === "TODOS") ? usuariosBD.filter(u => u.rol === 'PADRE') : usuariosBD.filter(u => u.rol === 'PADRE' && compararCursos(u.curso, cursoFiltroActual));
+    
+    usuariosParaMeta.forEach(u => {
+        let cuota = parseFloat(u.valor_total_pagar || 0);
+        let fiesta = (parseInt(u.adultos_fiesta || 0) * PRECIO_ADULTO) + (parseInt(u.ninos_fiesta || 0) * PRECIO_NINO);
+        metaTotal += (cuota + fiesta);
+    });
     
     if(document.getElementById('dash-ingresos')) document.getElementById('dash-ingresos').innerText = `$${totalIngresos.toFixed(2)}`;
     if(document.getElementById('dash-egresos')) document.getElementById('dash-egresos').innerText = `$${totalEgresos.toFixed(2)}`;
@@ -619,24 +647,10 @@ function renderizarDashboardAdmin(pagosRender, actiRender) {
 function renderizarDashboardCurso() {
     const tc = document.getElementById('tabla-dashboard-curso');
     const contenedorBarras = document.getElementById('lista-barras-progreso');
-    
     if(!tc) return;
 
-    const thead = tc.closest('table').querySelector('thead tr');
-    if(thead && !thead.innerHTML.includes('Alumnos')) {
-        thead.innerHTML = `
-            <th class="bg-primary text-white">Curso / Paralelo</th>
-            <th class="bg-primary text-white">Total Alumnos</th>
-            <th class="bg-primary text-white">Total Recaudado</th>
-            <th class="bg-primary text-white">Meta a Recaudar</th>
-        `;
-    }
-
     let cursosUnicos = [...new Set(usuariosBD.map(u => u.curso).filter(c => c && c.trim() !== ''))].sort();
-    
-    if(cursoFiltroActual !== "TODOS") {
-        cursosUnicos = cursosUnicos.filter(c => compararCursos(c, cursoFiltroActual));
-    }
+    if(cursoFiltroActual !== "TODOS") { cursosUnicos = cursosUnicos.filter(c => compararCursos(c, cursoFiltroActual)); }
 
     tc.innerHTML = '';
     if (contenedorBarras) contenedorBarras.innerHTML = '';
@@ -650,7 +664,13 @@ function renderizarDashboardCurso() {
     cursosUnicos.forEach(curso => {
         const alumnos = usuariosBD.filter(u => u.rol === 'PADRE' && compararCursos(u.curso, curso));
         const totalAlumnos = alumnos.length;
-        const metaCurso = alumnos.reduce((s, a) => s + parseFloat(a.valor_total_pagar || 0), 0);
+        
+        let metaCurso = 0;
+        alumnos.forEach(a => {
+            let cuota = parseFloat(a.valor_total_pagar || 0);
+            let fiesta = (parseInt(a.adultos_fiesta || 0) * PRECIO_ADULTO) + (parseInt(a.ninos_fiesta || 0) * PRECIO_NINO);
+            metaCurso += (cuota + fiesta);
+        });
         
         const pagosCurso = pagosGlobales.filter(p => p.estado === 'VALIDADO' && usuariosBD.some(u => u.username === p.usuario && compararCursos(u.curso, curso)));
         const actsCurso = actividadesGlobales.filter(a => compararCursos(a.curso, curso));
@@ -669,7 +689,6 @@ function renderizarDashboardCurso() {
         if (contenedorBarras) {
             let porcentaje = metaCurso > 0 ? Math.round((totalRecaudado / metaCurso) * 100) : 0;
             if (porcentaje > 100) porcentaje = 100;
-            
             let colorClase = 'bg-danger';
             if (porcentaje > 40) colorClase = 'bg-warning text-dark';
             if (porcentaje > 80) colorClase = 'bg-success';
@@ -696,15 +715,38 @@ function abrirModalPagoPadre() {
     form.reset();
     limpiarFeedbackArchivos();
     
-    // Si es padre, forzamos su usuario y ocultamos el select
     if (usuarioActual.rol === 'PADRE') {
         selectPadre.innerHTML = `<option value="${usuarioActual.username}">${usuarioActual.nombre}</option>`;
         selectPadre.value = usuarioActual.username;
         selectPadre.style.pointerEvents = "none";
         selectPadre.style.backgroundColor = "#e9ecef";
     }
-    
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalPago')).show();
+}
+
+function abrirModalFiestaPadre() {
+    const userDatos = usuariosBD.find(u => u.username === usuarioActual.username);
+    document.getElementById('padre-adultos').value = userDatos.adultos_fiesta || 0;
+    document.getElementById('padre-ninos').value = userDatos.ninos_fiesta || 0;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFiestaPadre')).show();
+}
+
+async function guardarFiestaPadre(e) {
+    e.preventDefault();
+    const adultos = document.getElementById('padre-adultos').value;
+    const ninos = document.getElementById('padre-ninos').value;
+    try {
+        const resp = await fetch(`${API_URL}/usuarios/fiesta/padre`, { 
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ username: usuarioActual.username, adultos: adultos, ninos: ninos }) 
+        });
+        const data = await resp.json();
+        if(resp.ok && data.exito) {
+            bootstrap.Modal.getInstance(document.getElementById('modalFiestaPadre')).hide();
+            mostrarAlerta("Confirmación de asistencia actualizada. Revise sus nuevos gastos asignados en el Estado de Cuenta.", "✅");
+            actualizarDashboardPadre();
+        } else { mostrarAlerta("Error al actualizar la asistencia.", "❌"); }
+    } catch(err) { mostrarAlerta("Error de conexión al guardar asistencia.", "❌"); }
 }
 
 function actualizarDashboardPadre() {
@@ -714,69 +756,73 @@ function actualizarDashboardPadre() {
         const misActividades = actividadesGlobales.filter(a => compararCursos(a.curso, userDatos.curso) || a.curso.toUpperCase() === 'TODOS');
         
         let cuotaBase = parseFloat(userDatos.valor_total_pagar || 0);
-        let totalAPagar = cuotaBase;
+        let cantAdultos = parseInt(userDatos.adultos_fiesta || 0);
+        let cantNinos = parseInt(userDatos.ninos_fiesta || 0);
+        let totalAdultos = cantAdultos * PRECIO_ADULTO;
+        let totalNinos = cantNinos * PRECIO_NINO;
+        
+        let totalAPagar = cuotaBase + totalAdultos + totalNinos;
         let totalPagado = misPagos.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
         let pendiente = totalAPagar - totalPagado;
 
-        // CONSTRUCCIÓN DEL ESTADO DE CUENTA (FORMATO LIBRO MAYOR CON CUADROS)
         const vistaEstado = document.getElementById('padre-vista-estado');
         if (vistaEstado) {
             let transacciones = [];
             
             if (cuotaBase > 0) {
-                transacciones.push({
-                    fecha: '2024-01-01',
-                    fechaTexto: 'Inicial',
-                    comprobante: '-',
-                    concepto: 'Total Gastos Asignados',
-                    ingreso: 0,
-                    gasto: cuotaBase
-                });
+                transacciones.push({ fecha: '2024-01-01', concepto: 'Deuda Inicial / Cuota Base', ingreso: 0, gasto: cuotaBase, validado: true });
+            }
+            if (totalAdultos > 0) {
+                transacciones.push({ fecha: '2024-01-02', concepto: `Fiesta Familiar - Adultos (${cantAdultos} x $${PRECIO_ADULTO.toFixed(2)})`, ingreso: 0, gasto: totalAdultos, validado: true });
+            }
+            if (totalNinos > 0) {
+                transacciones.push({ fecha: '2024-01-02', concepto: `Fiesta Familiar - Niños (${cantNinos} x $${PRECIO_NINO.toFixed(2)})`, ingreso: 0, gasto: totalNinos, validado: true });
             }
 
             misPagos.forEach(p => {
-                if (p.estado === 'VALIDADO') {
-                    transacciones.push({
-                        fecha: p.fecha,
-                        fechaTexto: p.fecha,
-                        comprobante: p.voucher || '-',
-                        concepto: 'Abono / Transferencia',
-                        ingreso: parseFloat(p.valor || 0),
-                        gasto: 0
-                    });
-                }
+                transacciones.push({
+                    fecha: p.fecha,
+                    comprobante: p.voucher || '-',
+                    concepto: 'Abono / Transferencia Registrada',
+                    ingreso: parseFloat(p.valor || 0),
+                    gasto: 0,
+                    validado: p.estado === 'VALIDADO'
+                });
             });
 
             transacciones.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
             let htmlFilas = '';
-            let saldoAcumulado = 0;
+            let deudaActual = 0; 
 
             if (transacciones.length === 0) {
                 htmlFilas = `<tr><td colspan="6" class="text-muted py-4">No hay movimientos en tu cuenta.</td></tr>`;
             } else {
                 transacciones.forEach(t => {
-                    saldoAcumulado += (t.ingreso - t.gasto);
-                    const colorSaldo = saldoAcumulado >= 0 ? 'text-success' : 'text-danger';
+                    if (t.validado) {
+                        deudaActual += t.gasto;
+                        deudaActual -= t.ingreso;
+                    }
+                    
+                    let estadoEtiqueta = t.validado ? '' : '<br><span class="badge bg-warning text-dark mt-1 shadow-sm"><i class="bi bi-hourglass-split me-1"></i>En Espera de Aprobación</span>';
                     
                     htmlFilas += `<tr>
-                        <td>${t.fechaTexto}</td>
+                        <td>${t.fecha}</td>
                         <td>${t.comprobante}</td>
-                        <td class="fw-bold">${t.concepto}</td>
+                        <td class="fw-bold text-start">${t.concepto} ${estadoEtiqueta}</td>
                         <td class="text-success fw-bold">${t.ingreso > 0 ? '$'+t.ingreso.toFixed(2) : '-'}</td>
-                        <td class="text-danger fw-bold">${t.gasto > 0 ? '-$'+t.gasto.toFixed(2) : '-'}</td>
-                        <td class="fw-bold ${colorSaldo}">$${saldoAcumulado.toFixed(2)}</td>
+                        <td class="text-danger fw-bold">${t.gasto > 0 ? '$'+t.gasto.toFixed(2) : '-'}</td>
+                        <td class="fw-bold ${t.validado ? 'text-primary' : 'text-muted'}">$${Math.max(0, deudaActual).toFixed(2)}</td>
                     </tr>`;
                 });
             }
 
-            // AQUÍ RECONSTRUIMOS LOS CUADROS AZUL, VERDE Y ROJO
             vistaEstado.innerHTML = `
                 <div class="row mb-4">
                     <div class="col-md-4 mb-3">
                         <div class="card text-white bg-primary shadow-sm h-100">
                             <div class="card-body">
-                                <h6 class="card-title"><i class="bi bi-wallet2 me-2"></i>Total a Pagar</h6>
+                                <h6 class="card-title"><i class="bi bi-wallet2 me-2"></i>Total Gastos Asignados</h6>
                                 <h3 class="fw-bold mb-0" id="lbl-total-pagar">$${totalAPagar.toFixed(2)}</h3>
                             </div>
                         </div>
@@ -784,7 +830,7 @@ function actualizarDashboardPadre() {
                     <div class="col-md-4 mb-3">
                         <div class="card text-white bg-success shadow-sm h-100">
                             <div class="card-body">
-                                <h6 class="card-title"><i class="bi bi-piggy-bank-fill me-2"></i>Total Abonado</h6>
+                                <h6 class="card-title"><i class="bi bi-piggy-bank-fill me-2"></i>Total Abonado (Aprobado)</h6>
                                 <h3 class="fw-bold mb-0" id="lbl-pagado">$${totalPagado.toFixed(2)}</h3>
                             </div>
                         </div>
@@ -792,16 +838,19 @@ function actualizarDashboardPadre() {
                     <div class="col-md-4 mb-3">
                         <div class="card text-white bg-danger shadow-sm h-100">
                             <div class="card-body">
-                                <h6 class="card-title"><i class="bi bi-exclamation-triangle-fill me-2"></i>Saldo Pendiente</h6>
-                                <h3 class="fw-bold mb-0" id="lbl-pendiente">$${pendiente.toFixed(2)}</h3>
+                                <h6 class="card-title"><i class="bi bi-exclamation-triangle-fill me-2"></i>Saldo Pendiente (Deuda)</h6>
+                                <h3 class="fw-bold mb-0" id="lbl-pendiente">$${Math.max(0, pendiente).toFixed(2)}</h3>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
-                    <h4 class="fw-bold text-primary mb-0"><i class="bi bi-clock-history me-2"></i>Estado de Cuenta</h4>
-                    <button class="btn btn-success fw-bold shadow-sm" onclick="abrirModalPagoPadre()"><i class="bi bi-currency-dollar me-1"></i> Registrar Pago</button>
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 border-bottom pb-2">
+                    <h4 class="fw-bold text-primary mb-3 mb-md-0"><i class="bi bi-clock-history me-2"></i>Mi Estado de Cuenta</h4>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-dark fw-bold shadow-sm flex-fill" onclick="abrirModalFiestaPadre()"><i class="bi bi-balloon-fill me-1"></i> Invitados Fiesta</button>
+                        <button class="btn btn-success fw-bold shadow-sm flex-fill" onclick="abrirModalPagoPadre()"><i class="bi bi-currency-dollar me-1"></i> Registrar Pago</button>
+                    </div>
                 </div>
                 
                 <div class="card shadow-sm mb-4">
@@ -812,10 +861,10 @@ function actualizarDashboardPadre() {
                                     <tr>
                                         <th>Fecha</th>
                                         <th>Comprobante</th>
-                                        <th>Concepto</th>
-                                        <th>Ingreso</th>
-                                        <th>Gastos</th>
-                                        <th>Saldo</th>
+                                        <th>Mis Gastos / Mis Pagos</th>
+                                        <th>Abonado (Ingreso)</th>
+                                        <th>Deuda (Gasto)</th>
+                                        <th>Saldo Pendiente</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -876,14 +925,14 @@ function actualizarDashboardPadre() {
                 tbGastos.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay gastos registrados por el comité.</td></tr>`;
             } else {
                 egresosGlobales.forEach(e => {
-                    const btnDoc = e.tiene_doc ? `<button class="btn btn-sm btn-outline-danger fw-bold shadow-sm" onclick="verEgresoPDF(${e.id})"><i class="bi bi-file-pdf-fill me-1"></i>Ver</button>` : '-';
+                    const btnDoc = e.tiene_doc ? `<button class="btn btn-sm btn-outline-danger fw-bold shadow-sm" onclick="verEgresoPDF(${e.id})"><i class="bi bi-file-pdf-fill me-1"></i>Ver Factura</button>` : '-';
                     const estadoTexto = e.estado_pago || 'PENDIENTE';
                     const colorValor = estadoTexto === 'PAGADO' ? 'text-success' : 'text-danger';
                     const signo = estadoTexto === 'PAGADO' ? '' : '-';
                     
                     tbGastos.innerHTML += `<tr>
                         <td>${e.fecha}</td>
-                        <td class="fw-bold text-dark">${e.descripcion}</td>
+                        <td class="fw-bold text-dark text-start">${e.descripcion}</td>
                         <td class="fw-bold ${colorValor}">${signo}$${parseFloat(e.valor || 0).toFixed(2)}</td>
                         <td><span class="badge ${estadoTexto === 'PAGADO' ? 'bg-success' : 'bg-warning text-dark'} px-2 py-1">${estadoTexto}</span></td>
                         <td>${btnDoc}</td>
@@ -979,8 +1028,10 @@ async function registrarPago(e) {
             bootstrap.Modal.getInstance(document.getElementById('modalPago')).hide(); 
             document.getElementById('form-pago').reset(); 
             limpiarFeedbackArchivos();
-            mostrarAlerta("Pago registrado exitosamente.", "✅"); 
-            renderizarTodasLasTablasAdmin(); 
+            mostrarAlerta("Pago registrado exitosamente. Se encuentra en espera de aprobación.", "✅"); 
+            
+            if (usuarioActual.rol === 'PADRE') { actualizarDashboardPadre(); } 
+            else { renderizarTodasLasTablasAdmin(); }
         } else { mostrarAlerta("Error al guardar: " + data.mensaje, "❌"); }
     } catch(error) { mostrarAlerta("Error de conexión al servidor.", "❌"); }
 }
@@ -1149,7 +1200,7 @@ async function toggleEstadoUsuario(username) {
 
 async function validarPago(id) { 
     await fetch(`${API_URL}/pagos/validar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id }) }); 
-    mostrarAlerta("Transferencia aprobada.", "✅"); 
+    mostrarAlerta("Transferencia aprobada exitosamente.", "✅"); 
     renderizarTodasLasTablasAdmin(); 
 }
 
@@ -1163,7 +1214,7 @@ async function guardarNuevaCuota(e) {
     e.preventDefault(); 
     await fetch(`${API_URL}/usuarios/cuota`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: document.getElementById('cuota-usu').value, valor: parseFloat(document.getElementById('nueva-cuota-input').value) }) }); 
     bootstrap.Modal.getInstance(document.getElementById('modalAsignarCuota')).hide(); 
-    mostrarAlerta("Cuota actualizada.", "✅"); 
+    mostrarAlerta("Cuota Base actualizada.", "✅"); 
     renderizarTodasLasTablasAdmin(); 
 }
 
@@ -1219,5 +1270,23 @@ async function marcarEgresoEstado(id, nuevoEstado) {
         }
     } catch (error) {
         mostrarAlerta("Error de conexión.", "❌");
+    }
+}
+
+async function eliminarEgreso(id) {
+    if(!confirm("¿Estás seguro de que quieres eliminar este egreso del comité permanentemente? Esta acción borrará el registro de la base de datos y no se puede deshacer.")) {
+        return;
+    }
+    try {
+        const resp = await fetch(`${API_URL}/egresos/${id}`, { method: 'DELETE' });
+        const data = await resp.json();
+        if (resp.ok && data.exito) {
+            mostrarAlerta("Egreso eliminado permanentemente.", "✅");
+            renderizarTodasLasTablasAdmin();
+        } else {
+            mostrarAlerta("Error al eliminar el egreso: " + data.mensaje, "❌");
+        }
+    } catch (error) {
+        mostrarAlerta("Error de conexión con la base de datos.", "❌");
     }
 }
