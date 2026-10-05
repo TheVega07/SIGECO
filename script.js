@@ -230,13 +230,16 @@ function verDetalleGastosPadre(username, reRender = false) {
     document.getElementById('vista-detalle-padre-gastos').classList.remove('oculto');
     document.getElementById('titulo-detalle-gastos-padre').innerHTML = `<i class="bi bi-person-lines-fill me-2"></i>Deudas de: <span class="text-primary">${u.nombre}</span>`;
 
+    const chkAll = document.getElementById('chk-all-gastos');
+    if(chkAll) chkAll.checked = false;
+
     const tbody = document.getElementById('tabla-detalle-gastos');
     tbody.innerHTML = '';
 
     const deudas = gastosPadres.filter(g => g.username === username);
 
     if (deudas.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-muted py-4">Este padre no tiene deudas registradas.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="text-muted py-4">Este padre no tiene deudas registradas.</td></tr>`;
     } else {
         deudas.forEach(g => {
             const btnSt = g.estado === 'PENDIENTE'
@@ -247,6 +250,7 @@ function verDetalleGastosPadre(username, reRender = false) {
 
             tbody.innerHTML += `
             <tr>
+                <td><input type="checkbox" class="form-check-input chk-gasto-item" value="${g.id}"></td>
                 <td>${g.fecha}</td>
                 <td class="fw-bold text-dark text-start">${g.concepto}</td>
                 <td class="fw-bold text-danger">$${parseFloat(g.valor||0).toFixed(2)}</td>
@@ -270,6 +274,49 @@ function volverListaPadresGastos() {
         document.getElementById('buscador-padres-gastos').value = '';
         filtrarPadresGastos();
     }
+}
+
+// NUEVA FUNCION: Seleccionar todos los checkboxes
+function toggleAllGastos(source) {
+    const checkboxes = document.querySelectorAll('.chk-gasto-item');
+    checkboxes.forEach(chk => chk.checked = source.checked);
+}
+
+// NUEVA FUNCION: Borrado masivo
+async function eliminarGastosSeleccionados() {
+    const checkboxes = document.querySelectorAll('.chk-gasto-item:checked');
+    const seleccionados = Array.from(checkboxes).map(chk => chk.value);
+    
+    if(seleccionados.length === 0) {
+        mostrarAlerta("Debes seleccionar al menos una deuda marcando su casilla.", "⚠️");
+        return;
+    }
+    
+    if(!confirm(`¿Estás seguro de borrar permanentemente las ${seleccionados.length} deuda(s) seleccionada(s)? Esta acción no se puede deshacer.`)) {
+        return;
+    }
+    
+    const btnDelete = document.getElementById('btn-borrar-seleccionados');
+    const originalText = btnDelete.innerHTML;
+    btnDelete.disabled = true;
+    btnDelete.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Borrando...`;
+    
+    let borrados = 0;
+    for(let id of seleccionados) {
+        try {
+            let r = await fetch(`${API_URL}/gastos/${id}`, { method: 'DELETE' });
+            if(r.ok) borrados++;
+        } catch(e) {
+            console.error("Error al borrar deuda", id);
+        }
+    }
+    
+    btnDelete.disabled = false;
+    btnDelete.innerHTML = originalText;
+    
+    mostrarAlerta(`Se eliminaron ${borrados} deudas correctamente.`, "✅");
+    
+    renderizarTodasLasTablasAdmin();
 }
 
 function inyectarNuevasFunciones() {
@@ -421,7 +468,6 @@ function inyectarNuevasFunciones() {
         document.getElementById('form-asignar-gasto').addEventListener('submit', guardarNuevoGastoAdmin);
     }
 
-    // NUEVO: MODAL DE CARGA MASIVA DE EXCEL
     if (!document.getElementById('modalCargaMasivaGastos')) {
         const modalMasivaHTML = `
         <div class="modal fade" id="modalCargaMasivaGastos" tabindex="-1">
@@ -574,15 +620,26 @@ function inyectarNuevasFunciones() {
                 </div>
             </div>
 
+            <!-- VISTA DETALLES CON BOTÓN BORRADO MASIVO -->
             <div id="vista-detalle-padre-gastos" class="oculto">
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3 p-3 bg-light rounded border">
                     <h5 class="fw-bold text-dark mb-3 mb-md-0" id="titulo-detalle-gastos-padre"></h5>
-                    <button class="btn btn-sm btn-secondary fw-bold shadow-sm" onclick="volverListaPadresGastos()"><i class="bi bi-arrow-left-circle-fill me-1"></i>Volver a la lista</button>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-danger fw-bold shadow-sm" id="btn-borrar-seleccionados" onclick="eliminarGastosSeleccionados()">
+                            <i class="bi bi-trash-fill me-1"></i>Borrar Seleccionados
+                        </button>
+                        <button class="btn btn-sm btn-secondary fw-bold shadow-sm" onclick="volverListaPadresGastos()">
+                            <i class="bi bi-arrow-left-circle-fill me-1"></i>Volver a la lista
+                        </button>
+                    </div>
                 </div>
                 <div class="table-responsive bg-white rounded shadow border p-3">
                     <table class="table table-hover align-middle text-center">
                         <thead class="table-danger">
                             <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" class="form-check-input" id="chk-all-gastos" onchange="toggleAllGastos(this)" title="Seleccionar Todo">
+                                </th>
                                 <th>Fecha</th>
                                 <th>Concepto (Deuda)</th>
                                 <th>Valor</th>
@@ -600,13 +657,9 @@ function inyectarNuevasFunciones() {
     }
 }
 
-// -------------------------------------------------------------
-// NUEVAS FUNCIONES PARA CARGA MASIVA DE EXCEL
-// -------------------------------------------------------------
 function abrirModalCargaMasiva() {
     document.getElementById('form-carga-masiva').reset();
     
-    // Asignar fecha actual por defecto
     const hoy = new Date().toISOString().split('T')[0];
     document.getElementById('carga-masiva-fecha').value = hoy;
 
@@ -634,7 +687,6 @@ async function procesarCargaMasiva(e) {
     const lineas = texto.split('\n');
     let rubrosValidos = [];
     
-    // Algoritmo de extracción inteligente desde el portapapeles (Excel)
     for (let linea of lineas) {
         if (linea.trim() === '') continue;
         let celdas = linea.split('\t'); 
@@ -642,7 +694,6 @@ async function procesarCargaMasiva(e) {
         let concepto = celdas[0] ? celdas[0].trim() : '';
         let valor = 0;
         
-        // Buscar el primer número válido en las celdas siguientes (salta columnas vacías como INGRESO)
         for (let i = 1; i < celdas.length; i++) {
             let celdaLimpia = celdas[i].replace(',', '.').replace(/[^0-9.-]/g, '');
             let num = parseFloat(celdaLimpia);
@@ -672,7 +723,6 @@ async function procesarCargaMasiva(e) {
 
     let exitos = 0;
 
-    // Subir cada rubro extraído a la API
     for (let rubro of rubrosValidos) {
         try {
             let payload = {
@@ -707,10 +757,31 @@ async function procesarCargaMasiva(e) {
     
     renderizarTodasLasTablasAdmin();
 }
-// -------------------------------------------------------------
 
+// INICIO DE SESIÓN CON BARRA DE CARGA Y SPINNER
 async function iniciarSesion(e) {
     e.preventDefault();
+    
+    const btnSubmit = document.querySelector('#form-login button[type="submit"]');
+    const txtOriginal = btnSubmit ? btnSubmit.innerHTML : 'Iniciar Sesión';
+    
+    if (btnSubmit) {
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Cargando datos...`;
+    }
+
+    // Insertar o mostrar barra de progreso debajo del formulario
+    let barra = document.getElementById('login-progress-bar');
+    if(!barra) {
+        barra = document.createElement('div');
+        barra.id = 'login-progress-bar';
+        barra.className = 'progress mt-3 shadow-sm';
+        barra.style.height = '8px';
+        barra.innerHTML = `<div class="progress-bar progress-bar-striped progress-bar-animated bg-success w-100"></div>`;
+        document.getElementById('form-login').appendChild(barra);
+    }
+    barra.classList.remove('oculto');
+
     try {
         const bodyRequest = {
             username: document.getElementById('username').value.trim(), 
@@ -747,6 +818,13 @@ async function iniciarSesion(e) {
         }
     } catch (error) { 
         mostrarAlerta("Error de conexión con el servidor. Intente más tarde.", "❌"); 
+    } finally {
+        // Restaurar estado del botón y ocultar barra al terminar
+        if (btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = txtOriginal;
+        }
+        if(barra) barra.classList.add('oculto');
     }
 }
 
