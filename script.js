@@ -9,7 +9,7 @@ let gastosPadres = [];
 let usuarioActual = null;
 let cursoFiltroActual = "TODOS";
 let cursoFiltroGastos = "TODOS"; 
-let padreViendoGastosActual = null; // Controla qué padre se está viendo en el detalle
+let padreViendoGastosActual = null;
 
 const API_URL = "/api"; 
 const PRECIO_ADULTO = 101.00;
@@ -173,9 +173,7 @@ function mostrarAlerta(mensaje, icono = '✅') {
 async function cargarDatosDesdeServidor() {
     try {
         const resp = await fetch(`${API_URL}/datos?t=${new Date().getTime()}`);
-        if (!resp.ok) {
-            throw new Error("Error en la conexión con el servidor");
-        }
+        if (!resp.ok) throw new Error("Error en la conexión con el servidor");
         const data = await resp.json();
         
         usuariosBD = data.usuarios || []; 
@@ -206,11 +204,10 @@ function abrirModalActividad() {
 
 function aplicarFiltroGastos(curso) {
     cursoFiltroGastos = curso;
-    volverListaPadresGastos(); // Volver a la lista si estábamos viendo un detalle
+    volverListaPadresGastos(); 
     renderizarTodasLasTablasAdmin();
 }
 
-// NUEVA FUNCIÓN BÚSQUEDA EN TIEMPO REAL
 function filtrarPadresGastos() {
     const input = document.getElementById('buscador-padres-gastos').value.toLowerCase();
     const filas = document.querySelectorAll('.fila-padre-gasto');
@@ -391,15 +388,11 @@ function inyectarNuevasFunciones() {
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header bg-danger text-white">
-                        <h5 class="modal-title"><i class="bi bi-bag-plus-fill me-2"></i>Asignar Nuevo Gasto a Padre</h5>
+                        <h5 class="modal-title"><i class="bi bi-bag-plus-fill me-2"></i>Asignar Gasto Manual (1x1)</h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
                         <form id="form-asignar-gasto">
-                            <div class="alert alert-warning small">
-                                Utiliza esta opción para cobrar ítems específicos (Ej. Abrigo, Anuario, Kit). 
-                                Aparecerá como deuda en la cuenta del padre seleccionado.
-                            </div>
                             <div class="mb-3">
                                 <label class="fw-bold">Seleccionar Padre:</label>
                                 <select class="form-select" id="gasto-asignar-usuario" required>
@@ -407,7 +400,7 @@ function inyectarNuevasFunciones() {
                                 </select>
                             </div>
                             <div class="mb-3">
-                                <label class="fw-bold">Concepto (Ej. Anuario, Chompa, Abrigo)</label>
+                                <label class="fw-bold">Concepto (Ej. Anuario, Chompa)</label>
                                 <input type="text" class="form-control" id="gasto-asignar-desc" required>
                             </div>
                             <div class="mb-3">
@@ -418,7 +411,7 @@ function inyectarNuevasFunciones() {
                                 <label class="fw-bold">Valor a Cobrar ($)</label>
                                 <input type="number" step="0.01" class="form-control" id="gasto-asignar-valor" required>
                             </div>
-                            <button type="submit" class="btn btn-danger w-100 fw-bold">Guardar Gasto (Crear Deuda)</button>
+                            <button type="submit" class="btn btn-danger w-100 fw-bold">Guardar Gasto Simple</button>
                         </form>
                     </div>
                 </div>
@@ -426,6 +419,47 @@ function inyectarNuevasFunciones() {
         </div>`;
         document.body.insertAdjacentHTML('beforeend', modalGastosHTML);
         document.getElementById('form-asignar-gasto').addEventListener('submit', guardarNuevoGastoAdmin);
+    }
+
+    // NUEVO: MODAL DE CARGA MASIVA DE EXCEL
+    if (!document.getElementById('modalCargaMasivaGastos')) {
+        const modalMasivaHTML = `
+        <div class="modal fade" id="modalCargaMasivaGastos" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-dark text-white">
+                        <h5 class="modal-title"><i class="bi bi-file-earmark-spreadsheet-fill me-2"></i>Carga Masiva desde Excel</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="form-carga-masiva">
+                            <div class="alert alert-info small">
+                                <strong>Instrucciones:</strong> Selecciona en tu Excel las celdas de los rubros (Concepto y Valor) y presiona <b>Copiar (Ctrl+C)</b>. Luego haz clic en el cuadro de abajo y presiona <b>Pegar (Ctrl+V)</b>. El sistema ignorará las columnas vacías automáticamente.
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="fw-bold">Seleccionar Padre(s):</label>
+                                    <select class="form-select" id="carga-masiva-usuario" required>
+                                        <!-- Se llena en abrirModalCargaMasiva() -->
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mt-2 mt-md-0">
+                                    <label class="fw-bold">Fecha de Asignación:</label>
+                                    <input type="date" class="form-control" id="carga-masiva-fecha" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="fw-bold"><i class="bi bi-clipboard-data me-1"></i>Pega aquí las celdas copiadas de Excel:</label>
+                                <textarea class="form-control" id="carga-masiva-texto" rows="8" placeholder="Ejemplo: \nFotografía y Video     125.00\nAnuario     40.00" required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-dark w-100 fw-bold fs-5" id="btn-carga-masiva">Subir Rubros Masivamente</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', modalMasivaHTML);
+        document.getElementById('form-carga-masiva').addEventListener('submit', procesarCargaMasiva);
     }
 
     if (!document.getElementById('modalFiestaPadre')) {
@@ -443,8 +477,6 @@ function inyectarNuevasFunciones() {
                                 <strong>Valores Oficiales del Comité:</strong><br>
                                 - Adultos: $${PRECIO_ADULTO.toFixed(2)} c/u<br>
                                 - Niños: $${PRECIO_NINO.toFixed(2)} c/u<br>
-                                <br>
-                                <em>Nota: Configurar esto creará automáticamente un registro de deuda en "Mis Gastos Asignados".</em>
                             </div>
                             <div class="row mb-3">
                                 <div class="col-6">
@@ -477,9 +509,6 @@ function inyectarNuevasFunciones() {
                     <i class="bi bi-plus-circle me-1"></i> Registrar Ingreso
                 </button>
             </div>
-            <div class="alert alert-secondary small">
-                Aquí se registran los ingresos generados por actividades extracurriculares (Rifas, Bingos, Kermesse, etc.).
-            </div>
             <div class="table-responsive bg-white rounded shadow border p-3">
                 <table class="table table-hover align-middle text-center">
                     <thead class="table-success">
@@ -498,22 +527,24 @@ function inyectarNuevasFunciones() {
         adminPortal.insertAdjacentHTML('beforeend', moduloActividadesHTML);
     }
 
-    // NUEVO MÓDULO GASTOS PADRES: MAESTRO DETALLE CON BUSCADOR
     if (adminPortal && !document.getElementById('admin-modulo-gastospadres')) {
         const moduloGastosHTML = `
         <div id="admin-modulo-gastospadres" class="oculto mb-4">
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3 border-bottom pb-2">
                 <h4 class="text-danger fw-bold mb-3 mb-md-0"><i class="bi bi-bag-x-fill me-2"></i>Deudas por Rubros (Padres)</h4>
-                <button class="btn btn-danger shadow-sm fw-bold text-nowrap" onclick="abrirModalGastoAdmin()">
-                    <i class="bi bi-plus-circle me-1"></i> Asignar Gasto
-                </button>
+                
+                <div class="d-flex flex-wrap gap-2">
+                    <button class="btn btn-danger shadow-sm fw-bold" onclick="abrirModalGastoAdmin()">
+                        <i class="bi bi-plus-circle me-1"></i> Asignar 1x1
+                    </button>
+                    <!-- BOTÓN DE CARGA MASIVA -->
+                    <button class="btn btn-dark shadow-sm fw-bold" onclick="abrirModalCargaMasiva()">
+                        <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i> Carga Masiva (Excel)
+                    </button>
+                </div>
             </div>
             
             <div id="vista-lista-padres-gastos">
-                <div class="alert alert-secondary small mb-3">
-                    Aquí administras lo que <strong>cada padre</strong> tiene que pagar individualmente. Busca al padre o selecciona el paralelo, dale clic en <strong>Ver Deudas</strong> y gestiona sus cobros.
-                </div>
-                
                 <div class="row mb-3">
                     <div class="col-md-6 mb-2 mb-md-0">
                         <div class="input-group shadow-sm">
@@ -543,7 +574,6 @@ function inyectarNuevasFunciones() {
                 </div>
             </div>
 
-            <!-- VISTA DETALLE OCULTA POR DEFECTO -->
             <div id="vista-detalle-padre-gastos" class="oculto">
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3 p-3 bg-light rounded border">
                     <h5 class="fw-bold text-dark mb-3 mb-md-0" id="titulo-detalle-gastos-padre"></h5>
@@ -569,6 +599,115 @@ function inyectarNuevasFunciones() {
         adminPortal.insertAdjacentHTML('afterbegin', moduloGastosHTML);
     }
 }
+
+// -------------------------------------------------------------
+// NUEVAS FUNCIONES PARA CARGA MASIVA DE EXCEL
+// -------------------------------------------------------------
+function abrirModalCargaMasiva() {
+    document.getElementById('form-carga-masiva').reset();
+    
+    // Asignar fecha actual por defecto
+    const hoy = new Date().toISOString().split('T')[0];
+    document.getElementById('carga-masiva-fecha').value = hoy;
+
+    const sel = document.getElementById('carga-masiva-usuario');
+    sel.innerHTML = `
+        <option value="">-- Seleccione a quién asignar la lista --</option>
+        <option value="TODOS" class="fw-bold text-danger">⚠️ A TODOS LOS PADRES DEL COLEGIO</option>
+    `;
+    
+    let padres = usuariosBD.filter(u => u.rol === 'PADRE');
+    padres.sort((a, b) => a.nombre.localeCompare(b.nombre));
+    padres.forEach(u => {
+        sel.innerHTML += `<option value="${u.username}">${u.nombre} (Paralelo ${u.curso||'Sin curso'})</option>`;
+    });
+    
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCargaMasivaGastos')).show();
+}
+
+async function procesarCargaMasiva(e) {
+    e.preventDefault();
+    const usuarioSel = document.getElementById('carga-masiva-usuario').value;
+    const texto = document.getElementById('carga-masiva-texto').value;
+    const fecha = document.getElementById('carga-masiva-fecha').value;
+    
+    const lineas = texto.split('\n');
+    let rubrosValidos = [];
+    
+    // Algoritmo de extracción inteligente desde el portapapeles (Excel)
+    for (let linea of lineas) {
+        if (linea.trim() === '') continue;
+        let celdas = linea.split('\t'); 
+        
+        let concepto = celdas[0] ? celdas[0].trim() : '';
+        let valor = 0;
+        
+        // Buscar el primer número válido en las celdas siguientes (salta columnas vacías como INGRESO)
+        for (let i = 1; i < celdas.length; i++) {
+            let celdaLimpia = celdas[i].replace(',', '.').replace(/[^0-9.-]/g, '');
+            let num = parseFloat(celdaLimpia);
+            if (!isNaN(num) && num > 0) {
+                valor = num;
+                break;
+            }
+        }
+        
+        if (concepto !== '' && valor > 0) {
+            rubrosValidos.push({ concepto, valor });
+        }
+    }
+    
+    if (rubrosValidos.length === 0) {
+        mostrarAlerta("No se detectaron rubros válidos. Asegúrate de copiar las columnas de Concepto y Gasto desde Excel.", "⚠️");
+        return;
+    }
+
+    if(!confirm(`Se detectaron ${rubrosValidos.length} rubros. ¿Proceder a subirlos y asignarlos a la cuenta indicada?`)) {
+        return;
+    }
+
+    const btn = document.getElementById('btn-carga-masiva');
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Subiendo rubros...`;
+
+    let exitos = 0;
+
+    // Subir cada rubro extraído a la API
+    for (let rubro of rubrosValidos) {
+        try {
+            let payload = {
+                usuario: usuarioSel,
+                concepto: rubro.concepto,
+                fecha: fecha,
+                valor: rubro.valor
+            };
+            
+            let r = await fetch(`${API_URL}/gastos`, { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify(payload) 
+            });
+            
+            if(r.ok) exitos++;
+        } catch(e) {
+            console.error("Error al subir rubro masivo", rubro);
+        }
+    }
+    
+    btn.disabled = false;
+    btn.innerHTML = `Subir Rubros Masivamente`;
+    
+    bootstrap.Modal.getInstance(document.getElementById('modalCargaMasivaGastos')).hide();
+    
+    if (exitos > 0) {
+        mostrarAlerta(`Carga masiva completada: Se guardaron ${exitos} rubros correctamente en el sistema.`, "✅");
+    } else {
+        mostrarAlerta("Ocurrió un error en la conexión al subir los rubros.", "❌");
+    }
+    
+    renderizarTodasLasTablasAdmin();
+}
+// -------------------------------------------------------------
 
 async function iniciarSesion(e) {
     e.preventDefault();
@@ -662,7 +801,7 @@ function cargarPortalSegunRol(usuario) {
     if (usuario.rol === 'ADMIN' || usuario.rol === 'COMITE') {
         let menuHTML = `
             <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarModuloAdmin('resumen', this)"><i class="bi bi-grid-1x2-fill me-2"></i> Resumen General</a></li>
-            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('gastospadres', this)"><i class="bi bi-bag-x-fill me-2"></i> Gastos a Padres (NUEVO)</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('gastospadres', this)"><i class="bi bi-bag-x-fill me-2"></i> Gastos a Padres</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('pagos', this)"><i class="bi bi-journal-check me-2"></i> Control de Pagos</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('egresos', this)"><i class="bi bi-cart-fill me-2"></i> Egresos Comité</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('curso', this)"><i class="bi bi-bar-chart-fill me-2"></i> Avance por Curso</a></li>
@@ -897,7 +1036,7 @@ async function guardarNuevoGastoAdmin(e) {
         
         if(resp.ok && data.exito) {
             bootstrap.Modal.getInstance(document.getElementById('modalGastosPadreAdmin')).hide();
-            mostrarAlerta("Gasto asignado exitosamente a la cuenta de los padres indicados.", "✅");
+            mostrarAlerta("Gasto asignado exitosamente a la cuenta del padre indicado.", "✅");
             renderizarTodasLasTablasAdmin();
         } else { 
             mostrarAlerta("Error al asignar el gasto: " + data.mensaje, "❌"); 
@@ -941,13 +1080,12 @@ async function renderizarTodasLasTablasAdmin() {
     let pagosParaRender = pagosGlobales;
     let actividadesParaRender = actividadesGlobales;
 
-    // CORRECCIÓN CAPTURA 1: Llenar siempre la lista del Modal "Registrar Pago" para los Administradores
     const selPagoAdmin = document.getElementById('pago-usuario');
     if (selPagoAdmin && usuarioActual && (usuarioActual.rol === 'ADMIN' || usuarioActual.rol === 'COMITE')) {
         const valAnterior = selPagoAdmin.value;
         selPagoAdmin.innerHTML = `<option value="">-- Seleccione un Padre --</option>`;
         let listaPadres = usuariosBD.filter(u => u.rol === 'PADRE');
-        listaPadres.sort((a, b) => a.nombre.localeCompare(b.nombre)); // Ordenar alfabéticamente
+        listaPadres.sort((a, b) => a.nombre.localeCompare(b.nombre)); 
         listaPadres.forEach(u => {
             selPagoAdmin.innerHTML += `<option value="${u.username}">${u.nombre} (Paralelo ${u.curso || 'Sin curso'})</option>`;
         });
@@ -970,7 +1108,6 @@ async function renderizarTodasLasTablasAdmin() {
     renderizarDashboardAdmin(pagosParaRender, actividadesParaRender);
     renderizarDashboardCurso(); 
     
-    // TABLA MAESTRA GASTOS A PADRES
     const tbPadresG = document.getElementById('tabla-padres-gastos');
     if (tbPadresG) {
         tbPadresG.innerHTML = '';
@@ -1008,13 +1145,11 @@ async function renderizarTodasLasTablasAdmin() {
             });
         }
         
-        // Si estábamos viendo el detalle de un padre y se recargó la tabla, lo actualizamos.
         if (padreViendoGastosActual) {
             verDetalleGastosPadre(padreViendoGastosActual, true);
         }
     }
 
-    // TABLA USUARIOS
     const tbU = document.getElementById('tabla-usuarios-admin'); 
     if(tbU) {
         tbU.innerHTML = '';
@@ -1042,7 +1177,6 @@ async function renderizarTodasLasTablasAdmin() {
         });
     }
     
-    // TABLA PAGOS
     const tp = document.getElementById('tabla-pagos'); 
     if(tp) {
         tp.innerHTML = '';
@@ -1076,7 +1210,6 @@ async function renderizarTodasLasTablasAdmin() {
         }
     }
 
-    // TABLA EGRESOS COMITÉ
     const te = document.getElementById('tabla-egresos');
     if(te) {
         te.innerHTML = '';
@@ -1115,7 +1248,6 @@ async function renderizarTodasLasTablasAdmin() {
         }
     }
 
-    // TABLA CUOTAS
     const tc = document.getElementById('tabla-cuotas'); 
     if(tc) {
         tc.innerHTML = '';
@@ -1152,7 +1284,6 @@ async function renderizarTodasLasTablasAdmin() {
         });
     }
 
-    // TABLA ACTAS
     const ta = document.getElementById('tabla-actas');
     if(ta) {
         ta.innerHTML = '';
@@ -1173,7 +1304,6 @@ async function renderizarTodasLasTablasAdmin() {
         }
     }
 
-    // TABLA ACTIVIDADES
     const tact = document.getElementById('tabla-actividades');
     if(tact) {
         tact.innerHTML = '';
@@ -1197,7 +1327,6 @@ async function renderizarTodasLasTablasAdmin() {
         }
     }
 
-    // TABLA CONTRATOS
     const tbDocs = document.getElementById('tabla-contratos'); 
     if(tbDocs) {
         tbDocs.innerHTML = '';
@@ -1316,7 +1445,6 @@ function abrirModalPagoPrellenado(valorPredeterminado = null) {
         sel.style.pointerEvents = "none"; 
         sel.style.backgroundColor = "#e9ecef";
     } else {
-        // Modo Admin/Comité, rehabilitamos la caja que ya fue llenada por renderizarTodasLasTablasAdmin
         sel.style.pointerEvents = "auto";
         sel.style.backgroundColor = "";
     }
