@@ -18,6 +18,7 @@ const PRECIO_NINO = 81.00;
 function forzarNombreSIGECO28() {
     document.title = "SIGECO 28";
     const brand = document.querySelector('.navbar-brand');
+    
     if (brand) {
         brand.innerHTML = `
             <div class="d-flex flex-column">
@@ -30,6 +31,7 @@ function forzarNombreSIGECO28() {
     }
 
     const titulosLogin = document.querySelectorAll('#vista-login h1, #vista-login h2, #vista-login h3, #vista-login h4, #vista-login .card-title, #vista-login .card-header');
+    
     titulosLogin.forEach(el => {
         if(el.innerHTML.includes('SIGECO') && !el.innerHTML.includes('28')) {
             el.innerHTML = el.innerHTML.replace(/SIGECO(\sPortal)?/gi, 'SIGECO 28');
@@ -39,6 +41,7 @@ function forzarNombreSIGECO28() {
     });
 
     const formLogin = document.getElementById('form-login');
+    
     if (formLogin) {
         if (!document.getElementById('marca-login-sfs')) {
             const marcaHTML = `
@@ -59,6 +62,7 @@ function forzarNombreSIGECO28() {
                         <a href="#" id="link-olvide-clave" class="text-decoration-none small fw-bold text-primary">¿Olvidaste tu contraseña?</a>
                     </div>
                 `);
+                
                 document.getElementById('link-olvide-clave').addEventListener('click', (e) => {
                     e.preventDefault();
                     mostrarAlerta("Para restablecer su contraseña o reportar problemas de acceso, por favor envíe un correo al Administrador del sistema a: infosfs@sfslatams.com", "🔐");
@@ -70,6 +74,7 @@ function forzarNombreSIGECO28() {
 
 function hacerTablasResponsivas() {
     const tablas = document.querySelectorAll('table');
+    
     tablas.forEach(tabla => {
         if (!tabla.parentElement.classList.contains('table-responsive')) {
             const wrapper = document.createElement('div');
@@ -85,6 +90,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     forzarNombreSIGECO28();
 
     const sesionGuardada = sessionStorage.getItem('sesionSIGECO');
+    
     if (sesionGuardada) {
         usuarioActual = JSON.parse(sesionGuardada);
         document.getElementById('vista-login').classList.add('oculto');
@@ -103,24 +109,31 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (document.getElementById('form-login')) {
         document.getElementById('form-login').addEventListener('submit', iniciarSesion);
     }
+    
     if (document.getElementById('form-forzar-clave')) {
         document.getElementById('form-forzar-clave').addEventListener('submit', guardarClaveForzada);
     }
+    
     if (document.getElementById('form-usuario')) {
         document.getElementById('form-usuario').addEventListener('submit', guardarUsuario);
     }
+    
     if (document.getElementById('form-pago')) {
         document.getElementById('form-pago').addEventListener('submit', registrarPago);
     }
+    
     if (document.getElementById('form-cuota')) {
         document.getElementById('form-cuota').addEventListener('submit', guardarNuevaCuota);
     }
+    
     if (document.getElementById('form-contrato')) {
         document.getElementById('form-contrato').addEventListener('submit', (e) => subirDocumento(e, 'CONTRATO'));
     }
+    
     if (document.getElementById('form-egreso')) {
         document.getElementById('form-egreso').addEventListener('submit', registrarEgreso);
     }
+    
     if (document.getElementById('form-acta')) {
         document.getElementById('form-acta').addEventListener('submit', subirActa);
     }
@@ -128,6 +141,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.querySelectorAll('input[type="file"]').forEach(input => {
         input.addEventListener('change', function(e) {
             const feedbackEl = document.getElementById('feedback-' + this.id);
+            
             if (feedbackEl) {
                 if (this.files.length > 0) {
                     feedbackEl.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i> Archivo adjuntado: <strong>${this.files[0].name}</strong>`;
@@ -149,6 +163,7 @@ function limpiarFeedbackArchivos() {
         input.value = ""; 
         input.classList.remove('is-valid'); 
         input.style.borderColor = '#ced4da';
+        
         const fb = document.getElementById('feedback-' + input.id);
         if (fb) {
             fb.classList.add('oculto');
@@ -173,9 +188,11 @@ function mostrarAlerta(mensaje, icono = '✅') {
 async function cargarDatosDesdeServidor() {
     try {
         const resp = await fetch(`${API_URL}/datos?t=${new Date().getTime()}`);
+        
         if (!resp.ok) {
             throw new Error("Error en la conexión con el servidor");
         }
+        
         const data = await resp.json();
         
         usuariosBD = data.usuarios || []; 
@@ -194,7 +211,9 @@ async function cargarDatosDesdeServidor() {
 }
 
 function compararCursos(c1, c2) {
-    if(!c1 || !c2) return false;
+    if(!c1 || !c2) {
+        return false;
+    }
     return c1.toUpperCase().replace(/\s+/g, '') === c2.toUpperCase().replace(/\s+/g, '');
 }
 
@@ -213,8 +232,10 @@ function aplicarFiltroGastos(curso) {
 function filtrarPadresGastos() {
     const input = document.getElementById('buscador-padres-gastos').value.toLowerCase();
     const filas = document.querySelectorAll('.fila-padre-gasto');
+    
     filas.forEach(fila => {
         const nombre = fila.querySelector('.nombre-padre-gasto').innerText.toLowerCase();
+        
         if (nombre.includes(input)) {
             fila.style.display = '';
         } else {
@@ -226,7 +247,10 @@ function filtrarPadresGastos() {
 function verDetalleGastosPadre(username, reRender = false) {
     padreViendoGastosActual = username;
     const u = usuariosBD.find(x => String(x.username) === String(username));
-    if(!u) return;
+    
+    if(!u) {
+        return;
+    }
 
     document.getElementById('vista-lista-padres-gastos').classList.add('oculto');
     document.getElementById('vista-detalle-padre-gastos').classList.remove('oculto');
@@ -272,6 +296,7 @@ function verDetalleGastosPadre(username, reRender = false) {
 
 function volverListaPadresGastos() {
     padreViendoGastosActual = null;
+    
     if(document.getElementById('vista-detalle-padre-gastos')) {
         document.getElementById('vista-detalle-padre-gastos').classList.add('oculto');
         document.getElementById('vista-lista-padres-gastos').classList.remove('oculto');
@@ -282,6 +307,7 @@ function volverListaPadresGastos() {
 
 function toggleAllGastos(source) {
     const checkboxes = document.querySelectorAll('.chk-gasto-item');
+    
     checkboxes.forEach(chk => {
         chk.checked = source.checked;
     });
@@ -292,7 +318,7 @@ async function cambiarEstadoSeleccionados(nuevoEstado) {
     const seleccionados = Array.from(checkboxes).map(chk => chk.value);
     
     if(seleccionados.length === 0) {
-        mostrarAlerta("Debes seleccionar al menos un rubro marcando su casilla.", "⚠️️");
+        mostrarAlerta("Debes seleccionar al menos un rubro marcando su casilla.", "⚠️");
         return;
     }
     
@@ -302,6 +328,7 @@ async function cambiarEstadoSeleccionados(nuevoEstado) {
     
     const btnAccion = document.getElementById('btn-pagar-seleccionados');
     let originalText = "";
+    
     if (btnAccion) {
         originalText = btnAccion.innerHTML;
         btnAccion.disabled = true;
@@ -309,13 +336,20 @@ async function cambiarEstadoSeleccionados(nuevoEstado) {
     }
     
     let procesados = 0;
+    
     for(let id of seleccionados) {
         try {
+            let payload = {
+                id: id,
+                estado: nuevoEstado
+            };
+            
             let r = await fetch(`${API_URL}/gastos/estado`, { 
                 method: 'POST', 
                 headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify({ id: id, estado: nuevoEstado }) 
+                body: JSON.stringify(payload) 
             });
+            
             if(r.ok) {
                 procesados++;
             }
@@ -348,10 +382,12 @@ async function eliminarGastosSeleccionados() {
     
     const btnDelete = document.getElementById('btn-borrar-seleccionados');
     const originalText = btnDelete.innerHTML;
+    
     btnDelete.disabled = true;
     btnDelete.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Borrando...`;
     
     let borrados = 0;
+    
     for(let id of seleccionados) {
         try {
             let r = await fetch(`${API_URL}/gastos/${id}`, { method: 'DELETE' });
@@ -378,6 +414,7 @@ function abrirModalPagoMasivoRubro() {
     const cursosUnicos = [...new Set(cursosBrutos)].sort();
 
     selCurso.innerHTML = '<option value="TODOS">🌐 A Todos los Paralelos (Colegio entero)</option>';
+    
     cursosUnicos.forEach(c => {
         selCurso.innerHTML += `<option value="${c}">Solo a los de Paralelo ${c}</option>`;
     });
@@ -391,6 +428,7 @@ function abrirModalPagoMasivoRubro() {
         document.getElementById('btn-pmr-submit').disabled = true;
     } else {
         document.getElementById('btn-pmr-submit').disabled = false;
+        
         conceptosPendientes.forEach((c, idx) => {
             divRubros.innerHTML += `
             <div class="form-check border-bottom py-2">
@@ -434,17 +472,25 @@ async function procesarPagoMasivoRubro(e) {
 
     const btn = document.getElementById('btn-pmr-submit');
     const originalHtml = btn.innerHTML;
+    
     btn.disabled = true;
     btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>Pagando a todos...`;
 
     let exitos = 0;
+    
     for(let d of deudasAfectadas) {
         try {
+            let payload = {
+                id: d.id,
+                estado: 'PAGADO'
+            };
+            
             let r = await fetch(`${API_URL}/gastos/estado`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: d.id, estado: 'PAGADO' })
+                body: JSON.stringify(payload)
             });
+            
             if(r.ok) {
                 exitos++;
             }
@@ -471,8 +517,10 @@ function inyectarNuevasFunciones() {
     }
 
     const formEgreso = document.getElementById('form-egreso');
+    
     if (formEgreso && !document.getElementById('egreso-file')) {
         const btnSubmit = formEgreso.querySelector('button[type="submit"]');
+        
         if (btnSubmit) {
             btnSubmit.insertAdjacentHTML('beforebegin', `
                 <div class="mb-3">
@@ -484,6 +532,7 @@ function inyectarNuevasFunciones() {
             
             document.getElementById('egreso-file').addEventListener('change', function(e) {
                 const fb = document.getElementById('feedback-egreso-file');
+                
                 if (this.files.length > 0) { 
                     fb.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i> ${this.files[0].name}`; 
                     fb.classList.remove('oculto'); 
@@ -555,11 +604,13 @@ function inyectarNuevasFunciones() {
                 </div>
             </div>
         </div>`;
+        
         document.body.insertAdjacentHTML('beforeend', modalHTML);
         document.getElementById('form-actividad').addEventListener('submit', registrarActividad);
         
         document.getElementById('act-file').addEventListener('change', function(e) {
             const fb = document.getElementById('feedback-act-file');
+            
             if (this.files.length > 0) { 
                 fb.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i> ${this.files[0].name}`; 
                 fb.classList.remove('oculto'); 
@@ -606,6 +657,7 @@ function inyectarNuevasFunciones() {
                 </div>
             </div>
         </div>`;
+        
         document.body.insertAdjacentHTML('beforeend', modalGastosHTML);
         document.getElementById('form-asignar-gasto').addEventListener('submit', guardarNuevoGastoAdmin);
     }
@@ -646,6 +698,7 @@ function inyectarNuevasFunciones() {
                 </div>
             </div>
         </div>`;
+        
         document.body.insertAdjacentHTML('beforeend', modalMasivaHTML);
         document.getElementById('form-carga-masiva').addEventListener('submit', procesarCargaMasiva);
     }
@@ -681,6 +734,7 @@ function inyectarNuevasFunciones() {
                 </div>
             </div>
         </div>`;
+        
         document.body.insertAdjacentHTML('beforeend', modalPMRHTML);
         document.getElementById('form-pago-masivo-rubro').addEventListener('submit', procesarPagoMasivoRubro);
     }
@@ -717,6 +771,7 @@ function inyectarNuevasFunciones() {
                 </div>
             </div>
         </div>`;
+        
         document.body.insertAdjacentHTML('beforeend', modalFiestaHTML);
         document.getElementById('form-fiesta-padre').addEventListener('submit', guardarFiestaPadre);
     }
@@ -747,6 +802,7 @@ function inyectarNuevasFunciones() {
                 </table>
             </div>
         </div>`;
+        
         adminPortal.insertAdjacentHTML('beforeend', moduloActividadesHTML);
     }
 
@@ -832,6 +888,7 @@ function inyectarNuevasFunciones() {
                 </div>
             </div>
         </div>`;
+        
         adminPortal.insertAdjacentHTML('afterbegin', moduloGastosHTML);
     }
 }
@@ -870,6 +927,7 @@ async function procesarCargaMasiva(e) {
         if (linea.trim() === '') {
             continue;
         }
+        
         let celdas = linea.split('\t'); 
         let concepto = celdas[0] ? celdas[0].trim() : '';
         let valor = 0;
@@ -881,6 +939,7 @@ async function procesarCargaMasiva(e) {
                 break;
             }
         }
+        
         if (concepto !== '' && valor > 0) {
             rubrosValidos.push({ concepto, valor });
         }
@@ -890,6 +949,7 @@ async function procesarCargaMasiva(e) {
         mostrarAlerta("No se detectaron rubros válidos.", "⚠️");
         return;
     }
+    
     if(!confirm(`Se detectaron ${rubrosValidos.length} rubros. ¿Proceder a subirlos?`)) {
         return;
     }
@@ -899,6 +959,7 @@ async function procesarCargaMasiva(e) {
     btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Subiendo...`;
 
     let exitos = 0;
+    
     for (let rubro of rubrosValidos) {
         try {
             let payload = {
@@ -913,6 +974,7 @@ async function procesarCargaMasiva(e) {
                 headers: { 'Content-Type': 'application/json' }, 
                 body: JSON.stringify(payload) 
             });
+            
             if(r.ok) {
                 exitos++;
             }
@@ -1076,15 +1138,17 @@ function cargarPortalSegunRol(usuario) {
         renderizarTodasLasTablasAdmin(); 
         cambiarModuloAdmin('resumen', document.querySelector('#menu-navegacion .nav-link')); 
     } else {
-        document.getElementById('menu-navegacion').innerHTML = `
+        let menuHTMLPadre = `
             <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarVistaPadre('estado', this)"><i class="bi bi-clock-history me-2"></i> Mi Libro Mayor</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('misgastos', this)"><i class="bi bi-bag-x-fill me-2"></i> Mis Gastos Asignados</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('documentos', this)"><i class="bi bi-folder2-open-fill me-2"></i> Documentos</a></li>
         `;
+        document.getElementById('menu-navegacion').innerHTML = menuHTMLPadre;
         
         const portalPadre = document.getElementById('portal-padre');
+        
         if (portalPadre && !document.getElementById('padre-vista-misgastos')) {
-            portalPadre.insertAdjacentHTML('beforeend', `
+            const vistaGastosHTML = `
             <div id="padre-vista-misgastos" class="oculto">
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 border-bottom pb-2">
                     <h4 class="fw-bold text-danger mb-3 mb-md-0"><i class="bi bi-bag-x-fill me-2"></i>Mis Gastos Asignados (Detalle)</h4>
@@ -1113,7 +1177,8 @@ function cargarPortalSegunRol(usuario) {
                         </div>
                     </div>
                 </div>
-            </div>`);
+            </div>`;
+            portalPadre.insertAdjacentHTML('beforeend', vistaGastosHTML);
         }
         
         document.getElementById('portal-padre').classList.remove('oculto');
@@ -1121,6 +1186,7 @@ function cargarPortalSegunRol(usuario) {
         
         cambiarVistaPadre('estado', document.querySelector('#menu-navegacion .nav-link'));
     }
+    
     setTimeout(hacerTablasResponsivas, 500); 
 }
 
@@ -1133,6 +1199,7 @@ function cerrarSesion() {
 function cerrarMenuMobile() {
     const toggler = document.querySelector('.navbar-toggler');
     const collapse = document.querySelector('.navbar-collapse');
+    
     if (collapse && collapse.classList.contains('show')) {
         toggler.click();
     }
@@ -1199,9 +1266,11 @@ function actualizarSelectCursos() {
     if(selectFiltro) {
         const val = selectFiltro.value;
         selectFiltro.innerHTML = '<option value="TODOS">Todos los Cursos (General)</option>';
+        
         cursosUnicos.forEach(c => {
             selectFiltro.innerHTML += `<option value="${c}">Solo mostrar Paralelo ${c}</option>`;
         });
+        
         if(cursosUnicos.includes(val)) {
             selectFiltro.value = val;
         }
@@ -1210,9 +1279,11 @@ function actualizarSelectCursos() {
     if(selectGastos) {
         const val = selectGastos.value;
         selectGastos.innerHTML = '<option value="TODOS">Todos los Paralelos</option>';
+        
         cursosUnicos.forEach(c => {
             selectGastos.innerHTML += `<option value="${c}">Paralelo ${c}</option>`;
         });
+        
         if(cursosUnicos.includes(val)) {
             selectGastos.value = val;
         }
@@ -1224,9 +1295,11 @@ function actualizarSelectCursos() {
             <option value="">-- Seleccione un Curso --</option>
             <option value="TODOS">🌐 Todos los Cursos (General)</option>
         `;
+        
         cursosUnicos.forEach(c => {
             selectModal.innerHTML += `<option value="${c}">Paralelo ${c}</option>`;
         });
+        
         if(cursosUnicos.includes(valModal) || valModal === "TODOS") {
             selectModal.value = valModal;
         }
@@ -1315,7 +1388,6 @@ async function eliminarGastoAdmin(id) {
     }
 }
 
-// CORRECCIÓN MATEMÁTICA: Evita doble conteo y respeta el "PAGADO" en las vistas del admin
 async function renderizarTodasLasTablasAdmin() {
     await cargarDatosDesdeServidor();
     actualizarSelectCursos();
@@ -1325,6 +1397,7 @@ async function renderizarTodasLasTablasAdmin() {
     let actividadesParaRender = actividadesGlobales;
 
     const selPagoAdmin = document.getElementById('pago-usuario');
+    
     if (selPagoAdmin && usuarioActual && (usuarioActual.rol === 'ADMIN' || usuarioActual.rol === 'COMITE')) {
         const valAnterior = selPagoAdmin.value;
         selPagoAdmin.innerHTML = `<option value="">-- Seleccione un Padre --</option>`;
@@ -1356,6 +1429,7 @@ async function renderizarTodasLasTablasAdmin() {
     renderizarDashboardCurso(); 
     
     const tbPadresG = document.getElementById('tabla-padres-gastos');
+    
     if (tbPadresG) {
         tbPadresG.innerHTML = '';
         let padresMostrar = usuariosBD.filter(u => u.rol === 'PADRE');
@@ -1394,6 +1468,7 @@ async function renderizarTodasLasTablasAdmin() {
     }
 
     const tbU = document.getElementById('tabla-usuarios-admin'); 
+    
     if(tbU) {
         tbU.innerHTML = '';
         usuariosParaRender.forEach(u => {
@@ -1421,6 +1496,7 @@ async function renderizarTodasLasTablasAdmin() {
     }
 
     const tp = document.getElementById('tabla-pagos'); 
+    
     if(tp) {
         tp.innerHTML = '';
         if(pagosParaRender.length === 0) {
@@ -1454,6 +1530,7 @@ async function renderizarTodasLasTablasAdmin() {
     }
 
     const te = document.getElementById('tabla-egresos');
+    
     if(te) {
         te.innerHTML = '';
         if(egresosGlobales.length === 0) {
@@ -1491,39 +1568,39 @@ async function renderizarTodasLasTablasAdmin() {
         }
     }
 
-    // CORRECCIÓN MATEMÁTICA: La tabla de control de cuotas para el Administrador
     const tc = document.getElementById('tabla-cuotas'); 
+    
     if(tc) {
         tc.innerHTML = '';
         usuariosParaRender.filter(u => u.rol === 'PADRE').forEach(u => {
-            const cb = parseFloat(u.valor_total_pagar || 0);
             const mG = gastosPadres.filter(g => String(g.username) === String(u.username));
             const tG = mG.reduce((s, g) => s + parseFloat(g.valor||0), 0);
             
-            const tD = cb + tG; // Total Deuda Original Asignada
+            // ELIMINACIÓN DE LA CUOTA BASE PARA LOS CÁLCULOS
+            const tD = tG; 
             
             const sumPagosFisicos = pagosGlobales.filter(p => String(p.usuario) === String(u.username) && p.estado === 'VALIDADO').reduce((s, p) => s + parseFloat(p.valor||0), 0);
             const sumGastosPagados = mG.filter(g => g.estado === 'PAGADO').reduce((s, g) => s + parseFloat(g.valor||0), 0);
             
-            const tP = Math.max(sumPagosFisicos, sumGastosPagados); // El Abono Real Reconocido
-            const sP = tD - tP; // Saldo Pendiente Matemáticamente Correcto
+            const tP = Math.max(sumPagosFisicos, sumGastosPagados);
+            const sP = tD - tP;
             
             tc.innerHTML += `
             <tr>
                 <td class="text-primary fw-bold">${u.username}</td>
                 <td>${u.nombre}</td>
                 <td>
-                    <div class="small">Cuota Base: $${cb.toFixed(2)}</div>
-                    <div class="small text-muted">Rubros Extra: $${tG.toFixed(2)}</div>
-                    <div class="fw-bold border-top pt-1">Total: $${tD.toFixed(2)}</div>
+                    <div class="small text-muted">Rubros Asignados: $${tG.toFixed(2)}</div>
+                    <div class="fw-bold border-top pt-1 mt-1">Total Deuda: $${tD.toFixed(2)}</div>
                 </td>
                 <td>
                     <div class="small text-success">Abonado: $${tP.toFixed(2)}</div>
-                    <div class="fw-bold text-danger border-top pt-1">Saldo: $${sP.toFixed(2)}</div>
+                    <div class="fw-bold text-danger border-top pt-1 mt-1">Saldo: $${sP.toFixed(2)}</div>
                 </td>
                 <td>
-                    <button class="btn btn-sm btn-warning" onclick="abrirModalCuota('${u.username}', ${cb})">
-                        <i class="bi bi-pencil-fill"></i> Base
+                    <!-- Botón Base Desactivado temporalmente -->
+                    <button class="btn btn-sm btn-secondary" disabled>
+                        <i class="bi bi-slash-circle"></i> N/A
                     </button>
                 </td>
             </tr>`;
@@ -1531,6 +1608,7 @@ async function renderizarTodasLasTablasAdmin() {
     }
 
     const ta = document.getElementById('tabla-actas');
+    
     if(ta) {
         ta.innerHTML = '';
         if(actasGlobales.length === 0) {
@@ -1538,6 +1616,7 @@ async function renderizarTodasLasTablasAdmin() {
         } else {
             actasGlobales.forEach(a => {
                 const bDoc = a.tiene_doc ? `<button class="btn btn-sm btn-dark" onclick="verActaPDF(${a.id})">Abrir Acta</button>` : '-';
+                
                 ta.innerHTML += `
                 <tr>
                     <td>${a.fecha}</td>
@@ -1549,6 +1628,7 @@ async function renderizarTodasLasTablasAdmin() {
     }
 
     const tact = document.getElementById('tabla-actividades');
+    
     if(tact) {
         tact.innerHTML = '';
         if(actividadesParaRender.length === 0) {
@@ -1556,6 +1636,7 @@ async function renderizarTodasLasTablasAdmin() {
         } else {
             actividadesParaRender.forEach(a => {
                 const bDoc = a.tiene_doc ? `<button class="btn btn-sm btn-outline-success" onclick="verActividadPDF(${a.id})">Ver Respaldo</button>` : '-';
+                
                 tact.innerHTML += `
                 <tr>
                     <td>${a.fecha}</td>
@@ -1569,6 +1650,7 @@ async function renderizarTodasLasTablasAdmin() {
     }
 
     const tbDocs = document.getElementById('tabla-contratos'); 
+    
     if(tbDocs) {
         tbDocs.innerHTML = '';
         if (contratosGlobales.length === 0) {
@@ -1576,6 +1658,7 @@ async function renderizarTodasLasTablasAdmin() {
         } else {
             contratosGlobales.forEach(c => {
                 const cCh = c.visible ? 'checked' : '';
+                
                 tbDocs.innerHTML += `
                 <tr>
                     <td>${c.fecha}</td>
@@ -1593,7 +1676,6 @@ async function renderizarTodasLasTablasAdmin() {
     setTimeout(hacerTablasResponsivas, 200);
 }
 
-// CORRECCIÓN MATEMÁTICA: Asegurar que el dinero "Marcado como Pagado" se sume a los Ingresos Globales
 function renderizarDashboardAdmin(pagosRender, actiRender) {
     let pagosValidados = 0;
     
@@ -1604,13 +1686,10 @@ function renderizarDashboardAdmin(pagosRender, actiRender) {
     let metaTotal = 0;
         
     uMeta.forEach(u => {
-        // Deuda de este usuario
         let deudasPadre = gastosPadres.filter(g => String(g.username) === String(u.username)).reduce((s, g) => s + parseFloat(g.valor||0), 0);
-        metaTotal += parseFloat(u.valor_total_pagar || 0) + deudasPadre;
+        metaTotal += deudasPadre; // ELIMINADA SUMA DE CUOTA BASE
         
-        // Pagos validados de este usuario
         let uPagos = pagosRender.filter(p => String(p.usuario) === String(u.username) && p.estado === 'VALIDADO').reduce((s, p) => s + parseFloat(p.valor || 0), 0);
-        // Rubros que el admin marcó directamente como PAGADO
         let uGastosPagados = gastosPadres.filter(g => String(g.username) === String(u.username) && g.estado === 'PAGADO').reduce((s, g) => s + parseFloat(g.valor || 0), 0);
         
         pagosValidados += Math.max(uPagos, uGastosPagados);
@@ -1637,14 +1716,19 @@ function renderizarDashboardAdmin(pagosRender, actiRender) {
 
 function renderizarDashboardCurso() {
     const tc = document.getElementById('tabla-dashboard-curso');
-    if(!tc) return;
+    
+    if(!tc) {
+        return;
+    }
     
     let cursosUnicos = [...new Set(usuariosBD.map(u => u.curso).filter(c => c && c.trim() !== ''))].sort();
+    
     if(cursoFiltroActual !== "TODOS") {
         cursosUnicos = cursosUnicos.filter(c => compararCursos(c, cursoFiltroActual));
     }
 
     tc.innerHTML = '';
+    
     if(cursosUnicos.length === 0) {
         tc.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay datos.</td></tr>`;
         return;
@@ -1656,18 +1740,15 @@ function renderizarDashboardCurso() {
         let pV = 0;
         
         alumnos.forEach(a => {
-            // Calcular deuda
             let deudaPadre = gastosPadres.filter(g => String(g.username) === String(a.username)).reduce((s, g) => s + parseFloat(g.valor||0), 0);
-            mC += parseFloat(a.valor_total_pagar||0) + deudaPadre;
+            mC += deudaPadre; // ELIMINADA SUMA DE CUOTA BASE
             
-            // Calcular ingresos reales (Vouchers vs Rubros marcados Pagados)
             let uPagos = pagosGlobales.filter(p => p.estado === 'VALIDADO' && String(p.usuario) === String(a.username)).reduce((s, p) => s + parseFloat(p.valor||0), 0);
             let uGastosPagados = gastosPadres.filter(g => String(g.username) === String(a.username) && g.estado === 'PAGADO').reduce((s, g) => s + parseFloat(g.valor||0), 0);
             pV += Math.max(uPagos, uGastosPagados);
         });
         
         let aV = actividadesGlobales.filter(a => compararCursos(a.curso, curso)).reduce((s, a) => s + parseFloat(a.valor||0), 0);
-        
         const tR = pV + aV;
         
         tc.innerHTML += `
@@ -1685,6 +1766,7 @@ function abrirModalPagoPrellenado(valorPredeterminado = null) {
     limpiarFeedbackArchivos();
     
     const sel = document.getElementById('pago-usuario');
+    
     if (usuarioActual && usuarioActual.rol === 'PADRE') {
         sel.innerHTML = `<option value="${usuarioActual.username}">${usuarioActual.nombre}</option>`;
         sel.value = usuarioActual.username;
@@ -1735,49 +1817,32 @@ async function guardarFiestaPadre(e) {
     }
 }
 
-// CORRECCIÓN MAESTRA PARA LOS PADRES: Resuelve la pantalla de saldo congelado 
 function actualizarDashboardPadre() {
     cargarDatosDesdeServidor().then(() => {
         let user = usuariosBD.find(u => String(u.username) === String(usuarioActual.username));
+        
         if(!user) {
-            user = usuarioActual; // Respaldo
+            user = usuarioActual; 
         }
 
         const mP = pagosGlobales.filter(p => String(p.usuario) === String(usuarioActual.username));
         const mG = gastosPadres.filter(g => String(g.username) === String(usuarioActual.username));
         
-        let cB = parseFloat(user.valor_total_pagar || 0);
         let tR = mG.reduce((s, g) => s + parseFloat(g.valor||0), 0);
+        let tA = tR; // SE ELIMINÓ POR COMPLETO LA CUOTA BASE
         
-        // TOTAL DE LA DEUDA ORIGINAL
-        let tA = cB + tR;
-        
-        // MATEMÁTICA CORREGIDA: Detectar dinero ingresado
         let sumPagosValidados = mP.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
         let sumGastosMarcadosPagados = mG.filter(g => g.estado === 'PAGADO').reduce((sum, g) => sum + parseFloat(g.valor || 0), 0);
         
-        // El abono real es el mayor entre lo que subió con voucher y lo que el admin aprobó a dedo.
         let tP = Math.max(sumPagosValidados, sumGastosMarcadosPagados);
-        
-        // SALDO PENDIENTE REAL
         let pen = tA - tP;
 
         const vMG = document.getElementById('tabla-misgastos-padre');
+        
         if(vMG) {
             vMG.innerHTML = '';
             
-            if (cB > 0) {
-                vMG.innerHTML += `
-                <tr>
-                    <td>-</td>
-                    <td class="fw-bold text-start">Cuota Base (Anual)</td>
-                    <td class="fw-bold text-danger">$${cB.toFixed(2)}</td>
-                    <td><span class="badge bg-secondary">DEUDA INICIAL</span></td>
-                    <td><button class="btn btn-sm btn-success fw-bold shadow-sm" onclick="abrirModalPagoPrellenado(${cB})"><i class="bi bi-upload"></i> Subir Pago</button></td>
-                </tr>`;
-            }
-            
-            if (mG.length === 0 && cB === 0) {
+            if (mG.length === 0) {
                 vMG.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No tiene rubros asignados.</td></tr>`;
             }
             
@@ -1797,26 +1862,34 @@ function actualizarDashboardPadre() {
         }
 
         const vE = document.getElementById('padre-vista-estado');
+        
         if (vE) {
             let tr = [];
             
-            // 1. CARGAMOS LA DEUDA
-            if (cB > 0) {
-                tr.push({ fecha: '2024-01-01', c: 'Deuda Inicial / Cuota Base', i: 0, g: cB, v: true });
-            }
             mG.forEach(g => {
-                tr.push({ fecha: g.fecha, c: `Gasto Asignado: ${g.concepto}`, i: 0, g: parseFloat(g.valor||0), v: true });
+                tr.push({ 
+                    fecha: g.fecha, 
+                    c: `Gasto Asignado: ${g.concepto}`, 
+                    i: 0, 
+                    g: parseFloat(g.valor||0), 
+                    v: true 
+                });
             });
             
-            // 2. CARGAMOS LOS PAGOS VÍA VOUCHER
             mP.forEach(p => {
-                tr.push({ fecha: p.fecha, cmp: p.voucher || '-', c: 'Abono / Transferencia Registrada', i: parseFloat(p.valor || 0), g: 0, v: p.estado === 'VALIDADO' });
+                tr.push({ 
+                    fecha: p.fecha, 
+                    cmp: p.voucher || '-', 
+                    c: 'Abono / Transferencia Registrada', 
+                    i: parseFloat(p.valor || 0), 
+                    g: 0, 
+                    v: p.estado === 'VALIDADO' 
+                });
             });
 
-            // 3. CARGAMOS LOS PAGOS "FANTASMA" (Si el admin marcó pagado sin requerir un voucher)
             let ajusteAdmin = sumGastosMarcadosPagados > sumPagosValidados ? (sumGastosMarcadosPagados - sumPagosValidados) : 0;
             if (ajusteAdmin > 0) {
-                let fechaAjuste = new Date().toISOString().split('T')[0]; // Fecha de hoy
+                let fechaAjuste = new Date().toISOString().split('T')[0]; 
                 tr.push({ 
                     fecha: fechaAjuste, 
                     cmp: 'SISTEMA', 
@@ -1840,6 +1913,7 @@ function actualizarDashboardPadre() {
                         dA += t.g;
                         dA -= t.i;
                     }
+                    
                     let eE = t.v ? '' : '<br><span class="badge bg-warning text-dark mt-1"><i class="bi bi-hourglass-split me-1"></i>En Espera de Aprobación</span>';
                     
                     let vI = t.i > 0 ? '$' + t.i.toFixed(2) : '-';
@@ -1971,15 +2045,19 @@ async function descargarArchivoInmune(url, nD) {
 function abrirVoucher(id) { 
     descargarArchivoInmune(`${API_URL}/pagos/ver/${id}?t=${new Date().getTime()}`, `voucher_pago_${id}.jpg`); 
 }
+
 function verDocumentoPDF(id) { 
     descargarArchivoInmune(`${API_URL}/documentos/ver/${id}?t=${new Date().getTime()}`, `contrato_${id}.pdf`); 
 }
+
 function verActaPDF(id) { 
     descargarArchivoInmune(`${API_URL}/actas/ver/${id}?t=${new Date().getTime()}`, `acta_${id}.pdf`); 
 }
+
 function verEgresoPDF(id) { 
     descargarArchivoInmune(`${API_URL}/egresos/ver/${id}?t=${new Date().getTime()}`, `factura_${id}.pdf`); 
 }
+
 function verActividadPDF(id) { 
     descargarArchivoInmune(`${API_URL}/actividades/ver/${id}?t=${new Date().getTime()}`, `respaldo_${id}.pdf`); 
 }
@@ -1991,9 +2069,17 @@ function leerArchivoComoBase64(file) {
             rej("Pesado");
             return;
         }
+        
         const r = new FileReader();
-        r.onload = () => res(r.result);
-        r.onerror = (e) => rej(e);
+        
+        r.onload = () => {
+            res(r.result);
+        };
+        
+        r.onerror = (e) => {
+            rej(e);
+        };
+        
         r.readAsDataURL(file); 
     }); 
 }
@@ -2008,6 +2094,7 @@ async function registrarPago(e) {
             mostrarAlerta("Solo formato JPG o JPEG está permitido para comprobantes.", "⚠️");
             return;
         }
+        
         try {
             vB64 = await leerArchivoComoBase64(fI.files[0]);
         } catch (e) {
@@ -2132,6 +2219,7 @@ async function registrarEgreso(e) {
     
     let b64 = "";
     let fN = "";
+    
     if(f) {
         try {
             b64 = await leerArchivoComoBase64(f);
