@@ -276,13 +276,55 @@ function volverListaPadresGastos() {
     }
 }
 
-// NUEVA FUNCION: Seleccionar todos los checkboxes
 function toggleAllGastos(source) {
     const checkboxes = document.querySelectorAll('.chk-gasto-item');
     checkboxes.forEach(chk => chk.checked = source.checked);
 }
 
-// NUEVA FUNCION: Borrado masivo
+async function cambiarEstadoSeleccionados(nuevoEstado) {
+    const checkboxes = document.querySelectorAll('.chk-gasto-item:checked');
+    const seleccionados = Array.from(checkboxes).map(chk => chk.value);
+    
+    if(seleccionados.length === 0) {
+        mostrarAlerta("Debes seleccionar al menos un rubro marcando su casilla.", "⚠️");
+        return;
+    }
+    
+    if(!confirm(`¿Estás seguro de marcar las ${seleccionados.length} deuda(s) seleccionada(s) como ${nuevoEstado}?`)) {
+        return;
+    }
+    
+    const btnAccion = document.getElementById('btn-pagar-seleccionados');
+    let originalText = "";
+    if (btnAccion) {
+        originalText = btnAccion.innerHTML;
+        btnAccion.disabled = true;
+        btnAccion.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Procesando...`;
+    }
+    
+    let procesados = 0;
+    for(let id of seleccionados) {
+        try {
+            let r = await fetch(`${API_URL}/gastos/estado`, { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ id: id, estado: nuevoEstado }) 
+            });
+            if(r.ok) procesados++;
+        } catch(e) {
+            console.error("Error al cambiar estado", id);
+        }
+    }
+    
+    if (btnAccion) {
+        btnAccion.disabled = false;
+        btnAccion.innerHTML = originalText;
+    }
+    
+    mostrarAlerta(`Se marcaron ${procesados} deudas como ${nuevoEstado} correctamente.`, "✅");
+    renderizarTodasLasTablasAdmin();
+}
+
 async function eliminarGastosSeleccionados() {
     const checkboxes = document.querySelectorAll('.chk-gasto-item:checked');
     const seleccionados = Array.from(checkboxes).map(chk => chk.value);
@@ -292,9 +334,7 @@ async function eliminarGastosSeleccionados() {
         return;
     }
     
-    if(!confirm(`¿Estás seguro de borrar permanentemente las ${seleccionados.length} deuda(s) seleccionada(s)? Esta acción no se puede deshacer.`)) {
-        return;
-    }
+    if(!confirm(`¿Estás seguro de borrar permanentemente las ${seleccionados.length} deuda(s)? Esta acción no se puede deshacer.`)) return;
     
     const btnDelete = document.getElementById('btn-borrar-seleccionados');
     const originalText = btnDelete.innerHTML;
@@ -306,16 +346,102 @@ async function eliminarGastosSeleccionados() {
         try {
             let r = await fetch(`${API_URL}/gastos/${id}`, { method: 'DELETE' });
             if(r.ok) borrados++;
-        } catch(e) {
-            console.error("Error al borrar deuda", id);
-        }
+        } catch(e) {}
     }
     
     btnDelete.disabled = false;
     btnDelete.innerHTML = originalText;
     
     mostrarAlerta(`Se eliminaron ${borrados} deudas correctamente.`, "✅");
-    
+    renderizarTodasLasTablasAdmin();
+}
+
+function abrirModalPagoMasivoRubro() {
+    document.getElementById('form-pago-masivo-rubro').reset();
+
+    const selCurso = document.getElementById('pmr-curso');
+    const cursosBrutos = usuariosBD.map(u => u.curso).filter(c => c && c.trim() !== '');
+    const cursosUnicos = [...new Set(cursosBrutos)].sort();
+
+    selCurso.innerHTML = '<option value="TODOS">🌐 A Todos los Paralelos (Colegio entero)</option>';
+    cursosUnicos.forEach(c => {
+        selCurso.innerHTML += `<option value="${c}">Solo a los de Paralelo ${c}</option>`;
+    });
+
+    const conceptosPendientes = [...new Set(gastosPadres.filter(g => g.estado === 'PENDIENTE').map(g => g.concepto))].sort();
+    const divRubros = document.getElementById('pmr-lista-rubros');
+    divRubros.innerHTML = '';
+
+    if(conceptosPendientes.length === 0) {
+        divRubros.innerHTML = '<div class="text-muted small py-2"><i class="bi bi-emoji-smile me-1"></i> No hay ningún rubro pendiente de cobro en este momento.</div>';
+        document.getElementById('btn-pmr-submit').disabled = true;
+    } else {
+        document.getElementById('btn-pmr-submit').disabled = false;
+        conceptosPendientes.forEach((c, idx) => {
+            divRubros.innerHTML += `
+            <div class="form-check border-bottom py-2">
+                <input class="form-check-input chk-pmr-concepto ms-1" type="checkbox" value="${c}" id="chk-pmr-${idx}" style="transform: scale(1.2);">
+                <label class="form-check-label text-dark fw-bold ms-2" for="chk-pmr-${idx}">${c}</label>
+            </div>`;
+        });
+    }
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalPagoMasivoRubro')).show();
+}
+
+async function procesarPagoMasivoRubro(e) {
+    e.preventDefault();
+    const cursoSel = document.getElementById('pmr-curso').value;
+    const checkboxes = document.querySelectorAll('.chk-pmr-concepto:checked');
+    const conceptosSeleccionados = Array.from(checkboxes).map(c => c.value);
+
+    if(conceptosSeleccionados.length === 0) {
+        mostrarAlerta("Debes seleccionar al menos un rubro de la lista.", "⚠️");
+        return;
+    }
+
+    let deudasAfectadas = gastosPadres.filter(g => g.estado === 'PENDIENTE' && conceptosSeleccionados.includes(g.concepto));
+
+    if(cursoSel !== 'TODOS') {
+        deudasAfectadas = deudasAfectadas.filter(g => {
+            let u = usuariosBD.find(x => x.username === g.username);
+            return u && compararCursos(u.curso, cursoSel);
+        });
+    }
+
+    if(deudasAfectadas.length === 0) {
+        mostrarAlerta("No se encontraron padres que deban estos rubros en el paralelo seleccionado.", "⚠️");
+        return;
+    }
+
+    if(!confirm(`Se encontraron ${deudasAfectadas.length} deudas pendientes de estos rubros. ¿Estás seguro de marcarlas todas como PAGADAS automáticamente?`)) {
+        return;
+    }
+
+    const btn = document.getElementById('btn-pmr-submit');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>Pagando a todos...`;
+
+    let exitos = 0;
+    for(let d of deudasAfectadas) {
+        try {
+            let r = await fetch(`${API_URL}/gastos/estado`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: d.id, estado: 'PAGADO' })
+            });
+            if(r.ok) exitos++;
+        } catch(error) {
+            console.error(error);
+        }
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+
+    bootstrap.Modal.getInstance(document.getElementById('modalPagoMasivoRubro')).hide();
+    mostrarAlerta(`¡Éxito! Se marcaron ${exitos} deudas como PAGADO en el sistema.`, "✅");
     renderizarTodasLasTablasAdmin();
 }
 
@@ -480,7 +606,7 @@ function inyectarNuevasFunciones() {
                     <div class="modal-body">
                         <form id="form-carga-masiva">
                             <div class="alert alert-info small">
-                                <strong>Instrucciones:</strong> Selecciona en tu Excel las celdas de los rubros (Concepto y Valor) y presiona <b>Copiar (Ctrl+C)</b>. Luego haz clic en el cuadro de abajo y presiona <b>Pegar (Ctrl+V)</b>. El sistema ignorará las columnas vacías automáticamente.
+                                <strong>Instrucciones:</strong> Copia en tu Excel las celdas de Concepto y Valor y pégalas abajo. El sistema ignorará las columnas vacías.
                             </div>
                             <div class="row mb-3">
                                 <div class="col-md-6">
@@ -496,7 +622,7 @@ function inyectarNuevasFunciones() {
                             </div>
                             <div class="mb-3">
                                 <label class="fw-bold"><i class="bi bi-clipboard-data me-1"></i>Pega aquí las celdas copiadas de Excel:</label>
-                                <textarea class="form-control" id="carga-masiva-texto" rows="8" placeholder="Ejemplo: \nFotografía y Video     125.00\nAnuario     40.00" required></textarea>
+                                <textarea class="form-control" id="carga-masiva-texto" rows="8" required></textarea>
                             </div>
                             <button type="submit" class="btn btn-dark w-100 fw-bold fs-5" id="btn-carga-masiva">Subir Rubros Masivamente</button>
                         </form>
@@ -506,6 +632,41 @@ function inyectarNuevasFunciones() {
         </div>`;
         document.body.insertAdjacentHTML('beforeend', modalMasivaHTML);
         document.getElementById('form-carga-masiva').addEventListener('submit', procesarCargaMasiva);
+    }
+
+    if (!document.getElementById('modalPagoMasivoRubro')) {
+        const modalPMRHTML = `
+        <div class="modal fade" id="modalPagoMasivoRubro" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-success text-white">
+                        <h5 class="modal-title"><i class="bi bi-check2-all me-2"></i>Marcar Rubros como PAGADOS a Todos</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info small">
+                            <strong>¿Cómo funciona?</strong> Selecciona uno o varios rubros de abajo (ej. Olimpiadas). El sistema buscará a <b>todos los padres</b> que lo deban y se los marcará como <b>PAGADO</b> instantáneamente.
+                        </div>
+                        <form id="form-pago-masivo-rubro">
+                            <div class="mb-3">
+                                <label class="fw-bold">Aplicar a:</label>
+                                <select class="form-select border-success" id="pmr-curso"></select>
+                            </div>
+                            <div class="mb-4">
+                                <label class="fw-bold mb-2">Selecciona los Rubros que ya pagaron:</label>
+                                <div id="pmr-lista-rubros" class="border border-success rounded p-2 shadow-sm bg-light" style="max-height: 220px; overflow-y: auto;">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100 fw-bold fs-5 shadow-sm" id="btn-pmr-submit">
+                                <i class="bi bi-lightning-charge-fill me-1"></i> Ejecutar Pago Masivo
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', modalPMRHTML);
+        document.getElementById('form-pago-masivo-rubro').addEventListener('submit', procesarPagoMasivoRubro);
     }
 
     if (!document.getElementById('modalFiestaPadre')) {
@@ -580,13 +741,9 @@ function inyectarNuevasFunciones() {
                 <h4 class="text-danger fw-bold mb-3 mb-md-0"><i class="bi bi-bag-x-fill me-2"></i>Deudas por Rubros (Padres)</h4>
                 
                 <div class="d-flex flex-wrap gap-2">
-                    <button class="btn btn-danger shadow-sm fw-bold" onclick="abrirModalGastoAdmin()">
-                        <i class="bi bi-plus-circle me-1"></i> Asignar 1x1
-                    </button>
-                    <!-- BOTÓN DE CARGA MASIVA -->
-                    <button class="btn btn-dark shadow-sm fw-bold" onclick="abrirModalCargaMasiva()">
-                        <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i> Carga Masiva (Excel)
-                    </button>
+                    <button class="btn btn-danger shadow-sm fw-bold" onclick="abrirModalGastoAdmin()"><i class="bi bi-plus-circle me-1"></i> Asignar 1x1</button>
+                    <button class="btn btn-dark shadow-sm fw-bold" onclick="abrirModalCargaMasiva()"><i class="bi bi-file-earmark-spreadsheet-fill me-1"></i> Carga Masiva (Excel)</button>
+                    <button class="btn btn-success shadow-sm fw-bold" onclick="abrirModalPagoMasivoRubro()"><i class="bi bi-check2-all me-1"></i> Pagar a Todos</button>
                 </div>
             </div>
             
@@ -604,7 +761,6 @@ function inyectarNuevasFunciones() {
                         </select>
                     </div>
                 </div>
-
                 <div class="table-responsive bg-white rounded shadow border p-3">
                     <table class="table table-hover align-middle text-center">
                         <thead class="table-danger">
@@ -620,11 +776,14 @@ function inyectarNuevasFunciones() {
                 </div>
             </div>
 
-            <!-- VISTA DETALLES CON BOTÓN BORRADO MASIVO -->
+            <!-- VISTA DETALLES CON BOTONES DE PAGO Y BORRADO MASIVO LOCAL -->
             <div id="vista-detalle-padre-gastos" class="oculto">
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3 p-3 bg-light rounded border">
                     <h5 class="fw-bold text-dark mb-3 mb-md-0" id="titulo-detalle-gastos-padre"></h5>
-                    <div class="d-flex gap-2">
+                    <div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-sm btn-success fw-bold shadow-sm" id="btn-pagar-seleccionados" onclick="cambiarEstadoSeleccionados('PAGADO')">
+                            <i class="bi bi-check-circle-fill me-1"></i>Pagar Seleccionados
+                        </button>
                         <button class="btn btn-sm btn-danger fw-bold shadow-sm" id="btn-borrar-seleccionados" onclick="eliminarGastosSeleccionados()">
                             <i class="bi bi-trash-fill me-1"></i>Borrar Seleccionados
                         </button>
@@ -637,9 +796,7 @@ function inyectarNuevasFunciones() {
                     <table class="table table-hover align-middle text-center">
                         <thead class="table-danger">
                             <tr>
-                                <th style="width: 40px;">
-                                    <input type="checkbox" class="form-check-input" id="chk-all-gastos" onchange="toggleAllGastos(this)" title="Seleccionar Todo">
-                                </th>
+                                <th style="width: 40px;"><input type="checkbox" class="form-check-input" id="chk-all-gastos" onchange="toggleAllGastos(this)" title="Seleccionar Todo"></th>
                                 <th>Fecha</th>
                                 <th>Concepto (Deuda)</th>
                                 <th>Valor</th>
@@ -651,7 +808,6 @@ function inyectarNuevasFunciones() {
                     </table>
                 </div>
             </div>
-
         </div>`;
         adminPortal.insertAdjacentHTML('afterbegin', moduloGastosHTML);
     }
@@ -659,22 +815,11 @@ function inyectarNuevasFunciones() {
 
 function abrirModalCargaMasiva() {
     document.getElementById('form-carga-masiva').reset();
-    
-    const hoy = new Date().toISOString().split('T')[0];
-    document.getElementById('carga-masiva-fecha').value = hoy;
-
+    document.getElementById('carga-masiva-fecha').value = new Date().toISOString().split('T')[0];
     const sel = document.getElementById('carga-masiva-usuario');
-    sel.innerHTML = `
-        <option value="">-- Seleccione a quién asignar la lista --</option>
-        <option value="TODOS" class="fw-bold text-danger">⚠️ A TODOS LOS PADRES DEL COLEGIO</option>
-    `;
-    
-    let padres = usuariosBD.filter(u => u.rol === 'PADRE');
-    padres.sort((a, b) => a.nombre.localeCompare(b.nombre));
-    padres.forEach(u => {
-        sel.innerHTML += `<option value="${u.username}">${u.nombre} (Paralelo ${u.curso||'Sin curso'})</option>`;
-    });
-    
+    sel.innerHTML = `<option value="">-- Seleccione a quién asignar la lista --</option><option value="TODOS" class="fw-bold text-danger">⚠️ A TODOS LOS PADRES DEL COLEGIO</option>`;
+    let padres = usuariosBD.filter(u => u.rol === 'PADRE').sort((a, b) => a.nombre.localeCompare(b.nombre));
+    padres.forEach(u => sel.innerHTML += `<option value="${u.username}">${u.nombre} (Paralelo ${u.curso||'Sin curso'})</option>`);
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCargaMasivaGastos')).show();
 }
 
@@ -690,78 +835,41 @@ async function procesarCargaMasiva(e) {
     for (let linea of lineas) {
         if (linea.trim() === '') continue;
         let celdas = linea.split('\t'); 
-        
         let concepto = celdas[0] ? celdas[0].trim() : '';
         let valor = 0;
         
         for (let i = 1; i < celdas.length; i++) {
-            let celdaLimpia = celdas[i].replace(',', '.').replace(/[^0-9.-]/g, '');
-            let num = parseFloat(celdaLimpia);
-            if (!isNaN(num) && num > 0) {
-                valor = num;
-                break;
-            }
+            let num = parseFloat(celdas[i].replace(',', '.').replace(/[^0-9.-]/g, ''));
+            if (!isNaN(num) && num > 0) { valor = num; break; }
         }
-        
-        if (concepto !== '' && valor > 0) {
-            rubrosValidos.push({ concepto, valor });
-        }
+        if (concepto !== '' && valor > 0) rubrosValidos.push({ concepto, valor });
     }
     
-    if (rubrosValidos.length === 0) {
-        mostrarAlerta("No se detectaron rubros válidos. Asegúrate de copiar las columnas de Concepto y Gasto desde Excel.", "⚠️");
-        return;
-    }
-
-    if(!confirm(`Se detectaron ${rubrosValidos.length} rubros. ¿Proceder a subirlos y asignarlos a la cuenta indicada?`)) {
-        return;
-    }
+    if (rubrosValidos.length === 0) return mostrarAlerta("No se detectaron rubros válidos.", "⚠️");
+    if(!confirm(`Se detectaron ${rubrosValidos.length} rubros. ¿Proceder a subirlos?`)) return;
 
     const btn = document.getElementById('btn-carga-masiva');
-    btn.disabled = true;
-    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Subiendo rubros...`;
+    btn.disabled = true; btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Subiendo...`;
 
     let exitos = 0;
-
     for (let rubro of rubrosValidos) {
         try {
-            let payload = {
-                usuario: usuarioSel,
-                concepto: rubro.concepto,
-                fecha: fecha,
-                valor: rubro.valor
-            };
-            
             let r = await fetch(`${API_URL}/gastos`, { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify(payload) 
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({usuario: usuarioSel, concepto: rubro.concepto, fecha: fecha, valor: rubro.valor}) 
             });
-            
             if(r.ok) exitos++;
-        } catch(e) {
-            console.error("Error al subir rubro masivo", rubro);
-        }
+        } catch(e) {}
     }
     
-    btn.disabled = false;
-    btn.innerHTML = `Subir Rubros Masivamente`;
-    
+    btn.disabled = false; btn.innerHTML = `Subir Rubros Masivamente`;
     bootstrap.Modal.getInstance(document.getElementById('modalCargaMasivaGastos')).hide();
-    
-    if (exitos > 0) {
-        mostrarAlerta(`Carga masiva completada: Se guardaron ${exitos} rubros correctamente en el sistema.`, "✅");
-    } else {
-        mostrarAlerta("Ocurrió un error en la conexión al subir los rubros.", "❌");
-    }
-    
+    mostrarAlerta(`Carga completada: Se guardaron ${exitos} rubros.`, "✅");
     renderizarTodasLasTablasAdmin();
 }
 
-// INICIO DE SESIÓN CON BARRA DE CARGA Y SPINNER
 async function iniciarSesion(e) {
     e.preventDefault();
-    
     const btnSubmit = document.querySelector('#form-login button[type="submit"]');
     const txtOriginal = btnSubmit ? btnSubmit.innerHTML : 'Iniciar Sesión';
     
@@ -770,7 +878,6 @@ async function iniciarSesion(e) {
         btnSubmit.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Cargando datos...`;
     }
 
-    // Insertar o mostrar barra de progreso debajo del formulario
     let barra = document.getElementById('login-progress-bar');
     if(!barra) {
         barra = document.createElement('div');
@@ -783,371 +890,146 @@ async function iniciarSesion(e) {
     barra.classList.remove('oculto');
 
     try {
-        const bodyRequest = {
-            username: document.getElementById('username').value.trim(), 
-            password: document.getElementById('password').value
-        };
-        
-        const resp = await fetch(`${API_URL}/login`, {
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(bodyRequest)
-        });
-        
+        const bodyRequest = { username: document.getElementById('username').value.trim(), password: document.getElementById('password').value };
+        const resp = await fetch(`${API_URL}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyRequest) });
         const data = await resp.json();
         
         if (data.exito) {
             sessionStorage.setItem('sesionSIGECO', JSON.stringify(data.usuario));
-            
             await cargarDatosDesdeServidor();
             inyectarNuevasFunciones(); 
-            
             if(data.usuario.debe_cambiar_clave === 1) {
                 usuarioActual = data.usuario;
                 document.getElementById('vista-login').classList.add('oculto');
                 bootstrap.Modal.getOrCreateInstance(document.getElementById('modalForzarClave')).show();
-            } else { 
-                cargarPortalSegunRol(data.usuario); 
-            }
+            } else { cargarPortalSegunRol(data.usuario); }
         } else {
             const errDiv = document.getElementById('mensaje-error');
-            if(errDiv) { 
-                errDiv.classList.remove('oculto'); 
-                errDiv.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i>${data.mensaje}`; 
-            }
+            if(errDiv) { errDiv.classList.remove('oculto'); errDiv.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i>${data.mensaje}`; }
         }
     } catch (error) { 
-        mostrarAlerta("Error de conexión con el servidor. Intente más tarde.", "❌"); 
+        mostrarAlerta("Error de conexión.", "❌"); 
     } finally {
-        // Restaurar estado del botón y ocultar barra al terminar
-        if (btnSubmit) {
-            btnSubmit.disabled = false;
-            btnSubmit.innerHTML = txtOriginal;
-        }
+        if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = txtOriginal; }
         if(barra) barra.classList.add('oculto');
     }
 }
 
 async function guardarClaveForzada(e) {
     e.preventDefault();
-    const nuevaClave = document.getElementById('nueva-clave-forzada').value;
-    const bodyRequest = { 
-        username: usuarioActual.username, 
-        password: nuevaClave, 
-        forzar: 0 
-    };
-
     try {
-        const resp = await fetch(`${API_URL}/usuarios/clave`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(bodyRequest) 
-        });
+        const resp = await fetch(`${API_URL}/usuarios/clave`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: usuarioActual.username, password: document.getElementById('nueva-clave-forzada').value, forzar: 0 }) });
         const data = await resp.json();
-        
         if(resp.ok && data.exito){
-            usuarioActual.debe_cambiar_clave = 0;
-            sessionStorage.setItem('sesionSIGECO', JSON.stringify(usuarioActual));
-            
+            usuarioActual.debe_cambiar_clave = 0; sessionStorage.setItem('sesionSIGECO', JSON.stringify(usuarioActual));
             bootstrap.Modal.getInstance(document.getElementById('modalForzarClave')).hide();
             document.getElementById('form-forzar-clave').reset();
-            
-            mostrarAlerta('Contraseña actualizada con éxito.', '🔐');
+            mostrarAlerta('Contraseña actualizada.', '🔐');
             cargarPortalSegunRol(usuarioActual);
-        } else { 
-            mostrarAlerta("Error al cambiar contraseña.", "❌"); 
-        }
-    } catch (error) {
-        mostrarAlerta("Error de conexión al cambiar la contraseña.", "❌");
-    }
+        } else mostrarAlerta("Error al cambiar contraseña.", "❌"); 
+    } catch (error) { mostrarAlerta("Error de conexión.", "❌"); }
 }
 
 function cargarPortalSegunRol(usuario) {
     usuarioActual = usuario;
     const errDiv = document.getElementById('mensaje-error');
-    if(errDiv) {
-        errDiv.classList.add('oculto');
-    }
+    if(errDiv) errDiv.classList.add('oculto');
     
     document.getElementById('vista-login').classList.add('oculto');
     document.getElementById('vista-app').style.display = '';
     document.getElementById('vista-app').classList.remove('oculto');
-    
     document.getElementById('nav-nombre-usuario').innerText = usuario.nombre;
     document.getElementById('badge-rol').innerText = usuario.rol;
 
     if (usuario.rol === 'ADMIN' || usuario.rol === 'COMITE') {
-        let menuHTML = `
-            <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarModuloAdmin('resumen', this)"><i class="bi bi-grid-1x2-fill me-2"></i> Resumen General</a></li>
-            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('gastospadres', this)"><i class="bi bi-bag-x-fill me-2"></i> Gastos a Padres</a></li>
-            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('pagos', this)"><i class="bi bi-journal-check me-2"></i> Control de Pagos</a></li>
-            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('egresos', this)"><i class="bi bi-cart-fill me-2"></i> Egresos Comité</a></li>
-            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('curso', this)"><i class="bi bi-bar-chart-fill me-2"></i> Avance por Curso</a></li>
-            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('actividades', this)"><i class="bi bi-cash-coin me-2"></i> Actividades Extra</a></li>
-            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('contratos', this)"><i class="bi bi-file-earmark-text-fill me-2"></i> Contratos</a></li>
-            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('actas', this)"><i class="bi bi-briefcase-fill me-2"></i> Actas de Comité</a></li>
-        `;
-        
-        if (usuario.rol === 'ADMIN') {
-            menuHTML += `
-                <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('usuarios', this)"><i class="bi bi-people-fill me-2"></i> Usuarios</a></li>
-                <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('cuotas', this)"><i class="bi bi-wallet2 me-2"></i> Cuota Base</a></li>
-            `;
-        }
-        
+        let menuHTML = `<li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarModuloAdmin('resumen', this)"><i class="bi bi-grid-1x2-fill me-2"></i> Resumen General</a></li><li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('gastospadres', this)"><i class="bi bi-bag-x-fill me-2"></i> Gastos a Padres</a></li><li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('pagos', this)"><i class="bi bi-journal-check me-2"></i> Control de Pagos</a></li><li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('egresos', this)"><i class="bi bi-cart-fill me-2"></i> Egresos Comité</a></li><li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('curso', this)"><i class="bi bi-bar-chart-fill me-2"></i> Avance por Curso</a></li><li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('actividades', this)"><i class="bi bi-cash-coin me-2"></i> Actividades Extra</a></li><li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('contratos', this)"><i class="bi bi-file-earmark-text-fill me-2"></i> Contratos</a></li><li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('actas', this)"><i class="bi bi-briefcase-fill me-2"></i> Actas de Comité</a></li>`;
+        if (usuario.rol === 'ADMIN') menuHTML += `<li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('usuarios', this)"><i class="bi bi-people-fill me-2"></i> Usuarios</a></li><li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('cuotas', this)"><i class="bi bi-wallet2 me-2"></i> Cuota Base</a></li>`;
         document.getElementById('menu-navegacion').innerHTML = menuHTML;
         document.getElementById('portal-admin').classList.remove('oculto');
-        
-        if(document.getElementById('portal-padre')) {
-            document.getElementById('portal-padre').classList.add('oculto');
-        }
-        
-        actualizarSelectCursos();
-        renderizarTodasLasTablasAdmin();
-        cambiarModuloAdmin('resumen', document.querySelector('#menu-navegacion .nav-link')); 
-        
+        if(document.getElementById('portal-padre')) document.getElementById('portal-padre').classList.add('oculto');
+        actualizarSelectCursos(); renderizarTodasLasTablasAdmin(); cambiarModuloAdmin('resumen', document.querySelector('#menu-navegacion .nav-link')); 
     } else {
-        document.getElementById('menu-navegacion').innerHTML = `
-            <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarVistaPadre('estado', this)"><i class="bi bi-clock-history me-2"></i> Mi Libro Mayor</a></li>
-            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('misgastos', this)"><i class="bi bi-bag-x-fill me-2"></i> Mis Gastos Asignados</a></li>
-            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('documentos', this)"><i class="bi bi-folder2-open-fill me-2"></i> Documentos</a></li>
-        `;
-        
-        const portalPadre = document.getElementById('portal-padre');
-        
-        if (portalPadre && !document.getElementById('padre-vista-misgastos')) {
-            portalPadre.insertAdjacentHTML('beforeend', `
-            <div id="padre-vista-misgastos" class="oculto">
-                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 border-bottom pb-2">
-                    <h4 class="fw-bold text-danger mb-3 mb-md-0"><i class="bi bi-bag-x-fill me-2"></i>Mis Gastos Asignados (Detalle)</h4>
-                    <button class="btn btn-dark fw-bold shadow-sm" onclick="abrirModalFiestaPadre()">
-                        <i class="bi bi-balloon-fill me-1"></i> Asistencia Fiesta Familiar
-                    </button>
-                </div>
-                <div class="alert alert-info small">
-                    Aquí puede ver el desglose de los rubros que debe pagar. Haga clic en <strong>Subir Pago</strong> para enviar su comprobante.
-                </div>
-                <div class="card shadow-sm mb-4">
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle text-center mb-0">
-                                <thead class="table-danger">
-                                    <tr>
-                                        <th>Fecha</th>
-                                        <th>Rubro / Concepto</th>
-                                        <th>Valor a Pagar</th>
-                                        <th>Estado</th>
-                                        <th>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tabla-misgastos-padre"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>`);
-        }
-
+        document.getElementById('menu-navegacion').innerHTML = `<li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarVistaPadre('estado', this)"><i class="bi bi-clock-history me-2"></i> Mi Libro Mayor</a></li><li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('misgastos', this)"><i class="bi bi-bag-x-fill me-2"></i> Mis Gastos Asignados</a></li><li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('documentos', this)"><i class="bi bi-folder2-open-fill me-2"></i> Documentos</a></li>`;
         document.getElementById('portal-padre').classList.remove('oculto');
         document.getElementById('portal-admin').classList.add('oculto');
         actualizarDashboardPadre();
     }
-    
     setTimeout(hacerTablasResponsivas, 500); 
 }
 
-function cerrarSesion() {
-    usuarioActual = null;
-    sessionStorage.removeItem('sesionSIGECO');
-    location.reload();
-}
-
-function cerrarMenuMobile() {
-    const toggler = document.querySelector('.navbar-toggler');
-    const collapse = document.querySelector('.navbar-collapse');
-    if (collapse && collapse.classList.contains('show')) {
-        toggler.click();
-    }
-}
+function cerrarSesion() { usuarioActual = null; sessionStorage.removeItem('sesionSIGECO'); location.reload(); }
+function cerrarMenuMobile() { const toggler = document.querySelector('.navbar-toggler'); const collapse = document.querySelector('.navbar-collapse'); if (collapse && collapse.classList.contains('show')) toggler.click(); }
 
 async function cambiarModuloAdmin(modulo, el) {
-    document.querySelectorAll('#portal-admin > div').forEach(d => { 
-        if(d.id && d.id.startsWith('admin-modulo-')) {
-            d.classList.add('oculto'); 
-        }
-    });
-    
-    document.querySelectorAll('#menu-navegacion .nav-link').forEach(n => {
-        n.classList.remove('active');
-    });
-    
+    document.querySelectorAll('#portal-admin > div').forEach(d => { if(d.id && d.id.startsWith('admin-modulo-')) d.classList.add('oculto'); });
+    document.querySelectorAll('#menu-navegacion .nav-link').forEach(n => n.classList.remove('active'));
     const targetModule = document.getElementById(`admin-modulo-${modulo}`);
-    if (targetModule) {
-        targetModule.classList.remove('oculto');
-    } else {
-        if (modulo === 'actividades' && document.getElementById('admin-modulo-actividad')) {
-            document.getElementById('admin-modulo-actividad').classList.remove('oculto');
-        } else if (modulo === 'actividad' && document.getElementById('admin-modulo-actividades')) {
-            document.getElementById('admin-modulo-actividades').classList.remove('oculto');
-        }
-    }
-    
-    if (el) {
-        el.classList.add('active');
-    }
-    
-    cerrarMenuMobile();
-    await renderizarTodasLasTablasAdmin();
+    if (targetModule) targetModule.classList.remove('oculto');
+    if (el) el.classList.add('active');
+    cerrarMenuMobile(); await renderizarTodasLasTablasAdmin();
 }
 
 async function cambiarVistaPadre(vista, el) {
-    document.querySelectorAll('#portal-padre > div').forEach(d => {
-        d.classList.add('oculto');
-    });
-    
-    document.querySelectorAll('#menu-navegacion .nav-link').forEach(n => {
-        n.classList.remove('active');
-    });
-    
-    if (document.getElementById(`padre-vista-${vista}`)) {
-        document.getElementById(`padre-vista-${vista}`).classList.remove('oculto');
-    }
-    
-    if(el) {
-        el.classList.add('active');
-    }
-    
-    cerrarMenuMobile();
-    await actualizarDashboardPadre();
+    document.querySelectorAll('#portal-padre > div').forEach(d => d.classList.add('oculto'));
+    document.querySelectorAll('#menu-navegacion .nav-link').forEach(n => n.classList.remove('active'));
+    if (document.getElementById(`padre-vista-${vista}`)) document.getElementById(`padre-vista-${vista}`).classList.remove('oculto');
+    if(el) el.classList.add('active');
+    cerrarMenuMobile(); await actualizarDashboardPadre();
 }
 
-function aplicarFiltroCurso(curso) {
-    cursoFiltroActual = curso;
-    renderizarTodasLasTablasAdmin();
-}
+function aplicarFiltroCurso(curso) { cursoFiltroActual = curso; renderizarTodasLasTablasAdmin(); }
 
 function actualizarSelectCursos() {
     const selectFiltro = document.getElementById('select-filtro-curso');
     const selectModal = document.getElementById('act-curso'); 
     const selectGastos = document.getElementById('filtro-local-gastos');
-    
-    const cursosBrutos = usuariosBD.map(u => u.curso).filter(c => c && c.trim() !== '');
-    const cursosUnicos = [...new Set(cursosBrutos)].sort();
+    const cursosUnicos = [...new Set(usuariosBD.map(u => u.curso).filter(c => c && c.trim() !== ''))].sort();
     
     if(selectFiltro) {
-        const valorActual = selectFiltro.value;
-        selectFiltro.innerHTML = '<option value="TODOS">Todos los Cursos (General)</option>';
-        cursosUnicos.forEach(c => { 
-            selectFiltro.innerHTML += `<option value="${c}">Solo mostrar Paralelo ${c}</option>`; 
-        });
-        if(cursosUnicos.includes(valorActual)) {
-            selectFiltro.value = valorActual;
-        }
+        const val = selectFiltro.value; selectFiltro.innerHTML = '<option value="TODOS">Todos los Cursos (General)</option>';
+        cursosUnicos.forEach(c => selectFiltro.innerHTML += `<option value="${c}">Solo mostrar Paralelo ${c}</option>`);
+        if(cursosUnicos.includes(val)) selectFiltro.value = val;
     }
-
     if(selectGastos) {
-        const valorGastos = selectGastos.value;
-        selectGastos.innerHTML = '<option value="TODOS">Todos los Paralelos</option>';
-        cursosUnicos.forEach(c => { 
-            selectGastos.innerHTML += `<option value="${c}">Paralelo ${c}</option>`; 
-        });
-        if(cursosUnicos.includes(valorGastos)) {
-            selectGastos.value = valorGastos;
-        }
+        const val = selectGastos.value; selectGastos.innerHTML = '<option value="TODOS">Todos los Paralelos</option>';
+        cursosUnicos.forEach(c => selectGastos.innerHTML += `<option value="${c}">Paralelo ${c}</option>`);
+        if(cursosUnicos.includes(val)) selectGastos.value = val;
     }
-
     if(selectModal) {
         const valModal = selectModal.value;
-        selectModal.innerHTML = `
-            <option value="">-- Seleccione un Curso --</option>
-            <option value="TODOS">🌐 Todos los Cursos (General)</option>
-        `;
-        cursosUnicos.forEach(c => { 
-            selectModal.innerHTML += `<option value="${c}">Paralelo ${c}</option>`; 
-        });
-        if(cursosUnicos.includes(valModal) || valModal === "TODOS") {
-            selectModal.value = valModal;
-        }
+        selectModal.innerHTML = `<option value="">-- Seleccione un Curso --</option><option value="TODOS">🌐 Todos los Cursos (General)</option>`;
+        cursosUnicos.forEach(c => selectModal.innerHTML += `<option value="${c}">Paralelo ${c}</option>`);
+        if(cursosUnicos.includes(valModal) || valModal === "TODOS") selectModal.value = valModal;
     }
 }
 
 function abrirModalGastoAdmin() {
     document.getElementById('form-asignar-gasto').reset();
-    
     const sel = document.getElementById('gasto-asignar-usuario');
-    sel.innerHTML = `
-        <option value="">-- Seleccione a quién cobrar --</option>
-        <option value="TODOS" class="fw-bold text-danger">⚠️ A TODOS LOS PADRES (COBRO GENERAL)</option>
-    `;
-    
-    let padres = usuariosBD.filter(u => u.rol === 'PADRE');
-    
-    padres.sort((a, b) => {
-        let cursoA = a.curso || "";
-        let cursoB = b.curso || "";
-        return cursoA.localeCompare(cursoB) || a.nombre.localeCompare(b.nombre);
-    });
-    
-    padres.forEach(u => {
-        sel.innerHTML += `<option value="${u.username}">${u.nombre} (Paralelo ${u.curso||'Sin curso'})</option>`;
-    });
-    
+    sel.innerHTML = `<option value="">-- Seleccione a quién cobrar --</option><option value="TODOS" class="fw-bold text-danger">⚠️ A TODOS LOS PADRES (COBRO GENERAL)</option>`;
+    usuariosBD.filter(u => u.rol === 'PADRE').sort((a, b) => a.nombre.localeCompare(b.nombre)).forEach(u => sel.innerHTML += `<option value="${u.username}">${u.nombre}</option>`);
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGastosPadreAdmin')).show();
 }
 
 async function guardarNuevoGastoAdmin(e) {
     e.preventDefault();
-    const payload = {
-        usuario: document.getElementById('gasto-asignar-usuario').value,
-        concepto: document.getElementById('gasto-asignar-desc').value,
-        fecha: document.getElementById('gasto-asignar-fecha').value,
-        valor: parseFloat(document.getElementById('gasto-asignar-valor').value)
-    };
-    
     try {
-        const resp = await fetch(`${API_URL}/gastos`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(payload) 
-        });
+        const resp = await fetch(`${API_URL}/gastos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario: document.getElementById('gasto-asignar-usuario').value, concepto: document.getElementById('gasto-asignar-desc').value, fecha: document.getElementById('gasto-asignar-fecha').value, valor: parseFloat(document.getElementById('gasto-asignar-valor').value) }) });
         const data = await resp.json();
-        
         if(resp.ok && data.exito) {
             bootstrap.Modal.getInstance(document.getElementById('modalGastosPadreAdmin')).hide();
-            mostrarAlerta("Gasto asignado exitosamente a la cuenta del padre indicado.", "✅");
-            renderizarTodasLasTablasAdmin();
-        } else { 
-            mostrarAlerta("Error al asignar el gasto: " + data.mensaje, "❌"); 
-        }
-    } catch(err) { 
-        mostrarAlerta("Error de conexión al guardar el gasto.", "❌"); 
-    }
+            mostrarAlerta("Gasto asignado exitosamente.", "✅"); renderizarTodasLasTablasAdmin();
+        } else mostrarAlerta("Error al asignar el gasto", "❌"); 
+    } catch(err) { mostrarAlerta("Error de conexión", "❌"); }
 }
 
 async function cambiarEstadoGastoAdmin(id, nuevoEstado) {
-    try {
-        await fetch(`${API_URL}/gastos/estado`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify({ id: id, estado: nuevoEstado }) 
-        });
-        renderizarTodasLasTablasAdmin();
-    } catch (error) {
-        mostrarAlerta("Error al cambiar el estado del gasto.", "❌");
-    }
+    try { await fetch(`${API_URL}/gastos/estado`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, estado: nuevoEstado }) }); renderizarTodasLasTablasAdmin(); } catch (error) { mostrarAlerta("Error", "❌"); }
 }
 
 async function eliminarGastoAdmin(id) {
-    if(!confirm("¿Borrar permanentemente este rubro de la deuda del padre? Esta acción no se puede deshacer.")) {
-        return;
-    }
-    try {
-        await fetch(`${API_URL}/gastos/${id}`, { method: 'DELETE' });
-        mostrarAlerta("Deuda eliminada del sistema.", "✅");
-        renderizarTodasLasTablasAdmin();
-    } catch (error) {
-        mostrarAlerta("Error al eliminar la deuda.", "❌");
-    }
+    if(!confirm("¿Borrar permanentemente?")) return;
+    try { await fetch(`${API_URL}/gastos/${id}`, { method: 'DELETE' }); mostrarAlerta("Deuda eliminada.", "✅"); renderizarTodasLasTablasAdmin(); } catch (error) { mostrarAlerta("Error", "❌"); }
 }
 
 async function renderizarTodasLasTablasAdmin() {
@@ -1162,24 +1044,13 @@ async function renderizarTodasLasTablasAdmin() {
     if (selPagoAdmin && usuarioActual && (usuarioActual.rol === 'ADMIN' || usuarioActual.rol === 'COMITE')) {
         const valAnterior = selPagoAdmin.value;
         selPagoAdmin.innerHTML = `<option value="">-- Seleccione un Padre --</option>`;
-        let listaPadres = usuariosBD.filter(u => u.rol === 'PADRE');
-        listaPadres.sort((a, b) => a.nombre.localeCompare(b.nombre)); 
-        listaPadres.forEach(u => {
-            selPagoAdmin.innerHTML += `<option value="${u.username}">${u.nombre} (Paralelo ${u.curso || 'Sin curso'})</option>`;
-        });
-        if(listaPadres.some(p => p.username === valAnterior)) {
-            selPagoAdmin.value = valAnterior;
-        }
+        usuariosBD.filter(u => u.rol === 'PADRE').sort((a, b) => a.nombre.localeCompare(b.nombre)).forEach(u => selPagoAdmin.innerHTML += `<option value="${u.username}">${u.nombre} (Paralelo ${u.curso || 'Sin curso'})</option>`);
+        if(usuariosBD.some(p => p.username === valAnterior)) selPagoAdmin.value = valAnterior;
     }
 
     if (cursoFiltroActual !== "TODOS") {
         usuariosParaRender = usuariosBD.filter(u => compararCursos(u.curso, cursoFiltroActual));
-        
-        pagosParaRender = pagosGlobales.filter(p => {
-            let u = usuariosBD.find(x => x.username === p.usuario);
-            return u && compararCursos(u.curso, cursoFiltroActual);
-        });
-        
+        pagosParaRender = pagosGlobales.filter(p => { let u = usuariosBD.find(x => x.username === p.usuario); return u && compararCursos(u.curso, cursoFiltroActual); });
         actividadesParaRender = actividadesGlobales.filter(a => compararCursos(a.curso, cursoFiltroActual) || a.curso.toUpperCase() === 'TODOS');
     }
 
@@ -1190,100 +1061,41 @@ async function renderizarTodasLasTablasAdmin() {
     if (tbPadresG) {
         tbPadresG.innerHTML = '';
         let padresMostrar = usuariosBD.filter(u => u.rol === 'PADRE');
-
-        if (cursoFiltroGastos !== "TODOS") {
-            padresMostrar = padresMostrar.filter(u => compararCursos(u.curso, cursoFiltroGastos));
-        }
-
+        if (cursoFiltroGastos !== "TODOS") padresMostrar = padresMostrar.filter(u => compararCursos(u.curso, cursoFiltroGastos));
         padresMostrar.sort((a, b) => a.nombre.localeCompare(b.nombre));
 
-        if (padresMostrar.length === 0) {
-            tbPadresG.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay padres en este paralelo.</td></tr>`;
-        } else {
+        if (padresMostrar.length === 0) tbPadresG.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay padres.</td></tr>`;
+        else {
             padresMostrar.forEach(u => {
                 const deudasPadre = gastosPadres.filter(g => g.username === u.username);
                 const totalDeuda = deudasPadre.reduce((s, g) => s + parseFloat(g.valor || 0), 0);
                 const deudasPendientes = deudasPadre.filter(g => g.estado === 'PENDIENTE').length;
-
-                let badgePendientes = deudasPendientes > 0
-                    ? `<span class="badge bg-warning text-dark ms-2 shadow-sm">${deudasPendientes} Pendiente(s)</span>`
-                    : `<span class="badge bg-success ms-2 shadow-sm"><i class="bi bi-check-circle me-1"></i>Al día</span>`;
-
-                tbPadresG.innerHTML += `
-                <tr class="fila-padre-gasto">
-                    <td class="fw-bold nombre-padre-gasto text-start"><i class="bi bi-person-fill me-2 text-secondary"></i>${u.nombre}</td>
-                    <td><span class="badge bg-dark px-3 py-2">${u.curso || 'Sin curso'}</span></td>
-                    <td class="fw-bold text-danger fs-6">$${totalDeuda.toFixed(2)} ${badgePendientes}</td>
-                    <td>
-                        <button class="btn btn-sm btn-primary fw-bold shadow-sm" onclick="verDetalleGastosPadre('${u.username}')">
-                            <i class="bi bi-eye-fill me-1"></i> Ver Deudas
-                        </button>
-                    </td>
-                </tr>`;
+                let badge = deudasPendientes > 0 ? `<span class="badge bg-warning text-dark ms-2">${deudasPendientes} Pendiente(s)</span>` : `<span class="badge bg-success ms-2"><i class="bi bi-check-circle me-1"></i>Al día</span>`;
+                tbPadresG.innerHTML += `<tr class="fila-padre-gasto"><td class="fw-bold nombre-padre-gasto text-start"><i class="bi bi-person-fill me-2 text-secondary"></i>${u.nombre}</td><td><span class="badge bg-dark">${u.curso || 'Sin curso'}</span></td><td class="fw-bold text-danger fs-6">$${totalDeuda.toFixed(2)} ${badge}</td><td><button class="btn btn-sm btn-primary fw-bold" onclick="verDetalleGastosPadre('${u.username}')">Ver Deudas</button></td></tr>`;
             });
         }
-        
-        if (padreViendoGastosActual) {
-            verDetalleGastosPadre(padreViendoGastosActual, true);
-        }
+        if (padreViendoGastosActual) verDetalleGastosPadre(padreViendoGastosActual, true);
     }
 
     const tbU = document.getElementById('tabla-usuarios-admin'); 
     if(tbU) {
         tbU.innerHTML = '';
         usuariosParaRender.forEach(u => {
-            let btnSt = u.estado === "ACTIVO" 
-                ? `<button class="btn btn-sm btn-outline-danger fw-bold mt-1 mt-md-0 shadow-sm" onclick="toggleEstadoUsuario('${u.username}')"><i class="bi bi-x-circle-fill me-1"></i>Desactivar</button>` 
-                : `<button class="btn btn-sm btn-success fw-bold mt-1 mt-md-0 shadow-sm" onclick="toggleEstadoUsuario('${u.username}')"><i class="bi bi-check-circle-fill me-1"></i>Activar</button>`;
-            
-            let claseEstado = u.estado === 'ACTIVO' ? 'bg-success' : 'bg-secondary';
-            
-            tbU.innerHTML += `
-            <tr>
-                <td class="text-primary fw-bold">${u.username}</td>
-                <td>${u.nombre}</td>
-                <td><span class="badge bg-primary px-2">${u.rol}</span></td>
-                <td><span class="badge bg-dark">${u.curso||'-'}</span></td>
-                <td><span class="badge ${claseEstado} px-2 py-1">${u.estado}</span></td>
-                <td>
-                    <div class="d-flex flex-column flex-md-row justify-content-center align-items-center">
-                        <button class="btn btn-sm btn-primary fw-bold me-md-1 shadow-sm" onclick="abrirModalUsuario('${u.username}')"><i class="bi bi-pencil-fill me-1"></i>Editar</button>
-                        ${btnSt}
-                    </div>
-                </td>
-            </tr>`;
+            let btnSt = u.estado === "ACTIVO" ? `<button class="btn btn-sm btn-outline-danger fw-bold shadow-sm" onclick="toggleEstadoUsuario('${u.username}')">Desactivar</button>` : `<button class="btn btn-sm btn-success fw-bold shadow-sm" onclick="toggleEstadoUsuario('${u.username}')">Activar</button>`;
+            tbU.innerHTML += `<tr><td class="text-primary fw-bold">${u.username}</td><td>${u.nombre}</td><td><span class="badge bg-primary">${u.rol}</span></td><td><span class="badge bg-dark">${u.curso||'-'}</span></td><td><span class="badge ${u.estado==='ACTIVO'?'bg-success':'bg-secondary'}">${u.estado}</span></td><td><div class="d-flex gap-1 justify-content-center"><button class="btn btn-sm btn-primary fw-bold shadow-sm" onclick="abrirModalUsuario('${u.username}')">Editar</button>${btnSt}</div></td></tr>`;
         });
     }
-    
+
     const tp = document.getElementById('tabla-pagos'); 
     if(tp) {
         tp.innerHTML = '';
-        if(pagosParaRender.length === 0) {
-            tp.innerHTML = `<tr><td colspan="7" class="text-muted py-4">No hay pagos registrados.</td></tr>`;
-        } else {
+        if(pagosParaRender.length === 0) tp.innerHTML = `<tr><td colspan="7" class="text-muted py-4">No hay pagos.</td></tr>`;
+        else {
             pagosParaRender.forEach(p => {
-                const datosUsuario = usuariosBD.find(u => u.username === p.usuario);
-                const nombreCompleto = datosUsuario ? datosUsuario.nombre : p.usuario;
-                
-                const btnVoucher = p.tiene_voucher 
-                    ? `<button class="btn btn-sm btn-info text-white fw-bold ms-2 shadow-sm" onclick="abrirVoucher(${p.id})"><i class="bi bi-image"></i> Voucher</button>` 
-                    : '';
-                
-                let claseEstado = p.estado === 'VALIDADO' ? 'bg-success' : 'bg-warning text-dark';
-                let btnAprobar = p.estado === 'PENDIENTE'
-                    ? `<button class="btn btn-sm btn-primary shadow-sm fw-bold" onclick="validarPago(${p.id})">Aprobar</button>`
-                    : '<i class="bi bi-check-circle-fill text-success fs-5"></i>';
-
-                tp.innerHTML += `
-                <tr>
-                    <td class="fw-bold text-dark text-start">${nombreCompleto} <br><small class="text-muted">${datosUsuario?datosUsuario.curso:''}</small></td>
-                    <td class="text-primary fw-bold">${p.usuario}</td>
-                    <td>${p.fecha}</td>
-                    <td>${p.voucher} ${btnVoucher}</td>
-                    <td class="fw-bold text-success">$${parseFloat(p.valor || 0).toFixed(2)}</td>
-                    <td><span class="badge ${claseEstado}">${p.estado}</span></td>
-                    <td>${btnAprobar}</td>
-                </tr>`;
+                const dU = usuariosBD.find(u => u.username === p.usuario);
+                const btnV = p.tiene_voucher ? `<button class="btn btn-sm btn-info text-white ms-2" onclick="abrirVoucher(${p.id})">Voucher</button>` : '';
+                let btnA = p.estado === 'PENDIENTE' ? `<button class="btn btn-sm btn-primary" onclick="validarPago(${p.id})">Aprobar</button>` : '<i class="bi bi-check-circle-fill text-success fs-5"></i>';
+                tp.innerHTML += `<tr><td class="fw-bold text-start">${dU?dU.nombre:p.usuario}<br><small class="text-muted">${dU?dU.curso:''}</small></td><td class="text-primary fw-bold">${p.usuario}</td><td>${p.fecha}</td><td>${p.voucher} ${btnV}</td><td class="fw-bold text-success">$${parseFloat(p.valor||0).toFixed(2)}</td><td><span class="badge ${p.estado==='VALIDADO'?'bg-success':'bg-warning text-dark'}">${p.estado}</span></td><td>${btnA}</td></tr>`;
             });
         }
     }
@@ -1291,37 +1103,13 @@ async function renderizarTodasLasTablasAdmin() {
     const te = document.getElementById('tabla-egresos');
     if(te) {
         te.innerHTML = '';
-        if(egresosGlobales.length === 0) {
-            te.innerHTML = `<tr><td colspan="6" class="text-muted py-4">No hay egresos del comité.</td></tr>`;
-        } else {
+        if(egresosGlobales.length === 0) te.innerHTML = `<tr><td colspan="6" class="text-muted py-4">No hay egresos.</td></tr>`;
+        else {
             egresosGlobales.forEach(e => {
-                const btnDoc = e.tiene_doc 
-                    ? `<button class="btn btn-sm btn-outline-danger shadow-sm fw-bold" onclick="verEgresoPDF(${e.id})">Factura</button>` 
-                    : '-';
-                
-                const estadoActual = e.estado_pago || 'PENDIENTE';
-                
-                const btnEstado = estadoActual === 'PENDIENTE' 
-                    ? `<button class="btn btn-sm btn-success fw-bold shadow-sm" onclick="marcarEgresoEstado(${e.id}, 'PAGADO')">Pagar</button>`
-                    : `<button class="btn btn-sm btn-warning fw-bold shadow-sm" onclick="marcarEgresoEstado(${e.id}, 'PENDIENTE')">Revertir</button>`;
-                
-                let claseEstado = estadoActual === 'PAGADO' ? 'bg-success' : 'bg-warning text-dark';
-
-                te.innerHTML += `
-                <tr>
-                    <td>${e.fecha}</td>
-                    <td class="fw-bold text-dark">${e.descripcion}</td>
-                    <td>${e.proveedor}</td>
-                    <td class="fw-bold text-danger">-$${parseFloat(e.valor || 0).toFixed(2)}</td>
-                    <td><span class="badge ${claseEstado}">${estadoActual}</span></td>
-                    <td>
-                        <div class="d-flex gap-1 justify-content-center">
-                            ${btnDoc} 
-                            ${btnEstado} 
-                            <button class="btn btn-sm btn-danger shadow-sm" onclick="eliminarEgreso(${e.id})"><i class="bi bi-trash-fill"></i></button>
-                        </div>
-                    </td>
-                </tr>`;
+                const bD = e.tiene_doc ? `<button class="btn btn-sm btn-outline-danger" onclick="verEgresoPDF(${e.id})">Factura</button>` : '-';
+                const est = e.estado_pago || 'PENDIENTE';
+                const bE = est === 'PENDIENTE' ? `<button class="btn btn-sm btn-success" onclick="marcarEgresoEstado(${e.id}, 'PAGADO')">Pagar</button>` : `<button class="btn btn-sm btn-warning" onclick="marcarEgresoEstado(${e.id}, 'PENDIENTE')">Revertir</button>`;
+                te.innerHTML += `<tr><td>${e.fecha}</td><td class="fw-bold text-dark">${e.descripcion}</td><td>${e.proveedor}</td><td class="fw-bold text-danger">-$${parseFloat(e.valor||0).toFixed(2)}</td><td><span class="badge ${est==='PAGADO'?'bg-success':'bg-warning text-dark'}">${est}</span></td><td><div class="d-flex gap-1 justify-content-center">${bD} ${bE} <button class="btn btn-sm btn-danger" onclick="eliminarEgreso(${e.id})"><i class="bi bi-trash-fill"></i></button></div></td></tr>`;
             });
         }
     }
@@ -1330,106 +1118,36 @@ async function renderizarTodasLasTablasAdmin() {
     if(tc) {
         tc.innerHTML = '';
         usuariosParaRender.filter(u => u.rol === 'PADRE').forEach(u => {
-            const cuotaBase = parseFloat(u.valor_total_pagar || 0);
-            
-            const misGastos = gastosPadres.filter(g => g.username === u.username);
-            const totalGastosRubros = misGastos.reduce((s, g) => s + parseFloat(g.valor||0), 0);
-            const totalDeuda = cuotaBase + totalGastosRubros; 
-            
-            const pagosPadre = pagosGlobales.filter(p => p.usuario === u.username && p.estado === 'VALIDADO');
-            const totalPagadoPadre = pagosPadre.reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
-            const saldoPadre = totalDeuda - totalPagadoPadre;
-
-            tc.innerHTML += `
-            <tr>
-                <td class="text-primary fw-bold">${u.username}</td>
-                <td>${u.nombre}</td>
-                <td>
-                    <div class="small">Cuota Base: $${cuotaBase.toFixed(2)}</div>
-                    <div class="small text-muted">Rubros Extra: $${totalGastosRubros.toFixed(2)}</div>
-                    <div class="fw-bold text-dark border-top pt-1 mt-1">Total a Pagar: $${totalDeuda.toFixed(2)}</div>
-                </td>
-                <td>
-                    <div class="small text-success mb-1">Total Abonado: $${totalPagadoPadre.toFixed(2)}</div>
-                    <div class="fw-bold text-danger border-top pt-1">Saldo Pendiente: $${saldoPadre.toFixed(2)}</div>
-                </td>
-                <td>
-                    <button class="btn btn-sm btn-warning fw-bold shadow-sm" onclick="abrirModalCuota('${u.username}', ${cuotaBase})">
-                        <i class="bi bi-pencil-fill me-1"></i>Base
-                    </button>
-                </td>
-            </tr>`;
+            const cb = parseFloat(u.valor_total_pagar || 0);
+            const mG = gastosPadres.filter(g => g.username === u.username);
+            const tG = mG.reduce((s, g) => s + parseFloat(g.valor||0), 0);
+            const tD = cb + tG; 
+            const pP = pagosGlobales.filter(p => p.usuario === u.username && p.estado === 'VALIDADO');
+            const tP = pP.reduce((s, p) => s + parseFloat(p.valor||0), 0);
+            const sP = tD - tP;
+            tc.innerHTML += `<tr><td class="text-primary fw-bold">${u.username}</td><td>${u.nombre}</td><td><div class="small">Cuota Base: $${cb.toFixed(2)}</div><div class="small text-muted">Rubros Extra: $${tG.toFixed(2)}</div><div class="fw-bold border-top pt-1">Total: $${tD.toFixed(2)}</div></td><td><div class="small text-success">Abonado: $${tP.toFixed(2)}</div><div class="fw-bold text-danger border-top pt-1">Saldo: $${sP.toFixed(2)}</div></td><td><button class="btn btn-sm btn-warning" onclick="abrirModalCuota('${u.username}', ${cb})"><i class="bi bi-pencil-fill"></i> Base</button></td></tr>`;
         });
     }
 
     const ta = document.getElementById('tabla-actas');
     if(ta) {
         ta.innerHTML = '';
-        if(actasGlobales.length === 0) {
-            ta.innerHTML = `<tr><td colspan="3" class="text-muted py-4">No hay actas registradas.</td></tr>`;
-        } else {
-            actasGlobales.forEach(a => {
-                const btnDoc = a.tiene_doc 
-                    ? `<button class="btn btn-sm btn-dark fw-bold shadow-sm" onclick="verActaPDF(${a.id})"><i class="bi bi-file-pdf-fill me-1"></i>Abrir Acta</button>` 
-                    : '-';
-                ta.innerHTML += `
-                <tr>
-                    <td>${a.fecha}</td>
-                    <td class="fw-bold text-dark">${a.descripcion}</td>
-                    <td>${btnDoc}</td>
-                </tr>`;
-            });
-        }
+        if(actasGlobales.length === 0) ta.innerHTML = `<tr><td colspan="3" class="text-muted py-4">No hay actas.</td></tr>`;
+        else actasGlobales.forEach(a => { ta.innerHTML += `<tr><td>${a.fecha}</td><td class="fw-bold">${a.descripcion}</td><td>${a.tiene_doc?`<button class="btn btn-sm btn-dark" onclick="verActaPDF(${a.id})">Abrir Acta</button>`:'-'}</td></tr>`; });
     }
 
     const tact = document.getElementById('tabla-actividades');
     if(tact) {
         tact.innerHTML = '';
-        if(actividadesParaRender.length === 0) {
-            tact.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay actividades registradas en este curso.</td></tr>`;
-        } else {
-            actividadesParaRender.forEach(a => {
-                const btnDoc = a.tiene_doc 
-                    ? `<button class="btn btn-sm btn-outline-success fw-bold shadow-sm" onclick="verActividadPDF(${a.id})"><i class="bi bi-file-pdf-fill me-1"></i>Ver Respaldo</button>` 
-                    : '-';
-                
-                tact.innerHTML += `
-                <tr>
-                    <td>${a.fecha}</td>
-                    <td class="fw-bold"><span class="badge bg-dark">${a.curso}</span></td>
-                    <td class="fw-bold text-dark">${a.descripcion}</td>
-                    <td class="fw-bold text-success">+$${parseFloat(a.valor || 0).toFixed(2)}</td>
-                    <td>${btnDoc}</td>
-                </tr>`;
-            });
-        }
+        if(actividadesParaRender.length === 0) tact.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay actividades.</td></tr>`;
+        else actividadesParaRender.forEach(a => { tact.innerHTML += `<tr><td>${a.fecha}</td><td><span class="badge bg-dark">${a.curso}</span></td><td class="fw-bold">${a.descripcion}</td><td class="fw-bold text-success">+$${parseFloat(a.valor||0).toFixed(2)}</td><td>${a.tiene_doc?`<button class="btn btn-sm btn-outline-success" onclick="verActividadPDF(${a.id})">Ver Respaldo</button>`:'-'}</td></tr>`; });
     }
 
     const tbDocs = document.getElementById('tabla-contratos'); 
     if(tbDocs) {
         tbDocs.innerHTML = '';
-        if (contratosGlobales.length === 0) {
-            tbDocs.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay contratos registrados.</td></tr>`;
-        } else {
-            contratosGlobales.forEach(c => {
-                const descripcionC = c.desc || c.descripcion || '';
-                const proveedorC = c.prov || c.proveedor || '';
-                const checkStatus = c.visible ? 'checked' : '';
-                const btnVisible = `
-                    <div class="form-check form-switch d-flex justify-content-center">
-                        <input class="form-check-input" type="checkbox" ${checkStatus} onchange="toggleVisibleDoc(${c.id}, this.checked)">
-                    </div>`;
-                
-                tbDocs.innerHTML += `
-                <tr>
-                    <td>${c.fecha}</td>
-                    <td class="fw-bold text-dark">${descripcionC}</td>
-                    <td>${proveedorC}</td>
-                    <td class="fw-bold text-success">$${parseFloat(c.valor || 0).toFixed(2)}</td>
-                    <td>${btnVisible}</td>
-                </tr>`;
-            });
-        }
+        if (contratosGlobales.length === 0) tbDocs.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay contratos.</td></tr>`;
+        else contratosGlobales.forEach(c => { tbDocs.innerHTML += `<tr><td>${c.fecha}</td><td class="fw-bold">${c.desc||c.descripcion||''}</td><td>${c.prov||c.proveedor||''}</td><td class="fw-bold text-success">$${parseFloat(c.valor||0).toFixed(2)}</td><td><input class="form-check-input" type="checkbox" ${c.visible?'checked':''} onchange="toggleVisibleDoc(${c.id}, this.checked)"></td></tr>`; });
     }
 
     setTimeout(hacerTablasResponsivas, 200);
@@ -1437,852 +1155,245 @@ async function renderizarTodasLasTablasAdmin() {
 
 function renderizarDashboardAdmin(pagosRender, actiRender) {
     let pagosValidados = pagosRender.filter(p => p.estado === 'VALIDADO').reduce((s, p) => s + parseFloat(p.valor || 0), 0);
-    let totalIngresosAct = actiRender.reduce((s, a) => s + parseFloat(a.valor || 0), 0);
-    let totalIngresosBase = (cursoFiltroActual === "TODOS") ? ingresosGlobales.reduce((s, i) => s + parseFloat(i.valor || 0), 0) : 0;
-    
-    let totalIngresos = totalIngresosBase + pagosValidados + totalIngresosAct;
+    let totalIngresos = (cursoFiltroActual === "TODOS" ? ingresosGlobales.reduce((s, i) => s + parseFloat(i.valor || 0), 0) : 0) + pagosValidados + actiRender.reduce((s, a) => s + parseFloat(a.valor || 0), 0);
     let totalEgresos = (cursoFiltroActual === "TODOS") ? egresosGlobales.reduce((s, e) => s + parseFloat(e.valor || 0), 0) : 0;
-    
     let metaTotal = 0;
-    let usuariosParaMeta = (cursoFiltroActual === "TODOS") 
-        ? usuariosBD.filter(u => u.rol === 'PADRE') 
-        : usuariosBD.filter(u => u.rol === 'PADRE' && compararCursos(u.curso, cursoFiltroActual));
     
-    usuariosParaMeta.forEach(u => {
-        let cuota = parseFloat(u.valor_total_pagar || 0);
-        let gastosPadre = gastosPadres.filter(g => g.username === u.username).reduce((s, g) => s + parseFloat(g.valor||0), 0);
-        metaTotal += (cuota + gastosPadre);
-    });
+    let uMeta = (cursoFiltroActual === "TODOS") ? usuariosBD.filter(u => u.rol === 'PADRE') : usuariosBD.filter(u => u.rol === 'PADRE' && compararCursos(u.curso, cursoFiltroActual));
+    uMeta.forEach(u => { metaTotal += parseFloat(u.valor_total_pagar || 0) + gastosPadres.filter(g => g.username === u.username).reduce((s, g) => s + parseFloat(g.valor||0), 0); });
     
-    if(document.getElementById('dash-ingresos')) {
-        document.getElementById('dash-ingresos').innerText = `$${totalIngresos.toFixed(2)}`;
-    }
-    if(document.getElementById('dash-egresos')) {
-        document.getElementById('dash-egresos').innerText = `$${totalEgresos.toFixed(2)}`;
-    }
-    if(document.getElementById('dash-saldo')) {
-        document.getElementById('dash-saldo').innerText = `$${(totalIngresos - totalEgresos).toFixed(2)}`;
-    }
-    if(document.getElementById('dash-meta')) {
-        document.getElementById('dash-meta').innerText = `$${metaTotal.toFixed(2)}`;
-    }
+    if(document.getElementById('dash-ingresos')) document.getElementById('dash-ingresos').innerText = `$${totalIngresos.toFixed(2)}`;
+    if(document.getElementById('dash-egresos')) document.getElementById('dash-egresos').innerText = `$${totalEgresos.toFixed(2)}`;
+    if(document.getElementById('dash-saldo')) document.getElementById('dash-saldo').innerText = `$${(totalIngresos - totalEgresos).toFixed(2)}`;
+    if(document.getElementById('dash-meta')) document.getElementById('dash-meta').innerText = `$${metaTotal.toFixed(2)}`;
 }
 
 function renderizarDashboardCurso() {
     const tc = document.getElementById('tabla-dashboard-curso');
     if(!tc) return;
-    
-    const cursosBrutos = usuariosBD.map(u => u.curso).filter(c => c && c.trim() !== '');
-    let cursosUnicos = [...new Set(cursosBrutos)].sort();
-    
-    if(cursoFiltroActual !== "TODOS") {
-        cursosUnicos = cursosUnicos.filter(c => compararCursos(c, cursoFiltroActual));
-    }
+    let cursosUnicos = [...new Set(usuariosBD.map(u => u.curso).filter(c => c && c.trim() !== ''))].sort();
+    if(cursoFiltroActual !== "TODOS") cursosUnicos = cursosUnicos.filter(c => compararCursos(c, cursoFiltroActual));
 
     tc.innerHTML = '';
-    
-    if(cursosUnicos.length === 0) { 
-        tc.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay datos.</td></tr>`; 
-        return; 
-    }
+    if(cursosUnicos.length === 0) { tc.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay datos.</td></tr>`; return; }
 
     cursosUnicos.forEach(curso => {
         const alumnos = usuariosBD.filter(u => u.rol === 'PADRE' && compararCursos(u.curso, curso));
-        let metaCurso = 0;
-        
-        alumnos.forEach(a => {
-            let cuota = parseFloat(a.valor_total_pagar || 0);
-            let gPadre = gastosPadres.filter(g => g.username === a.username).reduce((s, g) => s + parseFloat(g.valor||0), 0);
-            metaCurso += (cuota + gPadre);
-        });
-        
-        const recPagos = pagosGlobales.filter(p => p.estado === 'VALIDADO' && usuariosBD.some(u => u.username === p.usuario && compararCursos(u.curso, curso))).reduce((s, p) => s + parseFloat(p.valor || 0), 0);
-        const recActs = actividadesGlobales.filter(a => compararCursos(a.curso, curso)).reduce((s, a) => s + parseFloat(a.valor || 0), 0);
-        const totalRecaudado = recPagos + recActs;
-
-        tc.innerHTML += `
-        <tr>
-            <td class="fw-bold" style="color:#1e3c72;">${curso}</td>
-            <td class="fw-bold">${alumnos.length}</td>
-            <td class="fw-bold text-success">$${totalRecaudado.toFixed(2)}</td>
-            <td class="fw-bold text-info">$${metaCurso.toFixed(2)}</td>
-        </tr>`;
+        let mC = 0;
+        alumnos.forEach(a => { mC += parseFloat(a.valor_total_pagar||0) + gastosPadres.filter(g => g.username === a.username).reduce((s, g) => s + parseFloat(g.valor||0), 0); });
+        const tR = pagosGlobales.filter(p => p.estado === 'VALIDADO' && usuariosBD.some(u => u.username === p.usuario && compararCursos(u.curso, curso))).reduce((s, p) => s + parseFloat(p.valor||0), 0) + actividadesGlobales.filter(a => compararCursos(a.curso, curso)).reduce((s, a) => s + parseFloat(a.valor||0), 0);
+        tc.innerHTML += `<tr><td class="fw-bold" style="color:#1e3c72;">${curso}</td><td class="fw-bold">${alumnos.length}</td><td class="fw-bold text-success">$${tR.toFixed(2)}</td><td class="fw-bold text-info">$${mC.toFixed(2)}</td></tr>`;
     });
 }
 
 function abrirModalPagoPrellenado(valorPredeterminado = null) {
-    const form = document.getElementById('form-pago');
-    form.reset(); 
-    limpiarFeedbackArchivos();
-    
+    document.getElementById('form-pago').reset(); limpiarFeedbackArchivos();
     const sel = document.getElementById('pago-usuario');
-    
     if (usuarioActual && usuarioActual.rol === 'PADRE') {
         sel.innerHTML = `<option value="${usuarioActual.username}">${usuarioActual.nombre}</option>`;
-        sel.value = usuarioActual.username;
-        sel.style.pointerEvents = "none"; 
-        sel.style.backgroundColor = "#e9ecef";
-    } else {
-        sel.style.pointerEvents = "auto";
-        sel.style.backgroundColor = "";
-    }
-    
-    if(valorPredeterminado) {
-        document.getElementById('pago-valor').value = parseFloat(valorPredeterminado).toFixed(2);
-    }
-    
+        sel.value = usuarioActual.username; sel.style.pointerEvents = "none"; sel.style.backgroundColor = "#e9ecef";
+    } else { sel.style.pointerEvents = "auto"; sel.style.backgroundColor = ""; }
+    if(valorPredeterminado) document.getElementById('pago-valor').value = parseFloat(valorPredeterminado).toFixed(2);
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalPago')).show();
 }
 
 function abrirModalFiestaPadre() {
-    const userDatos = usuariosBD.find(u => u.username === usuarioActual.username);
-    document.getElementById('padre-adultos').value = userDatos.adultos_fiesta || 0;
-    document.getElementById('padre-ninos').value = userDatos.ninos_fiesta || 0;
+    const user = usuariosBD.find(u => u.username === usuarioActual.username);
+    document.getElementById('padre-adultos').value = user.adultos_fiesta || 0;
+    document.getElementById('padre-ninos').value = user.ninos_fiesta || 0;
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFiestaPadre')).show();
 }
 
 async function guardarFiestaPadre(e) {
     e.preventDefault();
-    const payload = { 
-        username: usuarioActual.username, 
-        adultos: document.getElementById('padre-adultos').value, 
-        ninos: document.getElementById('padre-ninos').value 
-    };
-
     try {
-        const resp = await fetch(`${API_URL}/usuarios/fiesta/padre`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(payload) 
-        });
-        const data = await resp.json();
-        
-        if(resp.ok && data.exito) {
-            bootstrap.Modal.getInstance(document.getElementById('modalFiestaPadre')).hide();
-            mostrarAlerta("Confirmación de Fiesta Familiar guardada. Revise sus rubros en Mis Gastos Asignados.", "✅");
-            actualizarDashboardPadre();
-        } else { 
-            mostrarAlerta("Error al actualizar la asistencia.", "❌"); 
-        }
-    } catch(err) { 
-        mostrarAlerta("Error de conexión al guardar asistencia.", "❌"); 
-    }
+        const resp = await fetch(`${API_URL}/usuarios/fiesta/padre`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: usuarioActual.username, adultos: document.getElementById('padre-adultos').value, ninos: document.getElementById('padre-ninos').value }) });
+        if(resp.ok) { bootstrap.Modal.getInstance(document.getElementById('modalFiestaPadre')).hide(); mostrarAlerta("Guardado correctamente.", "✅"); actualizarDashboardPadre(); }
+    } catch(err) { mostrarAlerta("Error", "❌"); }
 }
 
 function actualizarDashboardPadre() {
     cargarDatosDesdeServidor().then(() => {
-        const userDatos = usuariosBD.find(u => u.username === usuarioActual.username);
-        const misPagos = pagosGlobales.filter(p => p.usuario === usuarioActual.username);
-        const misGastos = gastosPadres.filter(g => g.username === usuarioActual.username);
-        
-        let cuotaBase = parseFloat(userDatos.valor_total_pagar || 0);
-        let totalRubros = misGastos.reduce((s, g) => s + parseFloat(g.valor||0), 0);
-        
-        let totalAPagar = cuotaBase + totalRubros;
-        let totalPagado = misPagos.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
-        let pendiente = totalAPagar - totalPagado;
+        const user = usuariosBD.find(u => u.username === usuarioActual.username);
+        const mP = pagosGlobales.filter(p => p.usuario === usuarioActual.username);
+        const mG = gastosPadres.filter(g => g.username === usuarioActual.username);
+        let cB = parseFloat(user.valor_total_pagar || 0);
+        let tR = mG.reduce((s, g) => s + parseFloat(g.valor||0), 0);
+        let tA = cB + tR;
+        let tP = mP.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
+        let pen = tA - tP;
 
-        const vistaMisGastos = document.getElementById('tabla-misgastos-padre');
-        if(vistaMisGastos) {
-            vistaMisGastos.innerHTML = '';
-            
-            if (cuotaBase > 0) {
-                vistaMisGastos.innerHTML += `
-                <tr>
-                    <td>-</td>
-                    <td class="fw-bold text-dark text-start">Cuota Base (Anual)</td>
-                    <td class="fw-bold text-danger">$${cuotaBase.toFixed(2)}</td>
-                    <td><span class="badge bg-secondary">DEUDA INICIAL</span></td>
-                    <td>
-                        <button class="btn btn-sm btn-success fw-bold shadow-sm" onclick="abrirModalPagoPrellenado(${cuotaBase})">
-                            <i class="bi bi-upload"></i> Subir Pago
-                        </button>
-                    </td>
-                </tr>`;
-            }
-            
-            if (misGastos.length === 0 && cuotaBase === 0) { 
-                vistaMisGastos.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No tiene rubros asignados.</td></tr>`; 
-            }
-            
-            misGastos.forEach(g => {
-                const badgeEst = g.estado === 'PAGADO' 
-                    ? '<span class="badge bg-success">PAGADO</span>' 
-                    : '<span class="badge bg-warning text-dark">PENDIENTE</span>';
-                
-                const btnAcc = g.estado === 'PENDIENTE' 
-                    ? `<button class="btn btn-sm btn-success fw-bold shadow-sm" onclick="abrirModalPagoPrellenado(${g.valor})"><i class="bi bi-upload"></i> Subir Pago</button>`
-                    : `<i class="bi bi-check-circle-fill text-success fs-5"></i>`;
-                
-                vistaMisGastos.innerHTML += `
-                <tr>
-                    <td>${g.fecha}</td>
-                    <td class="fw-bold text-dark text-start">${g.concepto}</td>
-                    <td class="fw-bold text-danger">$${parseFloat(g.valor||0).toFixed(2)}</td>
-                    <td>${badgeEst}</td>
-                    <td>${btnAcc}</td>
-                </tr>`;
+        const vMG = document.getElementById('tabla-misgastos-padre');
+        if(vMG) {
+            vMG.innerHTML = '';
+            if (cB > 0) vMG.innerHTML += `<tr><td>-</td><td class="fw-bold text-start">Cuota Base</td><td class="fw-bold text-danger">$${cB.toFixed(2)}</td><td><span class="badge bg-secondary">DEUDA INICIAL</span></td><td><button class="btn btn-sm btn-success fw-bold shadow-sm" onclick="abrirModalPagoPrellenado(${cB})"><i class="bi bi-upload"></i> Subir Pago</button></td></tr>`;
+            if (mG.length === 0 && cB === 0) vMG.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No tiene rubros.</td></tr>`;
+            mG.forEach(g => {
+                const bE = g.estado === 'PAGADO' ? '<span class="badge bg-success">PAGADO</span>' : '<span class="badge bg-warning text-dark">PENDIENTE</span>';
+                const bA = g.estado === 'PENDIENTE' ? `<button class="btn btn-sm btn-success fw-bold shadow-sm" onclick="abrirModalPagoPrellenado(${g.valor})"><i class="bi bi-upload"></i> Subir Pago</button>` : `<i class="bi bi-check-circle-fill text-success fs-5"></i>`;
+                vMG.innerHTML += `<tr><td>${g.fecha}</td><td class="fw-bold text-start">${g.concepto}</td><td class="fw-bold text-danger">$${parseFloat(g.valor||0).toFixed(2)}</td><td>${bE}</td><td>${bA}</td></tr>`;
             });
         }
 
-        const vistaEstado = document.getElementById('padre-vista-estado');
-        if (vistaEstado) {
-            let transacciones = [];
-            
-            if (cuotaBase > 0) {
-                transacciones.push({ fecha: '2024-01-01', concepto: 'Deuda Inicial / Cuota Base', ingreso: 0, gasto: cuotaBase, validado: true });
-            }
-            
-            misGastos.forEach(g => {
-                transacciones.push({ fecha: g.fecha, concepto: `Gasto Asignado: ${g.concepto}`, ingreso: 0, gasto: parseFloat(g.valor||0), validado: true });
-            });
-            
-            misPagos.forEach(p => {
-                transacciones.push({ fecha: p.fecha, comprobante: p.voucher || '-', concepto: 'Abono / Transferencia Registrada', ingreso: parseFloat(p.valor || 0), gasto: 0, validado: p.estado === 'VALIDADO' });
-            });
+        const vE = document.getElementById('padre-vista-estado');
+        if (vE) {
+            let tr = [];
+            if (cB > 0) tr.push({ fecha: '2024-01-01', c: 'Cuota Base', i: 0, g: cB, v: true });
+            mG.forEach(g => tr.push({ fecha: g.fecha, c: `Rubro: ${g.concepto}`, i: 0, g: parseFloat(g.valor||0), v: true }));
+            mP.forEach(p => tr.push({ fecha: p.fecha, cmp: p.voucher || '-', c: 'Abono', i: parseFloat(p.valor || 0), g: 0, v: p.estado === 'VALIDADO' }));
+            tr.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
-            transacciones.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
-
-            let htmlFilas = '';
-            let deudaActual = 0; 
-            
-            if (transacciones.length === 0) { 
-                htmlFilas = `<tr><td colspan="6" class="text-muted py-4">No hay movimientos.</td></tr>`; 
-            } else {
-                transacciones.forEach(t => {
-                    if (t.validado) { 
-                        deudaActual += t.gasto; 
-                        deudaActual -= t.ingreso; 
-                    }
-                    
-                    let estadoEtiqueta = t.validado ? '' : '<br><span class="badge bg-warning text-dark mt-1"><i class="bi bi-hourglass-split me-1"></i>En Espera de Aprobación</span>';
-                    let ingresoTexto = t.ingreso > 0 ? '$'+t.ingreso.toFixed(2) : '-';
-                    let gastoTexto = t.gasto > 0 ? '$'+t.gasto.toFixed(2) : '-';
-                    let saldoTexto = '$' + Math.max(0, deudaActual).toFixed(2);
-                    let claseSaldo = t.validado ? 'text-primary' : 'text-muted';
-
-                    htmlFilas += `
-                    <tr>
-                        <td>${t.fecha}</td>
-                        <td>${t.comprobante || '-'}</td>
-                        <td class="fw-bold text-start">${t.concepto} ${estadoEtiqueta}</td>
-                        <td class="text-success fw-bold">${ingresoTexto}</td>
-                        <td class="text-danger fw-bold">${gastoTexto}</td>
-                        <td class="fw-bold ${claseSaldo}">${saldoTexto}</td>
-                    </tr>`;
+            let hF = ''; let dA = 0; 
+            if (tr.length === 0) hF = `<tr><td colspan="6" class="text-muted py-4">No hay movimientos.</td></tr>`;
+            else {
+                tr.forEach(t => {
+                    if (t.v) { dA += t.g; dA -= t.i; }
+                    let eE = t.v ? '' : '<br><span class="badge bg-warning text-dark mt-1">En Espera de Aprobación</span>';
+                    hF += `<tr><td>${t.fecha}</td><td>${t.cmp||'-'}</td><td class="fw-bold text-start">${t.c} ${eE}</td><td class="text-success fw-bold">${t.i>0?'$'+t.i.toFixed(2):'-'}</td><td class="text-danger fw-bold">${t.g>0?'$'+t.g.toFixed(2):'-'}</td><td class="fw-bold ${t.v?'text-primary':'text-muted'}">$${Math.max(0, dA).toFixed(2)}</td></tr>`;
                 });
             }
 
-            vistaEstado.innerHTML = `
-                <div class="row mb-4">
-                    <div class="col-md-4 mb-3">
-                        <div class="card text-white bg-primary shadow-sm h-100">
-                            <div class="card-body">
-                                <h6 class="card-title"><i class="bi bi-wallet2 me-2"></i>Total Gastos Asignados</h6>
-                                <h3 class="fw-bold mb-0">$${totalAPagar.toFixed(2)}</h3>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="card text-white bg-success shadow-sm h-100">
-                            <div class="card-body">
-                                <h6 class="card-title"><i class="bi bi-piggy-bank-fill me-2"></i>Total Abonado (Aprobado)</h6>
-                                <h3 class="fw-bold mb-0">$${totalPagado.toFixed(2)}</h3>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="card text-white bg-danger shadow-sm h-100">
-                            <div class="card-body">
-                                <h6 class="card-title"><i class="bi bi-exclamation-triangle-fill me-2"></i>Saldo Pendiente (Deuda)</h6>
-                                <h3 class="fw-bold mb-0">$${Math.max(0, pendiente).toFixed(2)}</h3>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 border-bottom pb-2">
-                    <h4 class="fw-bold text-primary mb-3 mb-md-0"><i class="bi bi-clock-history me-2"></i>Mi Libro Mayor</h4>
-                    <button class="btn btn-success fw-bold shadow-sm" onclick="abrirModalPagoPrellenado()">
-                        <i class="bi bi-currency-dollar me-1"></i> Registrar Abono Libre
-                    </button>
-                </div>
-                <div class="card shadow-sm mb-4">
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle text-center mb-0">
-                                <thead class="table-primary">
-                                    <tr>
-                                        <th>Fecha</th>
-                                        <th>Voucher</th>
-                                        <th>Concepto</th>
-                                        <th>Ingreso</th>
-                                        <th>Gasto</th>
-                                        <th>Saldo</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${htmlFilas}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            `;
+            vE.innerHTML = `<div class="row mb-4"><div class="col-md-4 mb-3"><div class="card text-white bg-primary shadow-sm h-100"><div class="card-body"><h6 class="card-title"><i class="bi bi-wallet2 me-2"></i>Total Gastos</h6><h3 class="fw-bold mb-0">$${tA.toFixed(2)}</h3></div></div></div><div class="col-md-4 mb-3"><div class="card text-white bg-success shadow-sm h-100"><div class="card-body"><h6 class="card-title"><i class="bi bi-piggy-bank-fill me-2"></i>Total Abonado</h6><h3 class="fw-bold mb-0">$${tP.toFixed(2)}</h3></div></div></div><div class="col-md-4 mb-3"><div class="card text-white bg-danger shadow-sm h-100"><div class="card-body"><h6 class="card-title"><i class="bi bi-exclamation-triangle-fill me-2"></i>Saldo Pendiente</h6><h3 class="fw-bold mb-0">$${Math.max(0, pen).toFixed(2)}</h3></div></div></div></div><div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 border-bottom pb-2"><h4 class="fw-bold text-primary mb-3 mb-md-0"><i class="bi bi-clock-history me-2"></i>Mi Libro Mayor</h4><button class="btn btn-success fw-bold shadow-sm" onclick="abrirModalPagoPrellenado()"><i class="bi bi-currency-dollar me-1"></i> Registrar Abono Libre</button></div><div class="card shadow-sm mb-4"><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover align-middle text-center mb-0"><thead class="table-primary"><tr><th>Fecha</th><th>Voucher</th><th>Concepto</th><th>Ingreso</th><th>Gasto</th><th>Saldo</th></tr></thead><tbody>${hF}</tbody></table></div></div></div>`;
         }
-        
-        setTimeout(hacerTablasResponsivas, 200);
     });
 }
 
-async function descargarArchivoInmune(url, nombreDefault) {
+async function descargarArchivoInmune(url, nD) {
     try {
-        const resp = await fetch(url); 
-        const data = await resp.json();
-        
+        const resp = await fetch(url); const data = await resp.json();
         if (data.exito && data.base64) {
             let b64 = data.base64;
-            
             if (!b64.includes('base64,')) {
                 if (b64.startsWith('JVBER')) b64 = 'data:application/pdf;base64,' + b64;
                 else if (b64.startsWith('/9j/') || b64.startsWith('iVBOR')) b64 = 'data:image/jpeg;base64,' + b64;
                 else b64 = 'data:application/pdf;base64,' + b64; 
             }
-            
-            const arr = b64.split(','); 
-            const mime = arr[0].match(/:(.*?);/)[1]; 
-            const bstr = atob(arr[1]);
-            
-            let n = bstr.length; 
-            const u8arr = new Uint8Array(n); 
-            
-            while(n--) { 
-                u8arr[n] = bstr.charCodeAt(n); 
-            }
-            
-            const blob = new Blob([u8arr], {type: mime}); 
-            const blobUrl = window.URL.createObjectURL(blob);
-            const a = document.createElement("a"); 
-            
-            a.href = blobUrl; 
-            a.download = nombreDefault; 
-            document.body.appendChild(a); 
-            a.click(); 
-            document.body.removeChild(a); 
-            window.URL.revokeObjectURL(blobUrl);
-            
-        } else { 
-            mostrarAlerta("Documento no encontrado o corrupto.", "❌"); 
-        }
-    } catch (e) { 
-        mostrarAlerta("Error al descargar el archivo desde el servidor.", "❌"); 
-    }
+            const arr = b64.split(','); const mime = arr[0].match(/:(.*?);/)[1]; const bstr = atob(arr[1]);
+            let n = bstr.length; const u8arr = new Uint8Array(n); while(n--) { u8arr[n] = bstr.charCodeAt(n); }
+            const blob = new Blob([u8arr], {type: mime}); const blobUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement("a"); a.href = blobUrl; a.download = nD; document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(blobUrl);
+        } else mostrarAlerta("Documento no encontrado.", "❌"); 
+    } catch (e) { mostrarAlerta("Error al descargar.", "❌"); }
 }
 
-function abrirVoucher(id) { 
-    descargarArchivoInmune(`${API_URL}/pagos/ver/${id}?t=${new Date().getTime()}`, `voucher_pago_${id}.jpg`); 
-}
-function verDocumentoPDF(id) { 
-    descargarArchivoInmune(`${API_URL}/documentos/ver/${id}?t=${new Date().getTime()}`, `contrato_${id}.pdf`); 
-}
-function verActaPDF(id) { 
-    descargarArchivoInmune(`${API_URL}/actas/ver/${id}?t=${new Date().getTime()}`, `acta_${id}.pdf`); 
-}
-function verEgresoPDF(id) { 
-    descargarArchivoInmune(`${API_URL}/egresos/ver/${id}?t=${new Date().getTime()}`, `factura_${id}.pdf`); 
-}
-function verActividadPDF(id) { 
-    descargarArchivoInmune(`${API_URL}/actividades/ver/${id}?t=${new Date().getTime()}`, `respaldo_${id}.pdf`); 
-}
+function abrirVoucher(id) { descargarArchivoInmune(`${API_URL}/pagos/ver/${id}?t=${new Date().getTime()}`, `voucher_${id}.jpg`); }
+function verDocumentoPDF(id) { descargarArchivoInmune(`${API_URL}/documentos/ver/${id}?t=${new Date().getTime()}`, `contrato_${id}.pdf`); }
+function verActaPDF(id) { descargarArchivoInmune(`${API_URL}/actas/ver/${id}?t=${new Date().getTime()}`, `acta_${id}.pdf`); }
+function verEgresoPDF(id) { descargarArchivoInmune(`${API_URL}/egresos/ver/${id}?t=${new Date().getTime()}`, `factura_${id}.pdf`); }
+function verActividadPDF(id) { descargarArchivoInmune(`${API_URL}/actividades/ver/${id}?t=${new Date().getTime()}`, `respaldo_${id}.pdf`); }
 
 function leerArchivoComoBase64(file) { 
     return new Promise((res, rej) => { 
-        if(file.size > 3500000) { 
-            mostrarAlerta("Archivo muy pesado (Max 3MB).", "⚠️"); 
-            rej("Pesado"); 
-            return; 
-        }
-        const r = new FileReader(); 
-        r.onload = () => res(r.result); 
-        r.onerror = (error) => rej(error);
-        r.readAsDataURL(file); 
+        if(file.size > 3500000) { mostrarAlerta("Archivo muy pesado (Max 3MB).", "⚠️"); rej("Pesado"); return; }
+        const r = new FileReader(); r.onload = () => res(r.result); r.onerror = (e) => rej(e); r.readAsDataURL(file); 
     }); 
 }
 
 async function registrarPago(e) { 
     e.preventDefault(); 
-    let vB64 = "";
-    const fileInput = document.getElementById('pago-voucher-file');
-    
-    if(fileInput && fileInput.files[0]) { 
-        if(!fileInput.files[0].type.match('image/jpeg')) { 
-            mostrarAlerta("Solo formato JPG o JPEG está permitido para comprobantes.", "⚠️"); 
-            return; 
-        }
-        try {
-            vB64 = await leerArchivoComoBase64(fileInput.files[0]); 
-        } catch (error) {
-            return;
-        }
+    let vB64 = ""; const fI = document.getElementById('pago-voucher-file');
+    if(fI && fI.files[0]) { 
+        if(!fI.files[0].type.match('image/jpeg')) { mostrarAlerta("Solo JPG permitido.", "⚠️"); return; }
+        try { vB64 = await leerArchivoComoBase64(fI.files[0]); } catch (e) { return; }
     }
-    
-    const payload = { 
-        usuario: document.getElementById('pago-usuario').value, 
-        fecha: document.getElementById('pago-fecha').value, 
-        voucher: document.getElementById('pago-voucher').value, 
-        valor: parseFloat(document.getElementById('pago-valor').value), 
-        voucher_b64: vB64 
-    }; 
-    
     try {
-        const resp = await fetch(`${API_URL}/pagos`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(payload) 
-        }); 
-        
-        const data = await resp.json();
-        
-        if(resp.ok && data.exito) {
-            bootstrap.Modal.getInstance(document.getElementById('modalPago')).hide(); 
-            document.getElementById('form-pago').reset(); 
-            limpiarFeedbackArchivos();
-            
-            mostrarAlerta("Pago registrado exitosamente. En espera de aprobación del administrador.", "✅"); 
-            
-            if (usuarioActual.rol === 'PADRE') {
-                actualizarDashboardPadre();
-            } else {
-                renderizarTodasLasTablasAdmin(); 
-            }
-        } else { 
-            mostrarAlerta("Error al registrar pago: " + data.mensaje, "❌"); 
-        }
-    } catch(err) { 
-        mostrarAlerta("Error de conexión al subir el pago.", "❌"); 
-    }
+        const resp = await fetch(`${API_URL}/pagos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario: document.getElementById('pago-usuario').value, fecha: document.getElementById('pago-fecha').value, voucher: document.getElementById('pago-voucher').value, valor: parseFloat(document.getElementById('pago-valor').value), voucher_b64: vB64 }) }); 
+        if(resp.ok) { bootstrap.Modal.getInstance(document.getElementById('modalPago')).hide(); document.getElementById('form-pago').reset(); limpiarFeedbackArchivos(); mostrarAlerta("Pago registrado exitosamente.", "✅"); if(usuarioActual.rol === 'PADRE') actualizarDashboardPadre(); else renderizarTodasLasTablasAdmin(); }
+    } catch(err) { mostrarAlerta("Error al registrar.", "❌"); }
 }
 
 async function validarPago(id) { 
     try {
-        const payload = { id: id };
-        const resp = await fetch(`${API_URL}/pagos/validar`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(payload) 
-        }); 
-        const data = await resp.json();
-        
-        if(resp.ok && data.exito) {
-            mostrarAlerta("Transferencia verificada y aprobada.", "✅"); 
-            renderizarTodasLasTablasAdmin(); 
-        } else { 
-            mostrarAlerta("Error al validar la transferencia: " + data.mensaje, "❌"); 
-        }
-    } catch(err) { 
-        mostrarAlerta("Error de conexión.", "❌"); 
-    }
+        const resp = await fetch(`${API_URL}/pagos/validar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({id: id}) }); 
+        if(resp.ok) { mostrarAlerta("Aprobado.", "✅"); renderizarTodasLasTablasAdmin(); }
+    } catch(err) { mostrarAlerta("Error.", "❌"); }
 }
 
 async function registrarActividad(e) { 
     e.preventDefault();
-    const fileInput = document.getElementById('act-file');
-    const file = fileInput ? fileInput.files[0] : null;
-    
-    if(!file) { 
-        mostrarAlerta("Debes adjuntar el archivo PDF de respaldo obligatoriamente.", "⚠️"); 
-        return; 
-    }
-    
-    let b64 = "";
-    try { 
-        b64 = await leerArchivoComoBase64(file); 
-    } catch(err) { 
-        return; 
-    }
-    
-    const payload = {
-        curso: document.getElementById('act-curso').value.trim(),
-        descripcion: document.getElementById('act-desc').value.trim(),
-        fecha: document.getElementById('act-fecha').value,
-        valor: parseFloat(document.getElementById('act-valor').value),
-        archivoNombre: file.name,
-        archivoData: b64
-    };
-    
+    const fI = document.getElementById('act-file'); const f = fI ? fI.files[0] : null;
+    if(!f) { mostrarAlerta("Adjunta el PDF obligatoriamente.", "⚠️"); return; }
+    let b64 = ""; try { b64 = await leerArchivoComoBase64(f); } catch(err) { return; }
     try {
-        const resp = await fetch(`${API_URL}/actividades`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(payload) 
-        });
-        const data = await resp.json();
-        
-        if(resp.ok && data.exito) {
-            bootstrap.Modal.getInstance(document.getElementById('modalActividad')).hide();
-            document.getElementById('form-actividad').reset();
-            limpiarFeedbackArchivos();
-            
-            mostrarAlerta("Ingreso por Actividad guardado y registrado correctamente.", "✅");
-            renderizarTodasLasTablasAdmin();
-        } else { 
-            mostrarAlerta("Error al subir actividad: " + data.mensaje, "❌"); 
-        }
-    } catch(error) { 
-        mostrarAlerta("Error de conexión.", "❌"); 
-    }
+        const resp = await fetch(`${API_URL}/actividades`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ curso: document.getElementById('act-curso').value.trim(), descripcion: document.getElementById('act-desc').value.trim(), fecha: document.getElementById('act-fecha').value, valor: parseFloat(document.getElementById('act-valor').value), archivoNombre: f.name, archivoData: b64 }) });
+        if(resp.ok) { bootstrap.Modal.getInstance(document.getElementById('modalActividad')).hide(); mostrarAlerta("Registrado.", "✅"); renderizarTodasLasTablasAdmin(); }
+    } catch(e) { mostrarAlerta("Error.", "❌"); }
 }
 
 async function registrarEgreso(e) {
     e.preventDefault();
-    const fileInput = document.getElementById('egreso-file');
-    const file = fileInput ? fileInput.files[0] : null;
-    
-    let b64 = "";
-    let fileName = "";
-    
-    if(file) { 
-        try { 
-            b64 = await leerArchivoComoBase64(file); 
-            fileName = file.name; 
-        } catch(err) { 
-            return; 
-        } 
-    }
-    
-    const payload = { 
-        fecha: document.getElementById('egreso-fecha').value, 
-        descripcion: document.getElementById('egreso-desc').value, 
-        proveedor: document.getElementById('egreso-prov').value, 
-        valor: parseFloat(document.getElementById('egreso-valor').value), 
-        archivoNombre: fileName, 
-        archivoData: b64 
-    };
-    
+    const fI = document.getElementById('egreso-file'); const f = fI ? fI.files[0] : null;
+    let b64 = ""; let fN = ""; if(f) { try { b64 = await leerArchivoComoBase64(f); fN = f.name; } catch(err) { return; } }
     try {
-        const resp = await fetch(`${API_URL}/egresos`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(payload) 
-        });
-        const data = await resp.json();
-        
-        if(resp.ok && data.exito) {
-            bootstrap.Modal.getInstance(document.getElementById('modalEgreso')).hide(); 
-            document.getElementById('form-egreso').reset();
-            limpiarFeedbackArchivos();
-            
-            mostrarAlerta("Egreso del Comité registrado en la base de datos.", "✅"); 
-            renderizarTodasLasTablasAdmin();
-        } else { 
-            mostrarAlerta("Error al registrar egreso: " + data.mensaje, "❌"); 
-        }
-    } catch(error) { 
-        mostrarAlerta("Error de conexión al registrar egreso.", "❌"); 
-    }
+        const resp = await fetch(`${API_URL}/egresos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fecha: document.getElementById('egreso-fecha').value, descripcion: document.getElementById('egreso-desc').value, proveedor: document.getElementById('egreso-prov').value, valor: parseFloat(document.getElementById('egreso-valor').value), archivoNombre: fN, archivoData: b64 }) });
+        if(resp.ok) { bootstrap.Modal.getInstance(document.getElementById('modalEgreso')).hide(); mostrarAlerta("Registrado.", "✅"); renderizarTodasLasTablasAdmin(); }
+    } catch(e) { mostrarAlerta("Error.", "❌"); }
 }
 
 async function subirActa(e) { 
     e.preventDefault();
-    const fileInput = document.getElementById('acta-file');
-    const file = fileInput ? fileInput.files[0] : null;
-    
-    if(!file) { 
-        mostrarAlerta("Por favor, selecciona un documento PDF obligatoriamente.", "⚠️"); 
-        return; 
-    }
-    
-    let b64 = "";
-    try { 
-        b64 = await leerArchivoComoBase64(file); 
-    } catch(err) { 
-        return; 
-    }
-    
-    const payload = {
-        fecha: document.getElementById('acta-fecha').value,
-        descripcion: document.getElementById('acta-desc').value,
-        archivoNombre: file.name,
-        archivoData: b64
-    };
-    
+    const fI = document.getElementById('acta-file'); const f = fI ? fI.files[0] : null;
+    if(!f) { mostrarAlerta("Adjunta el PDF obligatoriamente.", "⚠️"); return; }
+    let b64 = ""; try { b64 = await leerArchivoComoBase64(f); } catch(err) { return; }
     try {
-        const resp = await fetch(`${API_URL}/actas`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(payload) 
-        });
-        const data = await resp.json();
-        
-        if(resp.ok && data.exito) {
-            bootstrap.Modal.getInstance(document.getElementById('modalActa')).hide();
-            document.getElementById('form-acta').reset();
-            limpiarFeedbackArchivos();
-            
-            mostrarAlerta("Acta subida correctamente al sistema.", "✅");
-            renderizarTodasLasTablasAdmin();
-        } else { 
-            mostrarAlerta("Error al subir el acta: " + data.mensaje, "❌"); 
-        }
-    } catch(error) { 
-        mostrarAlerta("Error de conexión.", "❌"); 
-    }
+        const resp = await fetch(`${API_URL}/actas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fecha: document.getElementById('acta-fecha').value, descripcion: document.getElementById('acta-desc').value, archivoNombre: f.name, archivoData: b64 }) });
+        if(resp.ok) { bootstrap.Modal.getInstance(document.getElementById('modalActa')).hide(); mostrarAlerta("Acta subida.", "✅"); renderizarTodasLasTablasAdmin(); }
+    } catch(e) { mostrarAlerta("Error.", "❌"); }
 }
 
 function abrirModalUsuario(username = null) { 
-    const form = document.getElementById('form-usuario');
-    
+    const f = document.getElementById('form-usuario');
     if(username) {
         const u = usuariosBD.find(x => x.username === username);
-        document.getElementById('usu-modo').value = "EDITAR"; 
-        document.getElementById('usu-id').value = u.username; 
-        document.getElementById('usu-id').readOnly = true;
-        document.getElementById('usu-nombre').value = u.nombre; 
-        document.getElementById('usu-rol').value = u.rol; 
-        document.getElementById('usu-curso').value = u.curso;
-
-        if(document.getElementById('usu-fiesta')) {
-            document.getElementById('usu-fiesta').value = u.asiste_fiesta || 'NO';
-        }
-        if(document.getElementById('usu-adultos')) {
-            document.getElementById('usu-adultos').value = u.adultos_fiesta || 0;
-        }
-        if(document.getElementById('usu-ninos')) {
-            document.getElementById('usu-ninos').value = u.ninos_fiesta || 0;
-        }
-
-        document.getElementById('div-usu-clave').classList.add('oculto'); 
-        document.getElementById('usu-clave').required = false; 
+        document.getElementById('usu-modo').value = "EDITAR"; document.getElementById('usu-id').value = u.username; document.getElementById('usu-id').readOnly = true;
+        document.getElementById('usu-nombre').value = u.nombre; document.getElementById('usu-rol').value = u.rol; document.getElementById('usu-curso').value = u.curso;
+        document.getElementById('div-usu-clave').classList.add('oculto'); document.getElementById('usu-clave').required = false; 
     } else {
-        form.reset(); 
-        document.getElementById('usu-modo').value = "CREAR"; 
-        document.getElementById('usu-id').readOnly = false;
-
-        if(document.getElementById('usu-fiesta')) {
-            document.getElementById('usu-fiesta').value = 'NO';
-        }
-        if(document.getElementById('usu-adultos')) {
-            document.getElementById('usu-adultos').value = 0;
-        }
-        if(document.getElementById('usu-ninos')) {
-            document.getElementById('usu-ninos').value = 0;
-        }
-
-        document.getElementById('div-usu-clave').classList.remove('oculto'); 
-        document.getElementById('usu-clave').required = true; 
+        f.reset(); document.getElementById('usu-modo').value = "CREAR"; document.getElementById('usu-id').readOnly = false;
+        document.getElementById('div-usu-clave').classList.remove('oculto'); document.getElementById('usu-clave').required = true; 
     }
-    
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalUsuario')).show(); 
 }
 
 async function guardarUsuario(e) { 
     e.preventDefault(); 
-    
-    let asisteFiestaValue = 'NO';
-    if(document.getElementById('usu-fiesta')) {
-        asisteFiestaValue = document.getElementById('usu-fiesta').value;
-    }
-    
-    let adultosFiestaValue = 0;
-    if(document.getElementById('usu-adultos')) {
-        adultosFiestaValue = parseInt(document.getElementById('usu-adultos').value) || 0;
-    }
-    
-    let ninosFiestaValue = 0;
-    if(document.getElementById('usu-ninos')) {
-        ninosFiestaValue = parseInt(document.getElementById('usu-ninos').value) || 0;
-    }
-    
-    const payload = { 
-        username: document.getElementById('usu-id').value.trim(), 
-        nombre: document.getElementById('usu-nombre').value, 
-        rol: document.getElementById('usu-rol').value, 
-        curso: document.getElementById('usu-curso').value, 
-        password: document.getElementById('usu-clave').value,
-        asiste_fiesta: asisteFiestaValue,
-        adultos_fiesta: adultosFiestaValue,
-        ninos_fiesta: ninosFiestaValue
-    };
-    
     try {
-        const isCrear = document.getElementById('usu-modo').value === "CREAR";
-        const method = isCrear ? 'POST' : 'PUT';
-        
-        const resp = await fetch(`${API_URL}/usuarios`, { 
-            method: method, 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(payload) 
-        });
-        const data = await resp.json();
-        
-        if(resp.ok && data.exito) {
-            bootstrap.Modal.getInstance(document.getElementById('modalUsuario')).hide();
-            mostrarAlerta("Usuario guardado y registrado exitosamente.", "✅");
-            renderizarTodasLasTablasAdmin();
-        } else { 
-            mostrarAlerta("Error al guardar el usuario: " + data.mensaje, "❌"); 
-        }
-    } catch(error) { 
-        mostrarAlerta("Error de conexión al guardar usuario.", "❌"); 
-    }
+        const isC = document.getElementById('usu-modo').value === "CREAR";
+        const resp = await fetch(`${API_URL}/usuarios`, { method: isC ? 'POST' : 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: document.getElementById('usu-id').value.trim(), nombre: document.getElementById('usu-nombre').value, rol: document.getElementById('usu-rol').value, curso: document.getElementById('usu-curso').value, password: document.getElementById('usu-clave').value, asiste_fiesta: 'NO', adultos_fiesta: 0, ninos_fiesta: 0 }) });
+        if(resp.ok) { bootstrap.Modal.getInstance(document.getElementById('modalUsuario')).hide(); mostrarAlerta("Usuario guardado.", "✅"); renderizarTodasLasTablasAdmin(); }
+    } catch(e) { mostrarAlerta("Error.", "❌"); }
 }
 
-async function toggleEstadoUsuario(username) { 
-    try {
-        const u = usuariosBD.find(x => x.username === username);
-        const nuevoEstado = u.estado === "ACTIVO" ? "INACTIVO" : "ACTIVO";
-        
-        const payload = { 
-            username: username, 
-            estado: nuevoEstado 
-        };
-        
-        await fetch(`${API_URL}/usuarios/estado`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(payload) 
-        }); 
-        
-        renderizarTodasLasTablasAdmin(); 
-    } catch(err) { 
-        mostrarAlerta("Error al cambiar el estado del usuario.", "❌"); 
-    }
+async function toggleEstadoUsuario(usr) { 
+    try { const u = usuariosBD.find(x => x.username === usr); await fetch(`${API_URL}/usuarios/estado`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: usr, estado: u.estado === "ACTIVO" ? "INACTIVO" : "ACTIVO" }) }); renderizarTodasLasTablasAdmin(); } catch(e) { mostrarAlerta("Error.", "❌"); }
 }
 
 function abrirModalCuota(user, val) { 
-    document.getElementById('cuota-usu').value = user; 
-    document.getElementById('nueva-cuota-input').value = parseFloat(val).toFixed(2); 
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAsignarCuota')).show(); 
+    document.getElementById('cuota-usu').value = user; document.getElementById('nueva-cuota-input').value = parseFloat(val).toFixed(2); bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAsignarCuota')).show(); 
 }
 
 async function guardarNuevaCuota(e) { 
     e.preventDefault(); 
-    const payload = { 
-        username: document.getElementById('cuota-usu').value, 
-        valor: parseFloat(document.getElementById('nueva-cuota-input').value) 
-    };
-    
-    try {
-        const resp = await fetch(`${API_URL}/usuarios/cuota`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(payload) 
-        }); 
-        const data = await resp.json();
-        
-        if(resp.ok && data.exito) {
-            bootstrap.Modal.getInstance(document.getElementById('modalAsignarCuota')).hide(); 
-            mostrarAlerta("La Cuota Base del estudiante ha sido actualizada.", "✅");
-            renderizarTodasLasTablasAdmin(); 
-        } else { 
-            mostrarAlerta("Error al actualizar la cuota base.", "❌"); 
-        }
-    } catch(err) { 
-        mostrarAlerta("Error de conexión.", "❌"); 
-    }
+    try { const resp = await fetch(`${API_URL}/usuarios/cuota`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: document.getElementById('cuota-usu').value, valor: parseFloat(document.getElementById('nueva-cuota-input').value) }) }); if(resp.ok) { bootstrap.Modal.getInstance(document.getElementById('modalAsignarCuota')).hide(); mostrarAlerta("Cuota actualizada.", "✅"); renderizarTodasLasTablasAdmin(); } } catch(err) { mostrarAlerta("Error.", "❌"); }
 }
 
 async function subirDocumento(e, tipo) { 
     e.preventDefault(); 
-    const fileInput = document.getElementById('ctr-file');
-    const file = fileInput ? fileInput.files[0] : null;
-    
-    if(!file) { 
-        mostrarAlerta("Por favor, selecciona un documento obligatoriamente.", "⚠️"); 
-        return; 
-    }
-    
-    let b64 = "";
-    try { 
-        b64 = await leerArchivoComoBase64(file); 
-    } catch(err) { 
-        return; 
-    }
-    
-    const payload = {
-        tipo: tipo,
-        fecha: document.getElementById('ctr-fecha').value,
-        desc: document.getElementById('ctr-desc').value,
-        prov: document.getElementById('ctr-prov').value,
-        valor: parseFloat(document.getElementById('ctr-valor').value),
-        archivoNombre: file.name,
-        archivoData: b64,
-        visible: document.getElementById('ctr-visible').checked ? 1 : 0
-    };
-    
-    try {
-        const resp = await fetch(`${API_URL}/documentos`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(payload) 
-        });
-        const data = await resp.json();
-        
-        if(resp.ok && data.exito) {
-            bootstrap.Modal.getInstance(document.getElementById('modalContrato')).hide();
-            document.getElementById('form-contrato').reset();
-            limpiarFeedbackArchivos();
-            
-            mostrarAlerta("Contrato guardado y subido exitosamente.", "✅");
-            renderizarTodasLasTablasAdmin();
-        } else { 
-            mostrarAlerta("Error al guardar el contrato: " + data.mensaje, "❌"); 
-        }
-    } catch(error) { 
-        mostrarAlerta("Error de conexión.", "❌"); 
-    }
+    const fI = document.getElementById('ctr-file'); const f = fI ? fI.files[0] : null;
+    if(!f) { mostrarAlerta("Adjunta documento.", "⚠️"); return; }
+    let b64 = ""; try { b64 = await leerArchivoComoBase64(f); } catch(err) { return; }
+    try { const resp = await fetch(`${API_URL}/documentos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tipo: tipo, fecha: document.getElementById('ctr-fecha').value, desc: document.getElementById('ctr-desc').value, prov: document.getElementById('ctr-prov').value, valor: parseFloat(document.getElementById('ctr-valor').value), archivoNombre: f.name, archivoData: b64, visible: document.getElementById('ctr-visible').checked ? 1 : 0 }) }); if(resp.ok) { bootstrap.Modal.getInstance(document.getElementById('modalContrato')).hide(); mostrarAlerta("Contrato guardado.", "✅"); renderizarTodasLasTablasAdmin(); } } catch(e) { mostrarAlerta("Error.", "❌"); }
 }
 
 async function toggleVisibleDoc(id, val) { 
-    try {
-        const payload = { 
-            id: id, 
-            visible: val ? 1 : 0 
-        };
-        
-        await fetch(`${API_URL}/documentos/visible`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(payload) 
-        }); 
-        
-        renderizarTodasLasTablasAdmin(); 
-    } catch(err) { 
-        mostrarAlerta("Error al cambiar la visibilidad del documento.", "❌"); 
-    }
+    try { await fetch(`${API_URL}/documentos/visible`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, visible: val ? 1 : 0 }) }); renderizarTodasLasTablasAdmin(); } catch(err) { mostrarAlerta("Error.", "❌"); }
 }
 
-async function marcarEgresoEstado(id, nuevoEstado) { 
-    try {
-        const payload = { 
-            id: id, 
-            estado: nuevoEstado 
-        };
-        
-        await fetch(`${API_URL}/egresos/estado`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(payload) 
-        }); 
-        
-        renderizarTodasLasTablasAdmin(); 
-    } catch(err) { 
-        mostrarAlerta("Error al cambiar el estado del egreso.", "❌"); 
-    }
+async function marcarEgresoEstado(id, est) { 
+    try { await fetch(`${API_URL}/egresos/estado`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, estado: est }) }); renderizarTodasLasTablasAdmin(); } catch(err) { mostrarAlerta("Error.", "❌"); }
 }
 
 async function eliminarEgreso(id) { 
-    if(!confirm("¿Borrar definitivamente este egreso del comité? Esto no se puede deshacer.")) {
-        return; 
-    }
-    
-    try {
-        await fetch(`${API_URL}/egresos/${id}`, { 
-            method: 'DELETE' 
-        }); 
-        
-        mostrarAlerta("Egreso eliminado permanentemente del sistema.", "✅");
-        renderizarTodasLasTablasAdmin(); 
-    } catch(err) { 
-        mostrarAlerta("Error al eliminar el egreso.", "❌"); 
-    }
+    if(!confirm("¿Borrar definitivamente?")) return; 
+    try { await fetch(`${API_URL}/egresos/${id}`, { method: 'DELETE' }); renderizarTodasLasTablasAdmin(); } catch(err) { mostrarAlerta("Error.", "❌"); }
 }
