@@ -292,7 +292,7 @@ async function cambiarEstadoSeleccionados(nuevoEstado) {
     const seleccionados = Array.from(checkboxes).map(chk => chk.value);
     
     if(seleccionados.length === 0) {
-        mostrarAlerta("Debes seleccionar al menos un rubro marcando su casilla.", "⚠️");
+        mostrarAlerta("Debes seleccionar al menos un rubro marcando su casilla.", "⚠️️");
         return;
     }
     
@@ -1032,7 +1032,6 @@ async function guardarClaveForzada(e) {
     }
 }
 
-// CORRECCIÓN: SE ASEGURA DE ACTIVAR LA PESTAÑA PRINCIPAL PARA PADRES (EVITA LA PANTALLA BLANCA)
 function cargarPortalSegunRol(usuario) {
     usuarioActual = usuario;
     const errDiv = document.getElementById('mensaje-error');
@@ -1120,7 +1119,6 @@ function cargarPortalSegunRol(usuario) {
         document.getElementById('portal-padre').classList.remove('oculto');
         document.getElementById('portal-admin').classList.add('oculto');
         
-        // ESTO SOLUCIONA LA PANTALLA BLANCA (Fuerza cargar la vista del Libro Mayor)
         cambiarVistaPadre('estado', document.querySelector('#menu-navegacion .nav-link'));
     }
     setTimeout(hacerTablasResponsivas, 500); 
@@ -1241,7 +1239,7 @@ function abrirModalGastoAdmin() {
     const sel = document.getElementById('gasto-asignar-usuario');
     sel.innerHTML = `
         <option value="">-- Seleccione a quién cobrar --</option>
-        <option value="TODOS" class="fw-bold text-danger">⚠️️ A TODOS LOS PADRES (COBRO GENERAL)</option>
+        <option value="TODOS" class="fw-bold text-danger">⚠ A TODOS LOS PADRES (COBRO GENERAL)</option>
     `;
     
     let padres = usuariosBD.filter(u => u.rol === 'PADRE');
@@ -1317,6 +1315,7 @@ async function eliminarGastoAdmin(id) {
     }
 }
 
+// CORRECCIÓN MATEMÁTICA: Evita doble conteo y respeta el "PAGADO" en las vistas del admin
 async function renderizarTodasLasTablasAdmin() {
     await cargarDatosDesdeServidor();
     actualizarSelectCursos();
@@ -1492,6 +1491,7 @@ async function renderizarTodasLasTablasAdmin() {
         }
     }
 
+    // CORRECCIÓN MATEMÁTICA: La tabla de control de cuotas para el Administrador
     const tc = document.getElementById('tabla-cuotas'); 
     if(tc) {
         tc.innerHTML = '';
@@ -1499,11 +1499,14 @@ async function renderizarTodasLasTablasAdmin() {
             const cb = parseFloat(u.valor_total_pagar || 0);
             const mG = gastosPadres.filter(g => String(g.username) === String(u.username));
             const tG = mG.reduce((s, g) => s + parseFloat(g.valor||0), 0);
-            const tD = cb + tG; 
             
-            const pP = pagosGlobales.filter(p => String(p.usuario) === String(u.username) && p.estado === 'VALIDADO');
-            const tP = pP.reduce((s, p) => s + parseFloat(p.valor||0), 0);
-            const sP = tD - tP;
+            const tD = cb + tG; // Total Deuda Original Asignada
+            
+            const sumPagosFisicos = pagosGlobales.filter(p => String(p.usuario) === String(u.username) && p.estado === 'VALIDADO').reduce((s, p) => s + parseFloat(p.valor||0), 0);
+            const sumGastosPagados = mG.filter(g => g.estado === 'PAGADO').reduce((s, g) => s + parseFloat(g.valor||0), 0);
+            
+            const tP = Math.max(sumPagosFisicos, sumGastosPagados); // El Abono Real Reconocido
+            const sP = tD - tP; // Saldo Pendiente Matemáticamente Correcto
             
             tc.innerHTML += `
             <tr>
@@ -1590,23 +1593,33 @@ async function renderizarTodasLasTablasAdmin() {
     setTimeout(hacerTablasResponsivas, 200);
 }
 
+// CORRECCIÓN MATEMÁTICA: Asegurar que el dinero "Marcado como Pagado" se sume a los Ingresos Globales
 function renderizarDashboardAdmin(pagosRender, actiRender) {
-    let pagosValidados = pagosRender.filter(p => p.estado === 'VALIDADO').reduce((s, p) => s + parseFloat(p.valor || 0), 0);
+    let pagosValidados = 0;
+    
+    let uMeta = (cursoFiltroActual === "TODOS") 
+        ? usuariosBD.filter(u => u.rol === 'PADRE') 
+        : usuariosBD.filter(u => u.rol === 'PADRE' && compararCursos(u.curso, cursoFiltroActual));
+    
+    let metaTotal = 0;
+        
+    uMeta.forEach(u => {
+        // Deuda de este usuario
+        let deudasPadre = gastosPadres.filter(g => String(g.username) === String(u.username)).reduce((s, g) => s + parseFloat(g.valor||0), 0);
+        metaTotal += parseFloat(u.valor_total_pagar || 0) + deudasPadre;
+        
+        // Pagos validados de este usuario
+        let uPagos = pagosRender.filter(p => String(p.usuario) === String(u.username) && p.estado === 'VALIDADO').reduce((s, p) => s + parseFloat(p.valor || 0), 0);
+        // Rubros que el admin marcó directamente como PAGADO
+        let uGastosPagados = gastosPadres.filter(g => String(g.username) === String(u.username) && g.estado === 'PAGADO').reduce((s, g) => s + parseFloat(g.valor || 0), 0);
+        
+        pagosValidados += Math.max(uPagos, uGastosPagados);
+    });
     
     let totalIngresosBase = cursoFiltroActual === "TODOS" ? ingresosGlobales.reduce((s, i) => s + parseFloat(i.valor || 0), 0) : 0;
     let totalIngresos = totalIngresosBase + pagosValidados + actiRender.reduce((s, a) => s + parseFloat(a.valor || 0), 0);
     
     let totalEgresos = (cursoFiltroActual === "TODOS") ? egresosGlobales.reduce((s, e) => s + parseFloat(e.valor || 0), 0) : 0;
-    
-    let metaTotal = 0;
-    let uMeta = (cursoFiltroActual === "TODOS") 
-        ? usuariosBD.filter(u => u.rol === 'PADRE') 
-        : usuariosBD.filter(u => u.rol === 'PADRE' && compararCursos(u.curso, cursoFiltroActual));
-        
-    uMeta.forEach(u => {
-        let deudasPadre = gastosPadres.filter(g => String(g.username) === String(u.username)).reduce((s, g) => s + parseFloat(g.valor||0), 0);
-        metaTotal += parseFloat(u.valor_total_pagar || 0) + deudasPadre;
-    });
     
     if(document.getElementById('dash-ingresos')) {
         document.getElementById('dash-ingresos').innerText = `$${totalIngresos.toFixed(2)}`;
@@ -1640,13 +1653,19 @@ function renderizarDashboardCurso() {
     cursosUnicos.forEach(curso => {
         const alumnos = usuariosBD.filter(u => u.rol === 'PADRE' && compararCursos(u.curso, curso));
         let mC = 0;
+        let pV = 0;
         
         alumnos.forEach(a => {
+            // Calcular deuda
             let deudaPadre = gastosPadres.filter(g => String(g.username) === String(a.username)).reduce((s, g) => s + parseFloat(g.valor||0), 0);
             mC += parseFloat(a.valor_total_pagar||0) + deudaPadre;
+            
+            // Calcular ingresos reales (Vouchers vs Rubros marcados Pagados)
+            let uPagos = pagosGlobales.filter(p => p.estado === 'VALIDADO' && String(p.usuario) === String(a.username)).reduce((s, p) => s + parseFloat(p.valor||0), 0);
+            let uGastosPagados = gastosPadres.filter(g => String(g.username) === String(a.username) && g.estado === 'PAGADO').reduce((s, g) => s + parseFloat(g.valor||0), 0);
+            pV += Math.max(uPagos, uGastosPagados);
         });
         
-        let pV = pagosGlobales.filter(p => p.estado === 'VALIDADO' && usuariosBD.some(u => String(u.username) === String(p.usuario) && compararCursos(u.curso, curso))).reduce((s, p) => s + parseFloat(p.valor||0), 0);
         let aV = actividadesGlobales.filter(a => compararCursos(a.curso, curso)).reduce((s, a) => s + parseFloat(a.valor||0), 0);
         
         const tR = pV + aV;
@@ -1716,7 +1735,7 @@ async function guardarFiestaPadre(e) {
     }
 }
 
-// CORRECCIÓN: EVITA QUE SE PIERDA LA INFORMACIÓN SI EL SISTEMA LEE LA CUENTA COMO NÚMERO
+// CORRECCIÓN MAESTRA PARA LOS PADRES: Resuelve la pantalla de saldo congelado 
 function actualizarDashboardPadre() {
     cargarDatosDesdeServidor().then(() => {
         let user = usuariosBD.find(u => String(u.username) === String(usuarioActual.username));
@@ -1729,8 +1748,18 @@ function actualizarDashboardPadre() {
         
         let cB = parseFloat(user.valor_total_pagar || 0);
         let tR = mG.reduce((s, g) => s + parseFloat(g.valor||0), 0);
+        
+        // TOTAL DE LA DEUDA ORIGINAL
         let tA = cB + tR;
-        let tP = mP.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
+        
+        // MATEMÁTICA CORREGIDA: Detectar dinero ingresado
+        let sumPagosValidados = mP.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
+        let sumGastosMarcadosPagados = mG.filter(g => g.estado === 'PAGADO').reduce((sum, g) => sum + parseFloat(g.valor || 0), 0);
+        
+        // El abono real es el mayor entre lo que subió con voucher y lo que el admin aprobó a dedo.
+        let tP = Math.max(sumPagosValidados, sumGastosMarcadosPagados);
+        
+        // SALDO PENDIENTE REAL
         let pen = tA - tP;
 
         const vMG = document.getElementById('tabla-misgastos-padre');
@@ -1770,17 +1799,33 @@ function actualizarDashboardPadre() {
         const vE = document.getElementById('padre-vista-estado');
         if (vE) {
             let tr = [];
+            
+            // 1. CARGAMOS LA DEUDA
             if (cB > 0) {
                 tr.push({ fecha: '2024-01-01', c: 'Deuda Inicial / Cuota Base', i: 0, g: cB, v: true });
             }
-            
             mG.forEach(g => {
                 tr.push({ fecha: g.fecha, c: `Gasto Asignado: ${g.concepto}`, i: 0, g: parseFloat(g.valor||0), v: true });
             });
             
+            // 2. CARGAMOS LOS PAGOS VÍA VOUCHER
             mP.forEach(p => {
                 tr.push({ fecha: p.fecha, cmp: p.voucher || '-', c: 'Abono / Transferencia Registrada', i: parseFloat(p.valor || 0), g: 0, v: p.estado === 'VALIDADO' });
             });
+
+            // 3. CARGAMOS LOS PAGOS "FANTASMA" (Si el admin marcó pagado sin requerir un voucher)
+            let ajusteAdmin = sumGastosMarcadosPagados > sumPagosValidados ? (sumGastosMarcadosPagados - sumPagosValidados) : 0;
+            if (ajusteAdmin > 0) {
+                let fechaAjuste = new Date().toISOString().split('T')[0]; // Fecha de hoy
+                tr.push({ 
+                    fecha: fechaAjuste, 
+                    cmp: 'SISTEMA', 
+                    c: 'Abono Directo en Administración (Aprobado Manual)', 
+                    i: ajusteAdmin, 
+                    g: 0, 
+                    v: true 
+                });
+            }
             
             tr.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
@@ -1827,7 +1872,7 @@ function actualizarDashboardPadre() {
                     <div class="col-md-4 mb-3">
                         <div class="card text-white bg-success shadow-sm h-100">
                             <div class="card-body">
-                                <h6 class="card-title"><i class="bi bi-piggy-bank-fill me-2"></i>Total Abonado (Aprobado)</h6>
+                                <h6 class="card-title"><i class="bi bi-piggy-bank-fill me-2"></i>Total Abonado (Reconocido)</h6>
                                 <h3 class="fw-bold mb-0">$${tP.toFixed(2)}</h3>
                             </div>
                         </div>
@@ -1854,7 +1899,7 @@ function actualizarDashboardPadre() {
                                 <thead class="table-primary">
                                     <tr>
                                         <th>Fecha</th>
-                                        <th>Voucher</th>
+                                        <th>Comprobante</th>
                                         <th>Concepto</th>
                                         <th>Ingreso</th>
                                         <th>Gasto</th>
