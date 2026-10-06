@@ -173,7 +173,9 @@ function mostrarAlerta(mensaje, icono = '✅') {
 async function cargarDatosDesdeServidor() {
     try {
         const resp = await fetch(`${API_URL}/datos?t=${new Date().getTime()}`);
-        if (!resp.ok) throw new Error("Error en la conexión con el servidor");
+        if (!resp.ok) {
+            throw new Error("Error en la conexión con el servidor");
+        }
         const data = await resp.json();
         
         usuariosBD = data.usuarios || []; 
@@ -223,7 +225,7 @@ function filtrarPadresGastos() {
 
 function verDetalleGastosPadre(username, reRender = false) {
     padreViendoGastosActual = username;
-    const u = usuariosBD.find(x => x.username === username);
+    const u = usuariosBD.find(x => String(x.username) === String(username));
     if(!u) return;
 
     document.getElementById('vista-lista-padres-gastos').classList.add('oculto');
@@ -231,12 +233,14 @@ function verDetalleGastosPadre(username, reRender = false) {
     document.getElementById('titulo-detalle-gastos-padre').innerHTML = `<i class="bi bi-person-lines-fill me-2"></i>Deudas de: <span class="text-primary">${u.nombre}</span>`;
 
     const chkAll = document.getElementById('chk-all-gastos');
-    if(chkAll) chkAll.checked = false;
+    if(chkAll) {
+        chkAll.checked = false;
+    }
 
     const tbody = document.getElementById('tabla-detalle-gastos');
     tbody.innerHTML = '';
 
-    const deudas = gastosPadres.filter(g => g.username === username);
+    const deudas = gastosPadres.filter(g => String(g.username) === String(username));
 
     if (deudas.length === 0) {
         tbody.innerHTML = `<tr><td colspan="6" class="text-muted py-4">Este padre no tiene deudas registradas.</td></tr>`;
@@ -278,7 +282,9 @@ function volverListaPadresGastos() {
 
 function toggleAllGastos(source) {
     const checkboxes = document.querySelectorAll('.chk-gasto-item');
-    checkboxes.forEach(chk => chk.checked = source.checked);
+    checkboxes.forEach(chk => {
+        chk.checked = source.checked;
+    });
 }
 
 async function cambiarEstadoSeleccionados(nuevoEstado) {
@@ -310,7 +316,9 @@ async function cambiarEstadoSeleccionados(nuevoEstado) {
                 headers: { 'Content-Type': 'application/json' }, 
                 body: JSON.stringify({ id: id, estado: nuevoEstado }) 
             });
-            if(r.ok) procesados++;
+            if(r.ok) {
+                procesados++;
+            }
         } catch(e) {
             console.error("Error al cambiar estado", id);
         }
@@ -334,7 +342,9 @@ async function eliminarGastosSeleccionados() {
         return;
     }
     
-    if(!confirm(`¿Estás seguro de borrar permanentemente las ${seleccionados.length} deuda(s)? Esta acción no se puede deshacer.`)) return;
+    if(!confirm(`¿Estás seguro de borrar permanentemente las ${seleccionados.length} deuda(s)? Esta acción no se puede deshacer.`)) {
+        return;
+    }
     
     const btnDelete = document.getElementById('btn-borrar-seleccionados');
     const originalText = btnDelete.innerHTML;
@@ -345,8 +355,12 @@ async function eliminarGastosSeleccionados() {
     for(let id of seleccionados) {
         try {
             let r = await fetch(`${API_URL}/gastos/${id}`, { method: 'DELETE' });
-            if(r.ok) borrados++;
-        } catch(e) {}
+            if(r.ok) {
+                borrados++;
+            }
+        } catch(e) {
+            console.error(e);
+        }
     }
     
     btnDelete.disabled = false;
@@ -404,7 +418,7 @@ async function procesarPagoMasivoRubro(e) {
 
     if(cursoSel !== 'TODOS') {
         deudasAfectadas = deudasAfectadas.filter(g => {
-            let u = usuariosBD.find(x => x.username === g.username);
+            let u = usuariosBD.find(x => String(x.username) === String(g.username));
             return u && compararCursos(u.curso, cursoSel);
         });
     }
@@ -431,7 +445,9 @@ async function procesarPagoMasivoRubro(e) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id: d.id, estado: 'PAGADO' })
             });
-            if(r.ok) exitos++;
+            if(r.ok) {
+                exitos++;
+            }
         } catch(error) {
             console.error(error);
         }
@@ -451,7 +467,7 @@ function inyectarNuevasFunciones() {
     const filePago = document.getElementById('pago-voucher-file');
     if(filePago) {
         filePago.setAttribute('accept', '.jpg, .jpeg');
-        filePago.setAttribute('title', 'Solo se permiten imágenes JPG');
+        filePago.setAttribute('title', 'Solo imágenes JPG');
     }
 
     const formEgreso = document.getElementById('form-egreso');
@@ -606,7 +622,7 @@ function inyectarNuevasFunciones() {
                     <div class="modal-body">
                         <form id="form-carga-masiva">
                             <div class="alert alert-info small">
-                                <strong>Instrucciones:</strong> Copia en tu Excel las celdas de Concepto y Valor y pégalas abajo. El sistema ignorará las columnas vacías.
+                                <strong>Instrucciones:</strong> Copia en tu Excel las celdas de Concepto y Valor y pégalas abajo. El sistema ignorará las columnas vacías automáticamente.
                             </div>
                             <div class="row mb-3">
                                 <div class="col-md-6">
@@ -645,7 +661,7 @@ function inyectarNuevasFunciones() {
                     </div>
                     <div class="modal-body">
                         <div class="alert alert-info small">
-                            <strong>¿Cómo funciona?</strong> Selecciona uno o varios rubros de abajo (ej. Olimpiadas). El sistema buscará a <b>todos los padres</b> que lo deban y se los marcará como <b>PAGADO</b> instantáneamente.
+                            <strong>¿Cómo funciona?</strong> Selecciona uno o varios rubros de abajo. El sistema buscará a <b>todos los padres</b> que lo deban y se los marcará como <b>PAGADO</b> instantáneamente.
                         </div>
                         <form id="form-pago-masivo-rubro">
                             <div class="mb-3">
@@ -683,7 +699,7 @@ function inyectarNuevasFunciones() {
                             <div class="alert alert-info small">
                                 <strong>Valores Oficiales del Comité:</strong><br>
                                 - Adultos: $${PRECIO_ADULTO.toFixed(2)} c/u<br>
-                                - Niños: $${PRECIO_NINO.toFixed(2)} c/u<br>
+                                - Niños: $${PRECIO_NINO.toFixed(2)} c/u
                             </div>
                             <div class="row mb-3">
                                 <div class="col-6">
@@ -741,9 +757,15 @@ function inyectarNuevasFunciones() {
                 <h4 class="text-danger fw-bold mb-3 mb-md-0"><i class="bi bi-bag-x-fill me-2"></i>Deudas por Rubros (Padres)</h4>
                 
                 <div class="d-flex flex-wrap gap-2">
-                    <button class="btn btn-danger shadow-sm fw-bold" onclick="abrirModalGastoAdmin()"><i class="bi bi-plus-circle me-1"></i> Asignar 1x1</button>
-                    <button class="btn btn-dark shadow-sm fw-bold" onclick="abrirModalCargaMasiva()"><i class="bi bi-file-earmark-spreadsheet-fill me-1"></i> Carga Masiva (Excel)</button>
-                    <button class="btn btn-success shadow-sm fw-bold" onclick="abrirModalPagoMasivoRubro()"><i class="bi bi-check2-all me-1"></i> Pagar a Todos</button>
+                    <button class="btn btn-danger shadow-sm fw-bold" onclick="abrirModalGastoAdmin()">
+                        <i class="bi bi-plus-circle me-1"></i> Asignar 1x1
+                    </button>
+                    <button class="btn btn-dark shadow-sm fw-bold" onclick="abrirModalCargaMasiva()">
+                        <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i> Carga Masiva (Excel)
+                    </button>
+                    <button class="btn btn-success shadow-sm fw-bold" onclick="abrirModalPagoMasivoRubro()">
+                        <i class="bi bi-check2-all me-1"></i> Pagar a Todos
+                    </button>
                 </div>
             </div>
             
@@ -776,7 +798,6 @@ function inyectarNuevasFunciones() {
                 </div>
             </div>
 
-            <!-- VISTA DETALLES CON BOTONES DE PAGO Y BORRADO MASIVO LOCAL -->
             <div id="vista-detalle-padre-gastos" class="oculto">
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3 p-3 bg-light rounded border">
                     <h5 class="fw-bold text-dark mb-3 mb-md-0" id="titulo-detalle-gastos-padre"></h5>
@@ -796,7 +817,9 @@ function inyectarNuevasFunciones() {
                     <table class="table table-hover align-middle text-center">
                         <thead class="table-danger">
                             <tr>
-                                <th style="width: 40px;"><input type="checkbox" class="form-check-input" id="chk-all-gastos" onchange="toggleAllGastos(this)" title="Seleccionar Todo"></th>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" class="form-check-input" id="chk-all-gastos" onchange="toggleAllGastos(this)" title="Seleccionar Todo">
+                                </th>
                                 <th>Fecha</th>
                                 <th>Concepto (Deuda)</th>
                                 <th>Valor</th>
@@ -815,11 +838,22 @@ function inyectarNuevasFunciones() {
 
 function abrirModalCargaMasiva() {
     document.getElementById('form-carga-masiva').reset();
+    
     document.getElementById('carga-masiva-fecha').value = new Date().toISOString().split('T')[0];
+    
     const sel = document.getElementById('carga-masiva-usuario');
-    sel.innerHTML = `<option value="">-- Seleccione a quién asignar la lista --</option><option value="TODOS" class="fw-bold text-danger">⚠️ A TODOS LOS PADRES DEL COLEGIO</option>`;
-    let padres = usuariosBD.filter(u => u.rol === 'PADRE').sort((a, b) => a.nombre.localeCompare(b.nombre));
-    padres.forEach(u => sel.innerHTML += `<option value="${u.username}">${u.nombre} (Paralelo ${u.curso||'Sin curso'})</option>`);
+    sel.innerHTML = `
+        <option value="">-- Seleccione a quién asignar la lista --</option>
+        <option value="TODOS" class="fw-bold text-danger">⚠️ A TODOS LOS PADRES DEL COLEGIO</option>
+    `;
+    
+    let padres = usuariosBD.filter(u => u.rol === 'PADRE');
+    padres.sort((a, b) => a.nombre.localeCompare(b.nombre));
+    
+    padres.forEach(u => {
+        sel.innerHTML += `<option value="${u.username}">${u.nombre} (Paralelo ${u.curso||'Sin curso'})</option>`;
+    });
+    
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCargaMasivaGastos')).show();
 }
 
@@ -833,38 +867,66 @@ async function procesarCargaMasiva(e) {
     let rubrosValidos = [];
     
     for (let linea of lineas) {
-        if (linea.trim() === '') continue;
+        if (linea.trim() === '') {
+            continue;
+        }
         let celdas = linea.split('\t'); 
         let concepto = celdas[0] ? celdas[0].trim() : '';
         let valor = 0;
         
         for (let i = 1; i < celdas.length; i++) {
             let num = parseFloat(celdas[i].replace(',', '.').replace(/[^0-9.-]/g, ''));
-            if (!isNaN(num) && num > 0) { valor = num; break; }
+            if (!isNaN(num) && num > 0) {
+                valor = num;
+                break;
+            }
         }
-        if (concepto !== '' && valor > 0) rubrosValidos.push({ concepto, valor });
+        if (concepto !== '' && valor > 0) {
+            rubrosValidos.push({ concepto, valor });
+        }
     }
     
-    if (rubrosValidos.length === 0) return mostrarAlerta("No se detectaron rubros válidos.", "⚠️");
-    if(!confirm(`Se detectaron ${rubrosValidos.length} rubros. ¿Proceder a subirlos?`)) return;
+    if (rubrosValidos.length === 0) {
+        mostrarAlerta("No se detectaron rubros válidos.", "⚠️");
+        return;
+    }
+    if(!confirm(`Se detectaron ${rubrosValidos.length} rubros. ¿Proceder a subirlos?`)) {
+        return;
+    }
 
     const btn = document.getElementById('btn-carga-masiva');
-    btn.disabled = true; btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Subiendo...`;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Subiendo...`;
 
     let exitos = 0;
     for (let rubro of rubrosValidos) {
         try {
+            let payload = {
+                usuario: usuarioSel,
+                concepto: rubro.concepto,
+                fecha: fecha,
+                valor: rubro.valor
+            };
+            
             let r = await fetch(`${API_URL}/gastos`, { 
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify({usuario: usuarioSel, concepto: rubro.concepto, fecha: fecha, valor: rubro.valor}) 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify(payload) 
             });
-            if(r.ok) exitos++;
-        } catch(e) {}
+            if(r.ok) {
+                exitos++;
+            }
+        } catch(e) {
+            console.error("Error al subir rubro masivo", e);
+        }
     }
     
-    btn.disabled = false; btn.innerHTML = `Subir Rubros Masivamente`;
+    btn.disabled = false;
+    btn.innerHTML = `Subir Rubros Masivamente`;
+    
     bootstrap.Modal.getInstance(document.getElementById('modalCargaMasivaGastos')).hide();
     mostrarAlerta(`Carga completada: Se guardaron ${exitos} rubros.`, "✅");
+    
     renderizarTodasLasTablasAdmin();
 }
 
@@ -890,146 +952,369 @@ async function iniciarSesion(e) {
     barra.classList.remove('oculto');
 
     try {
-        const bodyRequest = { username: document.getElementById('username').value.trim(), password: document.getElementById('password').value };
-        const resp = await fetch(`${API_URL}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyRequest) });
+        const bodyRequest = { 
+            username: document.getElementById('username').value.trim(), 
+            password: document.getElementById('password').value 
+        };
+        
+        const resp = await fetch(`${API_URL}/login`, { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify(bodyRequest) 
+        });
+        
         const data = await resp.json();
         
         if (data.exito) {
             sessionStorage.setItem('sesionSIGECO', JSON.stringify(data.usuario));
+            
             await cargarDatosDesdeServidor();
             inyectarNuevasFunciones(); 
+            
             if(data.usuario.debe_cambiar_clave === 1) {
                 usuarioActual = data.usuario;
                 document.getElementById('vista-login').classList.add('oculto');
                 bootstrap.Modal.getOrCreateInstance(document.getElementById('modalForzarClave')).show();
-            } else { cargarPortalSegunRol(data.usuario); }
+            } else {
+                cargarPortalSegunRol(data.usuario);
+            }
         } else {
             const errDiv = document.getElementById('mensaje-error');
-            if(errDiv) { errDiv.classList.remove('oculto'); errDiv.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i>${data.mensaje}`; }
+            if(errDiv) {
+                errDiv.classList.remove('oculto');
+                errDiv.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i>${data.mensaje}`;
+            }
         }
-    } catch (error) { 
-        mostrarAlerta("Error de conexión.", "❌"); 
+    } catch (error) {
+        mostrarAlerta("Error de conexión.", "❌");
     } finally {
-        if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = txtOriginal; }
-        if(barra) barra.classList.add('oculto');
+        if (btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = txtOriginal;
+        }
+        if(barra) {
+            barra.classList.add('oculto');
+        }
     }
 }
 
 async function guardarClaveForzada(e) {
     e.preventDefault();
     try {
-        const resp = await fetch(`${API_URL}/usuarios/clave`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: usuarioActual.username, password: document.getElementById('nueva-clave-forzada').value, forzar: 0 }) });
+        const payload = {
+            username: usuarioActual.username,
+            password: document.getElementById('nueva-clave-forzada').value,
+            forzar: 0
+        };
+        
+        const resp = await fetch(`${API_URL}/usuarios/clave`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
         const data = await resp.json();
+        
         if(resp.ok && data.exito){
-            usuarioActual.debe_cambiar_clave = 0; sessionStorage.setItem('sesionSIGECO', JSON.stringify(usuarioActual));
+            usuarioActual.debe_cambiar_clave = 0;
+            sessionStorage.setItem('sesionSIGECO', JSON.stringify(usuarioActual));
+            
             bootstrap.Modal.getInstance(document.getElementById('modalForzarClave')).hide();
             document.getElementById('form-forzar-clave').reset();
+            
             mostrarAlerta('Contraseña actualizada.', '🔐');
             cargarPortalSegunRol(usuarioActual);
-        } else mostrarAlerta("Error al cambiar contraseña.", "❌"); 
-    } catch (error) { mostrarAlerta("Error de conexión.", "❌"); }
+        } else {
+            mostrarAlerta("Error al cambiar contraseña.", "❌");
+        }
+    } catch (error) {
+        mostrarAlerta("Error de conexión.", "❌");
+    }
 }
 
+// CORRECCIÓN: SE ASEGURA DE ACTIVAR LA PESTAÑA PRINCIPAL PARA PADRES (EVITA LA PANTALLA BLANCA)
 function cargarPortalSegunRol(usuario) {
     usuarioActual = usuario;
     const errDiv = document.getElementById('mensaje-error');
-    if(errDiv) errDiv.classList.add('oculto');
+    if(errDiv) {
+        errDiv.classList.add('oculto');
+    }
     
     document.getElementById('vista-login').classList.add('oculto');
     document.getElementById('vista-app').style.display = '';
     document.getElementById('vista-app').classList.remove('oculto');
+    
     document.getElementById('nav-nombre-usuario').innerText = usuario.nombre;
     document.getElementById('badge-rol').innerText = usuario.rol;
 
     if (usuario.rol === 'ADMIN' || usuario.rol === 'COMITE') {
-        let menuHTML = `<li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarModuloAdmin('resumen', this)"><i class="bi bi-grid-1x2-fill me-2"></i> Resumen General</a></li><li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('gastospadres', this)"><i class="bi bi-bag-x-fill me-2"></i> Gastos a Padres</a></li><li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('pagos', this)"><i class="bi bi-journal-check me-2"></i> Control de Pagos</a></li><li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('egresos', this)"><i class="bi bi-cart-fill me-2"></i> Egresos Comité</a></li><li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('curso', this)"><i class="bi bi-bar-chart-fill me-2"></i> Avance por Curso</a></li><li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('actividades', this)"><i class="bi bi-cash-coin me-2"></i> Actividades Extra</a></li><li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('contratos', this)"><i class="bi bi-file-earmark-text-fill me-2"></i> Contratos</a></li><li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('actas', this)"><i class="bi bi-briefcase-fill me-2"></i> Actas de Comité</a></li>`;
-        if (usuario.rol === 'ADMIN') menuHTML += `<li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('usuarios', this)"><i class="bi bi-people-fill me-2"></i> Usuarios</a></li><li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('cuotas', this)"><i class="bi bi-wallet2 me-2"></i> Cuota Base</a></li>`;
+        let menuHTML = `
+            <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarModuloAdmin('resumen', this)"><i class="bi bi-grid-1x2-fill me-2"></i> Resumen General</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('gastospadres', this)"><i class="bi bi-bag-x-fill me-2"></i> Gastos a Padres</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('pagos', this)"><i class="bi bi-journal-check me-2"></i> Control de Pagos</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('egresos', this)"><i class="bi bi-cart-fill me-2"></i> Egresos Comité</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('curso', this)"><i class="bi bi-bar-chart-fill me-2"></i> Avance por Curso</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('actividades', this)"><i class="bi bi-cash-coin me-2"></i> Actividades Extra</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('contratos', this)"><i class="bi bi-file-earmark-text-fill me-2"></i> Contratos</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('actas', this)"><i class="bi bi-briefcase-fill me-2"></i> Actas de Comité</a></li>
+        `;
+        
+        if (usuario.rol === 'ADMIN') {
+            menuHTML += `
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('usuarios', this)"><i class="bi bi-people-fill me-2"></i> Usuarios</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('cuotas', this)"><i class="bi bi-wallet2 me-2"></i> Cuota Base</a></li>
+            `;
+        }
+        
         document.getElementById('menu-navegacion').innerHTML = menuHTML;
         document.getElementById('portal-admin').classList.remove('oculto');
-        if(document.getElementById('portal-padre')) document.getElementById('portal-padre').classList.add('oculto');
-        actualizarSelectCursos(); renderizarTodasLasTablasAdmin(); cambiarModuloAdmin('resumen', document.querySelector('#menu-navegacion .nav-link')); 
+        
+        if(document.getElementById('portal-padre')) {
+            document.getElementById('portal-padre').classList.add('oculto');
+        }
+        
+        actualizarSelectCursos(); 
+        renderizarTodasLasTablasAdmin(); 
+        cambiarModuloAdmin('resumen', document.querySelector('#menu-navegacion .nav-link')); 
     } else {
-        document.getElementById('menu-navegacion').innerHTML = `<li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarVistaPadre('estado', this)"><i class="bi bi-clock-history me-2"></i> Mi Libro Mayor</a></li><li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('misgastos', this)"><i class="bi bi-bag-x-fill me-2"></i> Mis Gastos Asignados</a></li><li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('documentos', this)"><i class="bi bi-folder2-open-fill me-2"></i> Documentos</a></li>`;
+        document.getElementById('menu-navegacion').innerHTML = `
+            <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarVistaPadre('estado', this)"><i class="bi bi-clock-history me-2"></i> Mi Libro Mayor</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('misgastos', this)"><i class="bi bi-bag-x-fill me-2"></i> Mis Gastos Asignados</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('documentos', this)"><i class="bi bi-folder2-open-fill me-2"></i> Documentos</a></li>
+        `;
+        
+        const portalPadre = document.getElementById('portal-padre');
+        if (portalPadre && !document.getElementById('padre-vista-misgastos')) {
+            portalPadre.insertAdjacentHTML('beforeend', `
+            <div id="padre-vista-misgastos" class="oculto">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 border-bottom pb-2">
+                    <h4 class="fw-bold text-danger mb-3 mb-md-0"><i class="bi bi-bag-x-fill me-2"></i>Mis Gastos Asignados (Detalle)</h4>
+                    <button class="btn btn-dark fw-bold shadow-sm" onclick="abrirModalFiestaPadre()">
+                        <i class="bi bi-balloon-fill me-1"></i> Asistencia Fiesta
+                    </button>
+                </div>
+                <div class="alert alert-info small">
+                    Aquí puede ver el desglose de los rubros que debe pagar. Haga clic en <strong>Subir Pago</strong> para enviar su comprobante.
+                </div>
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle text-center mb-0">
+                                <thead class="table-danger">
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Rubro / Concepto</th>
+                                        <th>Valor a Pagar</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabla-misgastos-padre"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>`);
+        }
+        
         document.getElementById('portal-padre').classList.remove('oculto');
         document.getElementById('portal-admin').classList.add('oculto');
-        actualizarDashboardPadre();
+        
+        // ESTO SOLUCIONA LA PANTALLA BLANCA (Fuerza cargar la vista del Libro Mayor)
+        cambiarVistaPadre('estado', document.querySelector('#menu-navegacion .nav-link'));
     }
     setTimeout(hacerTablasResponsivas, 500); 
 }
 
-function cerrarSesion() { usuarioActual = null; sessionStorage.removeItem('sesionSIGECO'); location.reload(); }
-function cerrarMenuMobile() { const toggler = document.querySelector('.navbar-toggler'); const collapse = document.querySelector('.navbar-collapse'); if (collapse && collapse.classList.contains('show')) toggler.click(); }
+function cerrarSesion() {
+    usuarioActual = null;
+    sessionStorage.removeItem('sesionSIGECO');
+    location.reload();
+}
+
+function cerrarMenuMobile() {
+    const toggler = document.querySelector('.navbar-toggler');
+    const collapse = document.querySelector('.navbar-collapse');
+    if (collapse && collapse.classList.contains('show')) {
+        toggler.click();
+    }
+}
 
 async function cambiarModuloAdmin(modulo, el) {
-    document.querySelectorAll('#portal-admin > div').forEach(d => { if(d.id && d.id.startsWith('admin-modulo-')) d.classList.add('oculto'); });
-    document.querySelectorAll('#menu-navegacion .nav-link').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('#portal-admin > div').forEach(d => {
+        if(d.id && d.id.startsWith('admin-modulo-')) {
+            d.classList.add('oculto');
+        }
+    });
+    
+    document.querySelectorAll('#menu-navegacion .nav-link').forEach(n => {
+        n.classList.remove('active');
+    });
+    
     const targetModule = document.getElementById(`admin-modulo-${modulo}`);
-    if (targetModule) targetModule.classList.remove('oculto');
-    if (el) el.classList.add('active');
-    cerrarMenuMobile(); await renderizarTodasLasTablasAdmin();
+    if (targetModule) {
+        targetModule.classList.remove('oculto');
+    }
+    
+    if (el) {
+        el.classList.add('active');
+    }
+    
+    cerrarMenuMobile();
+    await renderizarTodasLasTablasAdmin();
 }
 
 async function cambiarVistaPadre(vista, el) {
-    document.querySelectorAll('#portal-padre > div').forEach(d => d.classList.add('oculto'));
-    document.querySelectorAll('#menu-navegacion .nav-link').forEach(n => n.classList.remove('active'));
-    if (document.getElementById(`padre-vista-${vista}`)) document.getElementById(`padre-vista-${vista}`).classList.remove('oculto');
-    if(el) el.classList.add('active');
-    cerrarMenuMobile(); await actualizarDashboardPadre();
+    document.querySelectorAll('#portal-padre > div').forEach(d => {
+        d.classList.add('oculto');
+    });
+    
+    document.querySelectorAll('#menu-navegacion .nav-link').forEach(n => {
+        n.classList.remove('active');
+    });
+    
+    if (document.getElementById(`padre-vista-${vista}`)) {
+        document.getElementById(`padre-vista-${vista}`).classList.remove('oculto');
+    }
+    
+    if(el) {
+        el.classList.add('active');
+    }
+    
+    cerrarMenuMobile();
+    await actualizarDashboardPadre();
 }
 
-function aplicarFiltroCurso(curso) { cursoFiltroActual = curso; renderizarTodasLasTablasAdmin(); }
+function aplicarFiltroCurso(curso) {
+    cursoFiltroActual = curso;
+    renderizarTodasLasTablasAdmin();
+}
 
 function actualizarSelectCursos() {
     const selectFiltro = document.getElementById('select-filtro-curso');
     const selectModal = document.getElementById('act-curso'); 
     const selectGastos = document.getElementById('filtro-local-gastos');
-    const cursosUnicos = [...new Set(usuariosBD.map(u => u.curso).filter(c => c && c.trim() !== ''))].sort();
+    
+    const cursosBrutos = usuariosBD.map(u => u.curso).filter(c => c && c.trim() !== '');
+    const cursosUnicos = [...new Set(cursosBrutos)].sort();
     
     if(selectFiltro) {
-        const val = selectFiltro.value; selectFiltro.innerHTML = '<option value="TODOS">Todos los Cursos (General)</option>';
-        cursosUnicos.forEach(c => selectFiltro.innerHTML += `<option value="${c}">Solo mostrar Paralelo ${c}</option>`);
-        if(cursosUnicos.includes(val)) selectFiltro.value = val;
+        const val = selectFiltro.value;
+        selectFiltro.innerHTML = '<option value="TODOS">Todos los Cursos (General)</option>';
+        cursosUnicos.forEach(c => {
+            selectFiltro.innerHTML += `<option value="${c}">Solo mostrar Paralelo ${c}</option>`;
+        });
+        if(cursosUnicos.includes(val)) {
+            selectFiltro.value = val;
+        }
     }
+    
     if(selectGastos) {
-        const val = selectGastos.value; selectGastos.innerHTML = '<option value="TODOS">Todos los Paralelos</option>';
-        cursosUnicos.forEach(c => selectGastos.innerHTML += `<option value="${c}">Paralelo ${c}</option>`);
-        if(cursosUnicos.includes(val)) selectGastos.value = val;
+        const val = selectGastos.value;
+        selectGastos.innerHTML = '<option value="TODOS">Todos los Paralelos</option>';
+        cursosUnicos.forEach(c => {
+            selectGastos.innerHTML += `<option value="${c}">Paralelo ${c}</option>`;
+        });
+        if(cursosUnicos.includes(val)) {
+            selectGastos.value = val;
+        }
     }
+    
     if(selectModal) {
         const valModal = selectModal.value;
-        selectModal.innerHTML = `<option value="">-- Seleccione un Curso --</option><option value="TODOS">🌐 Todos los Cursos (General)</option>`;
-        cursosUnicos.forEach(c => selectModal.innerHTML += `<option value="${c}">Paralelo ${c}</option>`);
-        if(cursosUnicos.includes(valModal) || valModal === "TODOS") selectModal.value = valModal;
+        selectModal.innerHTML = `
+            <option value="">-- Seleccione un Curso --</option>
+            <option value="TODOS">🌐 Todos los Cursos (General)</option>
+        `;
+        cursosUnicos.forEach(c => {
+            selectModal.innerHTML += `<option value="${c}">Paralelo ${c}</option>`;
+        });
+        if(cursosUnicos.includes(valModal) || valModal === "TODOS") {
+            selectModal.value = valModal;
+        }
     }
 }
 
 function abrirModalGastoAdmin() {
     document.getElementById('form-asignar-gasto').reset();
+    
     const sel = document.getElementById('gasto-asignar-usuario');
-    sel.innerHTML = `<option value="">-- Seleccione a quién cobrar --</option><option value="TODOS" class="fw-bold text-danger">⚠️ A TODOS LOS PADRES (COBRO GENERAL)</option>`;
-    usuariosBD.filter(u => u.rol === 'PADRE').sort((a, b) => a.nombre.localeCompare(b.nombre)).forEach(u => sel.innerHTML += `<option value="${u.username}">${u.nombre}</option>`);
+    sel.innerHTML = `
+        <option value="">-- Seleccione a quién cobrar --</option>
+        <option value="TODOS" class="fw-bold text-danger">⚠️️ A TODOS LOS PADRES (COBRO GENERAL)</option>
+    `;
+    
+    let padres = usuariosBD.filter(u => u.rol === 'PADRE');
+    padres.sort((a, b) => a.nombre.localeCompare(b.nombre));
+    
+    padres.forEach(u => {
+        sel.innerHTML += `<option value="${u.username}">${u.nombre}</option>`;
+    });
+    
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGastosPadreAdmin')).show();
 }
 
 async function guardarNuevoGastoAdmin(e) {
     e.preventDefault();
     try {
-        const resp = await fetch(`${API_URL}/gastos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario: document.getElementById('gasto-asignar-usuario').value, concepto: document.getElementById('gasto-asignar-desc').value, fecha: document.getElementById('gasto-asignar-fecha').value, valor: parseFloat(document.getElementById('gasto-asignar-valor').value) }) });
+        const payload = {
+            usuario: document.getElementById('gasto-asignar-usuario').value,
+            concepto: document.getElementById('gasto-asignar-desc').value,
+            fecha: document.getElementById('gasto-asignar-fecha').value,
+            valor: parseFloat(document.getElementById('gasto-asignar-valor').value)
+        };
+        
+        const resp = await fetch(`${API_URL}/gastos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
         const data = await resp.json();
+        
         if(resp.ok && data.exito) {
             bootstrap.Modal.getInstance(document.getElementById('modalGastosPadreAdmin')).hide();
-            mostrarAlerta("Gasto asignado exitosamente.", "✅"); renderizarTodasLasTablasAdmin();
-        } else mostrarAlerta("Error al asignar el gasto", "❌"); 
-    } catch(err) { mostrarAlerta("Error de conexión", "❌"); }
+            mostrarAlerta("Gasto asignado exitosamente.", "✅");
+            renderizarTodasLasTablasAdmin();
+        } else {
+            mostrarAlerta("Error al asignar el gasto", "❌");
+        }
+    } catch(err) {
+        mostrarAlerta("Error de conexión", "❌");
+    }
 }
 
 async function cambiarEstadoGastoAdmin(id, nuevoEstado) {
-    try { await fetch(`${API_URL}/gastos/estado`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, estado: nuevoEstado }) }); renderizarTodasLasTablasAdmin(); } catch (error) { mostrarAlerta("Error", "❌"); }
+    try {
+        const payload = {
+            id: id,
+            estado: nuevoEstado
+        };
+        
+        await fetch(`${API_URL}/gastos/estado`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        renderizarTodasLasTablasAdmin();
+    } catch (error) {
+        mostrarAlerta("Error al cambiar estado", "❌");
+    }
 }
 
 async function eliminarGastoAdmin(id) {
-    if(!confirm("¿Borrar permanentemente?")) return;
-    try { await fetch(`${API_URL}/gastos/${id}`, { method: 'DELETE' }); mostrarAlerta("Deuda eliminada.", "✅"); renderizarTodasLasTablasAdmin(); } catch (error) { mostrarAlerta("Error", "❌"); }
+    if(!confirm("¿Borrar permanentemente?")) {
+        return;
+    }
+    
+    try {
+        await fetch(`${API_URL}/gastos/${id}`, { method: 'DELETE' });
+        mostrarAlerta("Deuda eliminada.", "✅");
+        renderizarTodasLasTablasAdmin();
+    } catch (error) {
+        mostrarAlerta("Error al eliminar", "❌");
+    }
 }
 
 async function renderizarTodasLasTablasAdmin() {
@@ -1044,13 +1329,27 @@ async function renderizarTodasLasTablasAdmin() {
     if (selPagoAdmin && usuarioActual && (usuarioActual.rol === 'ADMIN' || usuarioActual.rol === 'COMITE')) {
         const valAnterior = selPagoAdmin.value;
         selPagoAdmin.innerHTML = `<option value="">-- Seleccione un Padre --</option>`;
-        usuariosBD.filter(u => u.rol === 'PADRE').sort((a, b) => a.nombre.localeCompare(b.nombre)).forEach(u => selPagoAdmin.innerHTML += `<option value="${u.username}">${u.nombre} (Paralelo ${u.curso || 'Sin curso'})</option>`);
-        if(usuariosBD.some(p => p.username === valAnterior)) selPagoAdmin.value = valAnterior;
+        
+        let padresSelect = usuariosBD.filter(u => u.rol === 'PADRE');
+        padresSelect.sort((a, b) => a.nombre.localeCompare(b.nombre));
+        
+        padresSelect.forEach(u => {
+            selPagoAdmin.innerHTML += `<option value="${u.username}">${u.nombre} (Paralelo ${u.curso || 'Sin curso'})</option>`;
+        });
+        
+        if(usuariosBD.some(p => p.username === valAnterior)) {
+            selPagoAdmin.value = valAnterior;
+        }
     }
 
     if (cursoFiltroActual !== "TODOS") {
         usuariosParaRender = usuariosBD.filter(u => compararCursos(u.curso, cursoFiltroActual));
-        pagosParaRender = pagosGlobales.filter(p => { let u = usuariosBD.find(x => x.username === p.usuario); return u && compararCursos(u.curso, cursoFiltroActual); });
+        
+        pagosParaRender = pagosGlobales.filter(p => {
+            let u = usuariosBD.find(x => x.username === p.usuario);
+            return u && compararCursos(u.curso, cursoFiltroActual);
+        });
+        
         actividadesParaRender = actividadesGlobales.filter(a => compararCursos(a.curso, cursoFiltroActual) || a.curso.toUpperCase() === 'TODOS');
     }
 
@@ -1061,41 +1360,96 @@ async function renderizarTodasLasTablasAdmin() {
     if (tbPadresG) {
         tbPadresG.innerHTML = '';
         let padresMostrar = usuariosBD.filter(u => u.rol === 'PADRE');
-        if (cursoFiltroGastos !== "TODOS") padresMostrar = padresMostrar.filter(u => compararCursos(u.curso, cursoFiltroGastos));
+        
+        if (cursoFiltroGastos !== "TODOS") {
+            padresMostrar = padresMostrar.filter(u => compararCursos(u.curso, cursoFiltroGastos));
+        }
+        
         padresMostrar.sort((a, b) => a.nombre.localeCompare(b.nombre));
 
-        if (padresMostrar.length === 0) tbPadresG.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay padres.</td></tr>`;
-        else {
+        if (padresMostrar.length === 0) {
+            tbPadresG.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay padres.</td></tr>`;
+        } else {
             padresMostrar.forEach(u => {
-                const deudasPadre = gastosPadres.filter(g => g.username === u.username);
+                const deudasPadre = gastosPadres.filter(g => String(g.username) === String(u.username));
                 const totalDeuda = deudasPadre.reduce((s, g) => s + parseFloat(g.valor || 0), 0);
                 const deudasPendientes = deudasPadre.filter(g => g.estado === 'PENDIENTE').length;
-                let badge = deudasPendientes > 0 ? `<span class="badge bg-warning text-dark ms-2">${deudasPendientes} Pendiente(s)</span>` : `<span class="badge bg-success ms-2"><i class="bi bi-check-circle me-1"></i>Al día</span>`;
-                tbPadresG.innerHTML += `<tr class="fila-padre-gasto"><td class="fw-bold nombre-padre-gasto text-start"><i class="bi bi-person-fill me-2 text-secondary"></i>${u.nombre}</td><td><span class="badge bg-dark">${u.curso || 'Sin curso'}</span></td><td class="fw-bold text-danger fs-6">$${totalDeuda.toFixed(2)} ${badge}</td><td><button class="btn btn-sm btn-primary fw-bold" onclick="verDetalleGastosPadre('${u.username}')">Ver Deudas</button></td></tr>`;
+                
+                let badge = deudasPendientes > 0
+                    ? `<span class="badge bg-warning text-dark ms-2">${deudasPendientes} Pendiente(s)</span>`
+                    : `<span class="badge bg-success ms-2"><i class="bi bi-check-circle me-1"></i>Al día</span>`;
+                
+                tbPadresG.innerHTML += `
+                <tr class="fila-padre-gasto">
+                    <td class="fw-bold nombre-padre-gasto text-start"><i class="bi bi-person-fill me-2 text-secondary"></i>${u.nombre}</td>
+                    <td><span class="badge bg-dark">${u.curso || 'Sin curso'}</span></td>
+                    <td class="fw-bold text-danger fs-6">$${totalDeuda.toFixed(2)} ${badge}</td>
+                    <td><button class="btn btn-sm btn-primary fw-bold" onclick="verDetalleGastosPadre('${u.username}')">Ver Deudas</button></td>
+                </tr>`;
             });
         }
-        if (padreViendoGastosActual) verDetalleGastosPadre(padreViendoGastosActual, true);
+        
+        if (padreViendoGastosActual) {
+            verDetalleGastosPadre(padreViendoGastosActual, true);
+        }
     }
 
     const tbU = document.getElementById('tabla-usuarios-admin'); 
     if(tbU) {
         tbU.innerHTML = '';
         usuariosParaRender.forEach(u => {
-            let btnSt = u.estado === "ACTIVO" ? `<button class="btn btn-sm btn-outline-danger fw-bold shadow-sm" onclick="toggleEstadoUsuario('${u.username}')">Desactivar</button>` : `<button class="btn btn-sm btn-success fw-bold shadow-sm" onclick="toggleEstadoUsuario('${u.username}')">Activar</button>`;
-            tbU.innerHTML += `<tr><td class="text-primary fw-bold">${u.username}</td><td>${u.nombre}</td><td><span class="badge bg-primary">${u.rol}</span></td><td><span class="badge bg-dark">${u.curso||'-'}</span></td><td><span class="badge ${u.estado==='ACTIVO'?'bg-success':'bg-secondary'}">${u.estado}</span></td><td><div class="d-flex gap-1 justify-content-center"><button class="btn btn-sm btn-primary fw-bold shadow-sm" onclick="abrirModalUsuario('${u.username}')">Editar</button>${btnSt}</div></td></tr>`;
+            let btnSt = u.estado === "ACTIVO"
+                ? `<button class="btn btn-sm btn-outline-danger fw-bold shadow-sm" onclick="toggleEstadoUsuario('${u.username}')">Desactivar</button>`
+                : `<button class="btn btn-sm btn-success fw-bold shadow-sm" onclick="toggleEstadoUsuario('${u.username}')">Activar</button>`;
+            
+            let claseEstado = u.estado === 'ACTIVO' ? 'bg-success' : 'bg-secondary';
+            
+            tbU.innerHTML += `
+            <tr>
+                <td class="text-primary fw-bold">${u.username}</td>
+                <td>${u.nombre}</td>
+                <td><span class="badge bg-primary">${u.rol}</span></td>
+                <td><span class="badge bg-dark">${u.curso||'-'}</span></td>
+                <td><span class="badge ${claseEstado}">${u.estado}</span></td>
+                <td>
+                    <div class="d-flex gap-1 justify-content-center">
+                        <button class="btn btn-sm btn-primary fw-bold shadow-sm" onclick="abrirModalUsuario('${u.username}')">Editar</button>
+                        ${btnSt}
+                    </div>
+                </td>
+            </tr>`;
         });
     }
 
     const tp = document.getElementById('tabla-pagos'); 
     if(tp) {
         tp.innerHTML = '';
-        if(pagosParaRender.length === 0) tp.innerHTML = `<tr><td colspan="7" class="text-muted py-4">No hay pagos.</td></tr>`;
-        else {
+        if(pagosParaRender.length === 0) {
+            tp.innerHTML = `<tr><td colspan="7" class="text-muted py-4">No hay pagos.</td></tr>`;
+        } else {
             pagosParaRender.forEach(p => {
-                const dU = usuariosBD.find(u => u.username === p.usuario);
-                const btnV = p.tiene_voucher ? `<button class="btn btn-sm btn-info text-white ms-2" onclick="abrirVoucher(${p.id})">Voucher</button>` : '';
-                let btnA = p.estado === 'PENDIENTE' ? `<button class="btn btn-sm btn-primary" onclick="validarPago(${p.id})">Aprobar</button>` : '<i class="bi bi-check-circle-fill text-success fs-5"></i>';
-                tp.innerHTML += `<tr><td class="fw-bold text-start">${dU?dU.nombre:p.usuario}<br><small class="text-muted">${dU?dU.curso:''}</small></td><td class="text-primary fw-bold">${p.usuario}</td><td>${p.fecha}</td><td>${p.voucher} ${btnV}</td><td class="fw-bold text-success">$${parseFloat(p.valor||0).toFixed(2)}</td><td><span class="badge ${p.estado==='VALIDADO'?'bg-success':'bg-warning text-dark'}">${p.estado}</span></td><td>${btnA}</td></tr>`;
+                const dU = usuariosBD.find(u => String(u.username) === String(p.usuario));
+                
+                const btnV = p.tiene_voucher
+                    ? `<button class="btn btn-sm btn-info text-white ms-2" onclick="abrirVoucher(${p.id})">Voucher</button>`
+                    : '';
+                
+                let btnA = p.estado === 'PENDIENTE'
+                    ? `<button class="btn btn-sm btn-primary" onclick="validarPago(${p.id})">Aprobar</button>`
+                    : '<i class="bi bi-check-circle-fill text-success fs-5"></i>';
+                
+                let claseEstado = p.estado === 'VALIDADO' ? 'bg-success' : 'bg-warning text-dark';
+                
+                tp.innerHTML += `
+                <tr>
+                    <td class="fw-bold text-start">${dU ? dU.nombre : p.usuario}<br><small class="text-muted">${dU ? dU.curso : ''}</small></td>
+                    <td class="text-primary fw-bold">${p.usuario}</td>
+                    <td>${p.fecha}</td>
+                    <td>${p.voucher} ${btnV}</td>
+                    <td class="fw-bold text-success">$${parseFloat(p.valor||0).toFixed(2)}</td>
+                    <td><span class="badge ${claseEstado}">${p.estado}</span></td>
+                    <td>${btnA}</td>
+                </tr>`;
             });
         }
     }
@@ -1103,13 +1457,37 @@ async function renderizarTodasLasTablasAdmin() {
     const te = document.getElementById('tabla-egresos');
     if(te) {
         te.innerHTML = '';
-        if(egresosGlobales.length === 0) te.innerHTML = `<tr><td colspan="6" class="text-muted py-4">No hay egresos.</td></tr>`;
-        else {
+        if(egresosGlobales.length === 0) {
+            te.innerHTML = `<tr><td colspan="6" class="text-muted py-4">No hay egresos.</td></tr>`;
+        } else {
             egresosGlobales.forEach(e => {
-                const bD = e.tiene_doc ? `<button class="btn btn-sm btn-outline-danger" onclick="verEgresoPDF(${e.id})">Factura</button>` : '-';
+                const bD = e.tiene_doc
+                    ? `<button class="btn btn-sm btn-outline-danger" onclick="verEgresoPDF(${e.id})">Factura</button>`
+                    : '-';
+                
                 const est = e.estado_pago || 'PENDIENTE';
-                const bE = est === 'PENDIENTE' ? `<button class="btn btn-sm btn-success" onclick="marcarEgresoEstado(${e.id}, 'PAGADO')">Pagar</button>` : `<button class="btn btn-sm btn-warning" onclick="marcarEgresoEstado(${e.id}, 'PENDIENTE')">Revertir</button>`;
-                te.innerHTML += `<tr><td>${e.fecha}</td><td class="fw-bold text-dark">${e.descripcion}</td><td>${e.proveedor}</td><td class="fw-bold text-danger">-$${parseFloat(e.valor||0).toFixed(2)}</td><td><span class="badge ${est==='PAGADO'?'bg-success':'bg-warning text-dark'}">${est}</span></td><td><div class="d-flex gap-1 justify-content-center">${bD} ${bE} <button class="btn btn-sm btn-danger" onclick="eliminarEgreso(${e.id})"><i class="bi bi-trash-fill"></i></button></div></td></tr>`;
+                
+                const bE = est === 'PENDIENTE'
+                    ? `<button class="btn btn-sm btn-success" onclick="marcarEgresoEstado(${e.id}, 'PAGADO')">Pagar</button>`
+                    : `<button class="btn btn-sm btn-warning" onclick="marcarEgresoEstado(${e.id}, 'PENDIENTE')">Revertir</button>`;
+                
+                let claseEstado = est === 'PAGADO' ? 'bg-success' : 'bg-warning text-dark';
+                
+                te.innerHTML += `
+                <tr>
+                    <td>${e.fecha}</td>
+                    <td class="fw-bold text-dark">${e.descripcion}</td>
+                    <td>${e.proveedor}</td>
+                    <td class="fw-bold text-danger">-$${parseFloat(e.valor||0).toFixed(2)}</td>
+                    <td><span class="badge ${claseEstado}">${est}</span></td>
+                    <td>
+                        <div class="d-flex gap-1 justify-content-center">
+                            ${bD} 
+                            ${bE} 
+                            <button class="btn btn-sm btn-danger" onclick="eliminarEgreso(${e.id})"><i class="bi bi-trash-fill"></i></button>
+                        </div>
+                    </td>
+                </tr>`;
             });
         }
     }
@@ -1119,35 +1497,94 @@ async function renderizarTodasLasTablasAdmin() {
         tc.innerHTML = '';
         usuariosParaRender.filter(u => u.rol === 'PADRE').forEach(u => {
             const cb = parseFloat(u.valor_total_pagar || 0);
-            const mG = gastosPadres.filter(g => g.username === u.username);
+            const mG = gastosPadres.filter(g => String(g.username) === String(u.username));
             const tG = mG.reduce((s, g) => s + parseFloat(g.valor||0), 0);
             const tD = cb + tG; 
-            const pP = pagosGlobales.filter(p => p.usuario === u.username && p.estado === 'VALIDADO');
+            
+            const pP = pagosGlobales.filter(p => String(p.usuario) === String(u.username) && p.estado === 'VALIDADO');
             const tP = pP.reduce((s, p) => s + parseFloat(p.valor||0), 0);
             const sP = tD - tP;
-            tc.innerHTML += `<tr><td class="text-primary fw-bold">${u.username}</td><td>${u.nombre}</td><td><div class="small">Cuota Base: $${cb.toFixed(2)}</div><div class="small text-muted">Rubros Extra: $${tG.toFixed(2)}</div><div class="fw-bold border-top pt-1">Total: $${tD.toFixed(2)}</div></td><td><div class="small text-success">Abonado: $${tP.toFixed(2)}</div><div class="fw-bold text-danger border-top pt-1">Saldo: $${sP.toFixed(2)}</div></td><td><button class="btn btn-sm btn-warning" onclick="abrirModalCuota('${u.username}', ${cb})"><i class="bi bi-pencil-fill"></i> Base</button></td></tr>`;
+            
+            tc.innerHTML += `
+            <tr>
+                <td class="text-primary fw-bold">${u.username}</td>
+                <td>${u.nombre}</td>
+                <td>
+                    <div class="small">Cuota Base: $${cb.toFixed(2)}</div>
+                    <div class="small text-muted">Rubros Extra: $${tG.toFixed(2)}</div>
+                    <div class="fw-bold border-top pt-1">Total: $${tD.toFixed(2)}</div>
+                </td>
+                <td>
+                    <div class="small text-success">Abonado: $${tP.toFixed(2)}</div>
+                    <div class="fw-bold text-danger border-top pt-1">Saldo: $${sP.toFixed(2)}</div>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-warning" onclick="abrirModalCuota('${u.username}', ${cb})">
+                        <i class="bi bi-pencil-fill"></i> Base
+                    </button>
+                </td>
+            </tr>`;
         });
     }
 
     const ta = document.getElementById('tabla-actas');
     if(ta) {
         ta.innerHTML = '';
-        if(actasGlobales.length === 0) ta.innerHTML = `<tr><td colspan="3" class="text-muted py-4">No hay actas.</td></tr>`;
-        else actasGlobales.forEach(a => { ta.innerHTML += `<tr><td>${a.fecha}</td><td class="fw-bold">${a.descripcion}</td><td>${a.tiene_doc?`<button class="btn btn-sm btn-dark" onclick="verActaPDF(${a.id})">Abrir Acta</button>`:'-'}</td></tr>`; });
+        if(actasGlobales.length === 0) {
+            ta.innerHTML = `<tr><td colspan="3" class="text-muted py-4">No hay actas.</td></tr>`;
+        } else {
+            actasGlobales.forEach(a => {
+                const bDoc = a.tiene_doc ? `<button class="btn btn-sm btn-dark" onclick="verActaPDF(${a.id})">Abrir Acta</button>` : '-';
+                ta.innerHTML += `
+                <tr>
+                    <td>${a.fecha}</td>
+                    <td class="fw-bold">${a.descripcion}</td>
+                    <td>${bDoc}</td>
+                </tr>`;
+            });
+        }
     }
 
     const tact = document.getElementById('tabla-actividades');
     if(tact) {
         tact.innerHTML = '';
-        if(actividadesParaRender.length === 0) tact.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay actividades.</td></tr>`;
-        else actividadesParaRender.forEach(a => { tact.innerHTML += `<tr><td>${a.fecha}</td><td><span class="badge bg-dark">${a.curso}</span></td><td class="fw-bold">${a.descripcion}</td><td class="fw-bold text-success">+$${parseFloat(a.valor||0).toFixed(2)}</td><td>${a.tiene_doc?`<button class="btn btn-sm btn-outline-success" onclick="verActividadPDF(${a.id})">Ver Respaldo</button>`:'-'}</td></tr>`; });
+        if(actividadesParaRender.length === 0) {
+            tact.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay actividades.</td></tr>`;
+        } else {
+            actividadesParaRender.forEach(a => {
+                const bDoc = a.tiene_doc ? `<button class="btn btn-sm btn-outline-success" onclick="verActividadPDF(${a.id})">Ver Respaldo</button>` : '-';
+                tact.innerHTML += `
+                <tr>
+                    <td>${a.fecha}</td>
+                    <td><span class="badge bg-dark">${a.curso}</span></td>
+                    <td class="fw-bold">${a.descripcion}</td>
+                    <td class="fw-bold text-success">+$${parseFloat(a.valor||0).toFixed(2)}</td>
+                    <td>${bDoc}</td>
+                </tr>`;
+            });
+        }
     }
 
     const tbDocs = document.getElementById('tabla-contratos'); 
     if(tbDocs) {
         tbDocs.innerHTML = '';
-        if (contratosGlobales.length === 0) tbDocs.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay contratos.</td></tr>`;
-        else contratosGlobales.forEach(c => { tbDocs.innerHTML += `<tr><td>${c.fecha}</td><td class="fw-bold">${c.desc||c.descripcion||''}</td><td>${c.prov||c.proveedor||''}</td><td class="fw-bold text-success">$${parseFloat(c.valor||0).toFixed(2)}</td><td><input class="form-check-input" type="checkbox" ${c.visible?'checked':''} onchange="toggleVisibleDoc(${c.id}, this.checked)"></td></tr>`; });
+        if (contratosGlobales.length === 0) {
+            tbDocs.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay contratos.</td></tr>`;
+        } else {
+            contratosGlobales.forEach(c => {
+                const cCh = c.visible ? 'checked' : '';
+                tbDocs.innerHTML += `
+                <tr>
+                    <td>${c.fecha}</td>
+                    <td class="fw-bold">${c.desc||c.descripcion||''}</td>
+                    <td>${c.prov||c.proveedor||''}</td>
+                    <td class="fw-bold text-success">$${parseFloat(c.valor||0).toFixed(2)}</td>
+                    <td>
+                        <input class="form-check-input" type="checkbox" ${cCh} onchange="toggleVisibleDoc(${c.id}, this.checked)">
+                    </td>
+                </tr>`;
+            });
+        }
     }
 
     setTimeout(hacerTablasResponsivas, 200);
@@ -1155,68 +1592,141 @@ async function renderizarTodasLasTablasAdmin() {
 
 function renderizarDashboardAdmin(pagosRender, actiRender) {
     let pagosValidados = pagosRender.filter(p => p.estado === 'VALIDADO').reduce((s, p) => s + parseFloat(p.valor || 0), 0);
-    let totalIngresos = (cursoFiltroActual === "TODOS" ? ingresosGlobales.reduce((s, i) => s + parseFloat(i.valor || 0), 0) : 0) + pagosValidados + actiRender.reduce((s, a) => s + parseFloat(a.valor || 0), 0);
+    
+    let totalIngresosBase = cursoFiltroActual === "TODOS" ? ingresosGlobales.reduce((s, i) => s + parseFloat(i.valor || 0), 0) : 0;
+    let totalIngresos = totalIngresosBase + pagosValidados + actiRender.reduce((s, a) => s + parseFloat(a.valor || 0), 0);
+    
     let totalEgresos = (cursoFiltroActual === "TODOS") ? egresosGlobales.reduce((s, e) => s + parseFloat(e.valor || 0), 0) : 0;
+    
     let metaTotal = 0;
+    let uMeta = (cursoFiltroActual === "TODOS") 
+        ? usuariosBD.filter(u => u.rol === 'PADRE') 
+        : usuariosBD.filter(u => u.rol === 'PADRE' && compararCursos(u.curso, cursoFiltroActual));
+        
+    uMeta.forEach(u => {
+        let deudasPadre = gastosPadres.filter(g => String(g.username) === String(u.username)).reduce((s, g) => s + parseFloat(g.valor||0), 0);
+        metaTotal += parseFloat(u.valor_total_pagar || 0) + deudasPadre;
+    });
     
-    let uMeta = (cursoFiltroActual === "TODOS") ? usuariosBD.filter(u => u.rol === 'PADRE') : usuariosBD.filter(u => u.rol === 'PADRE' && compararCursos(u.curso, cursoFiltroActual));
-    uMeta.forEach(u => { metaTotal += parseFloat(u.valor_total_pagar || 0) + gastosPadres.filter(g => g.username === u.username).reduce((s, g) => s + parseFloat(g.valor||0), 0); });
-    
-    if(document.getElementById('dash-ingresos')) document.getElementById('dash-ingresos').innerText = `$${totalIngresos.toFixed(2)}`;
-    if(document.getElementById('dash-egresos')) document.getElementById('dash-egresos').innerText = `$${totalEgresos.toFixed(2)}`;
-    if(document.getElementById('dash-saldo')) document.getElementById('dash-saldo').innerText = `$${(totalIngresos - totalEgresos).toFixed(2)}`;
-    if(document.getElementById('dash-meta')) document.getElementById('dash-meta').innerText = `$${metaTotal.toFixed(2)}`;
+    if(document.getElementById('dash-ingresos')) {
+        document.getElementById('dash-ingresos').innerText = `$${totalIngresos.toFixed(2)}`;
+    }
+    if(document.getElementById('dash-egresos')) {
+        document.getElementById('dash-egresos').innerText = `$${totalEgresos.toFixed(2)}`;
+    }
+    if(document.getElementById('dash-saldo')) {
+        document.getElementById('dash-saldo').innerText = `$${(totalIngresos - totalEgresos).toFixed(2)}`;
+    }
+    if(document.getElementById('dash-meta')) {
+        document.getElementById('dash-meta').innerText = `$${metaTotal.toFixed(2)}`;
+    }
 }
 
 function renderizarDashboardCurso() {
     const tc = document.getElementById('tabla-dashboard-curso');
     if(!tc) return;
+    
     let cursosUnicos = [...new Set(usuariosBD.map(u => u.curso).filter(c => c && c.trim() !== ''))].sort();
-    if(cursoFiltroActual !== "TODOS") cursosUnicos = cursosUnicos.filter(c => compararCursos(c, cursoFiltroActual));
+    if(cursoFiltroActual !== "TODOS") {
+        cursosUnicos = cursosUnicos.filter(c => compararCursos(c, cursoFiltroActual));
+    }
 
     tc.innerHTML = '';
-    if(cursosUnicos.length === 0) { tc.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay datos.</td></tr>`; return; }
+    if(cursosUnicos.length === 0) {
+        tc.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay datos.</td></tr>`;
+        return;
+    }
 
     cursosUnicos.forEach(curso => {
         const alumnos = usuariosBD.filter(u => u.rol === 'PADRE' && compararCursos(u.curso, curso));
         let mC = 0;
-        alumnos.forEach(a => { mC += parseFloat(a.valor_total_pagar||0) + gastosPadres.filter(g => g.username === a.username).reduce((s, g) => s + parseFloat(g.valor||0), 0); });
-        const tR = pagosGlobales.filter(p => p.estado === 'VALIDADO' && usuariosBD.some(u => u.username === p.usuario && compararCursos(u.curso, curso))).reduce((s, p) => s + parseFloat(p.valor||0), 0) + actividadesGlobales.filter(a => compararCursos(a.curso, curso)).reduce((s, a) => s + parseFloat(a.valor||0), 0);
-        tc.innerHTML += `<tr><td class="fw-bold" style="color:#1e3c72;">${curso}</td><td class="fw-bold">${alumnos.length}</td><td class="fw-bold text-success">$${tR.toFixed(2)}</td><td class="fw-bold text-info">$${mC.toFixed(2)}</td></tr>`;
+        
+        alumnos.forEach(a => {
+            let deudaPadre = gastosPadres.filter(g => String(g.username) === String(a.username)).reduce((s, g) => s + parseFloat(g.valor||0), 0);
+            mC += parseFloat(a.valor_total_pagar||0) + deudaPadre;
+        });
+        
+        let pV = pagosGlobales.filter(p => p.estado === 'VALIDADO' && usuariosBD.some(u => String(u.username) === String(p.usuario) && compararCursos(u.curso, curso))).reduce((s, p) => s + parseFloat(p.valor||0), 0);
+        let aV = actividadesGlobales.filter(a => compararCursos(a.curso, curso)).reduce((s, a) => s + parseFloat(a.valor||0), 0);
+        
+        const tR = pV + aV;
+        
+        tc.innerHTML += `
+        <tr>
+            <td class="fw-bold" style="color:#1e3c72;">${curso}</td>
+            <td class="fw-bold">${alumnos.length}</td>
+            <td class="fw-bold text-success">$${tR.toFixed(2)}</td>
+            <td class="fw-bold text-info">$${mC.toFixed(2)}</td>
+        </tr>`;
     });
 }
 
 function abrirModalPagoPrellenado(valorPredeterminado = null) {
-    document.getElementById('form-pago').reset(); limpiarFeedbackArchivos();
+    document.getElementById('form-pago').reset();
+    limpiarFeedbackArchivos();
+    
     const sel = document.getElementById('pago-usuario');
     if (usuarioActual && usuarioActual.rol === 'PADRE') {
         sel.innerHTML = `<option value="${usuarioActual.username}">${usuarioActual.nombre}</option>`;
-        sel.value = usuarioActual.username; sel.style.pointerEvents = "none"; sel.style.backgroundColor = "#e9ecef";
-    } else { sel.style.pointerEvents = "auto"; sel.style.backgroundColor = ""; }
-    if(valorPredeterminado) document.getElementById('pago-valor').value = parseFloat(valorPredeterminado).toFixed(2);
+        sel.value = usuarioActual.username;
+        sel.style.pointerEvents = "none";
+        sel.style.backgroundColor = "#e9ecef";
+    } else {
+        sel.style.pointerEvents = "auto";
+        sel.style.backgroundColor = "";
+    }
+    
+    if(valorPredeterminado) {
+        document.getElementById('pago-valor').value = parseFloat(valorPredeterminado).toFixed(2);
+    }
+    
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalPago')).show();
 }
 
 function abrirModalFiestaPadre() {
-    const user = usuariosBD.find(u => u.username === usuarioActual.username);
+    const user = usuariosBD.find(u => String(u.username) === String(usuarioActual.username));
     document.getElementById('padre-adultos').value = user.adultos_fiesta || 0;
     document.getElementById('padre-ninos').value = user.ninos_fiesta || 0;
+    
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFiestaPadre')).show();
 }
 
 async function guardarFiestaPadre(e) {
     e.preventDefault();
     try {
-        const resp = await fetch(`${API_URL}/usuarios/fiesta/padre`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: usuarioActual.username, adultos: document.getElementById('padre-adultos').value, ninos: document.getElementById('padre-ninos').value }) });
-        if(resp.ok) { bootstrap.Modal.getInstance(document.getElementById('modalFiestaPadre')).hide(); mostrarAlerta("Guardado correctamente.", "✅"); actualizarDashboardPadre(); }
-    } catch(err) { mostrarAlerta("Error", "❌"); }
+        const payload = {
+            username: usuarioActual.username,
+            adultos: document.getElementById('padre-adultos').value,
+            ninos: document.getElementById('padre-ninos').value
+        };
+        
+        const resp = await fetch(`${API_URL}/usuarios/fiesta/padre`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        if(resp.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('modalFiestaPadre')).hide();
+            mostrarAlerta("Asistencia guardada.", "✅");
+            actualizarDashboardPadre();
+        }
+    } catch(err) {
+        mostrarAlerta("Error al guardar asistencia.", "❌");
+    }
 }
 
+// CORRECCIÓN: EVITA QUE SE PIERDA LA INFORMACIÓN SI EL SISTEMA LEE LA CUENTA COMO NÚMERO
 function actualizarDashboardPadre() {
     cargarDatosDesdeServidor().then(() => {
-        const user = usuariosBD.find(u => u.username === usuarioActual.username);
-        const mP = pagosGlobales.filter(p => p.usuario === usuarioActual.username);
-        const mG = gastosPadres.filter(g => g.username === usuarioActual.username);
+        let user = usuariosBD.find(u => String(u.username) === String(usuarioActual.username));
+        if(!user) {
+            user = usuarioActual; // Respaldo
+        }
+
+        const mP = pagosGlobales.filter(p => String(p.usuario) === String(usuarioActual.username));
+        const mG = gastosPadres.filter(g => String(g.username) === String(usuarioActual.username));
+        
         let cB = parseFloat(user.valor_total_pagar || 0);
         let tR = mG.reduce((s, g) => s + parseFloat(g.valor||0), 0);
         let tA = cB + tR;
@@ -1226,132 +1736,471 @@ function actualizarDashboardPadre() {
         const vMG = document.getElementById('tabla-misgastos-padre');
         if(vMG) {
             vMG.innerHTML = '';
-            if (cB > 0) vMG.innerHTML += `<tr><td>-</td><td class="fw-bold text-start">Cuota Base</td><td class="fw-bold text-danger">$${cB.toFixed(2)}</td><td><span class="badge bg-secondary">DEUDA INICIAL</span></td><td><button class="btn btn-sm btn-success fw-bold shadow-sm" onclick="abrirModalPagoPrellenado(${cB})"><i class="bi bi-upload"></i> Subir Pago</button></td></tr>`;
-            if (mG.length === 0 && cB === 0) vMG.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No tiene rubros.</td></tr>`;
+            
+            if (cB > 0) {
+                vMG.innerHTML += `
+                <tr>
+                    <td>-</td>
+                    <td class="fw-bold text-start">Cuota Base (Anual)</td>
+                    <td class="fw-bold text-danger">$${cB.toFixed(2)}</td>
+                    <td><span class="badge bg-secondary">DEUDA INICIAL</span></td>
+                    <td><button class="btn btn-sm btn-success fw-bold shadow-sm" onclick="abrirModalPagoPrellenado(${cB})"><i class="bi bi-upload"></i> Subir Pago</button></td>
+                </tr>`;
+            }
+            
+            if (mG.length === 0 && cB === 0) {
+                vMG.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No tiene rubros asignados.</td></tr>`;
+            }
+            
             mG.forEach(g => {
                 const bE = g.estado === 'PAGADO' ? '<span class="badge bg-success">PAGADO</span>' : '<span class="badge bg-warning text-dark">PENDIENTE</span>';
                 const bA = g.estado === 'PENDIENTE' ? `<button class="btn btn-sm btn-success fw-bold shadow-sm" onclick="abrirModalPagoPrellenado(${g.valor})"><i class="bi bi-upload"></i> Subir Pago</button>` : `<i class="bi bi-check-circle-fill text-success fs-5"></i>`;
-                vMG.innerHTML += `<tr><td>${g.fecha}</td><td class="fw-bold text-start">${g.concepto}</td><td class="fw-bold text-danger">$${parseFloat(g.valor||0).toFixed(2)}</td><td>${bE}</td><td>${bA}</td></tr>`;
+                
+                vMG.innerHTML += `
+                <tr>
+                    <td>${g.fecha}</td>
+                    <td class="fw-bold text-start">${g.concepto}</td>
+                    <td class="fw-bold text-danger">$${parseFloat(g.valor||0).toFixed(2)}</td>
+                    <td>${bE}</td>
+                    <td>${bA}</td>
+                </tr>`;
             });
         }
 
         const vE = document.getElementById('padre-vista-estado');
         if (vE) {
             let tr = [];
-            if (cB > 0) tr.push({ fecha: '2024-01-01', c: 'Cuota Base', i: 0, g: cB, v: true });
-            mG.forEach(g => tr.push({ fecha: g.fecha, c: `Rubro: ${g.concepto}`, i: 0, g: parseFloat(g.valor||0), v: true }));
-            mP.forEach(p => tr.push({ fecha: p.fecha, cmp: p.voucher || '-', c: 'Abono', i: parseFloat(p.valor || 0), g: 0, v: p.estado === 'VALIDADO' }));
+            if (cB > 0) {
+                tr.push({ fecha: '2024-01-01', c: 'Deuda Inicial / Cuota Base', i: 0, g: cB, v: true });
+            }
+            
+            mG.forEach(g => {
+                tr.push({ fecha: g.fecha, c: `Gasto Asignado: ${g.concepto}`, i: 0, g: parseFloat(g.valor||0), v: true });
+            });
+            
+            mP.forEach(p => {
+                tr.push({ fecha: p.fecha, cmp: p.voucher || '-', c: 'Abono / Transferencia Registrada', i: parseFloat(p.valor || 0), g: 0, v: p.estado === 'VALIDADO' });
+            });
+            
             tr.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
-            let hF = ''; let dA = 0; 
-            if (tr.length === 0) hF = `<tr><td colspan="6" class="text-muted py-4">No hay movimientos.</td></tr>`;
-            else {
+            let hF = '';
+            let dA = 0; 
+            
+            if (tr.length === 0) {
+                hF = `<tr><td colspan="6" class="text-muted py-4">No hay movimientos registrados.</td></tr>`;
+            } else {
                 tr.forEach(t => {
-                    if (t.v) { dA += t.g; dA -= t.i; }
-                    let eE = t.v ? '' : '<br><span class="badge bg-warning text-dark mt-1">En Espera de Aprobación</span>';
-                    hF += `<tr><td>${t.fecha}</td><td>${t.cmp||'-'}</td><td class="fw-bold text-start">${t.c} ${eE}</td><td class="text-success fw-bold">${t.i>0?'$'+t.i.toFixed(2):'-'}</td><td class="text-danger fw-bold">${t.g>0?'$'+t.g.toFixed(2):'-'}</td><td class="fw-bold ${t.v?'text-primary':'text-muted'}">$${Math.max(0, dA).toFixed(2)}</td></tr>`;
+                    if (t.v) {
+                        dA += t.g;
+                        dA -= t.i;
+                    }
+                    let eE = t.v ? '' : '<br><span class="badge bg-warning text-dark mt-1"><i class="bi bi-hourglass-split me-1"></i>En Espera de Aprobación</span>';
+                    
+                    let vI = t.i > 0 ? '$' + t.i.toFixed(2) : '-';
+                    let vG = t.g > 0 ? '$' + t.g.toFixed(2) : '-';
+                    let vS = '$' + Math.max(0, dA).toFixed(2);
+                    let colorS = t.v ? 'text-primary' : 'text-muted';
+                    
+                    hF += `
+                    <tr>
+                        <td>${t.fecha}</td>
+                        <td>${t.cmp||'-'}</td>
+                        <td class="fw-bold text-start">${t.c} ${eE}</td>
+                        <td class="text-success fw-bold">${vI}</td>
+                        <td class="text-danger fw-bold">${vG}</td>
+                        <td class="fw-bold ${colorS}">${vS}</td>
+                    </tr>`;
                 });
             }
 
-            vE.innerHTML = `<div class="row mb-4"><div class="col-md-4 mb-3"><div class="card text-white bg-primary shadow-sm h-100"><div class="card-body"><h6 class="card-title"><i class="bi bi-wallet2 me-2"></i>Total Gastos</h6><h3 class="fw-bold mb-0">$${tA.toFixed(2)}</h3></div></div></div><div class="col-md-4 mb-3"><div class="card text-white bg-success shadow-sm h-100"><div class="card-body"><h6 class="card-title"><i class="bi bi-piggy-bank-fill me-2"></i>Total Abonado</h6><h3 class="fw-bold mb-0">$${tP.toFixed(2)}</h3></div></div></div><div class="col-md-4 mb-3"><div class="card text-white bg-danger shadow-sm h-100"><div class="card-body"><h6 class="card-title"><i class="bi bi-exclamation-triangle-fill me-2"></i>Saldo Pendiente</h6><h3 class="fw-bold mb-0">$${Math.max(0, pen).toFixed(2)}</h3></div></div></div></div><div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 border-bottom pb-2"><h4 class="fw-bold text-primary mb-3 mb-md-0"><i class="bi bi-clock-history me-2"></i>Mi Libro Mayor</h4><button class="btn btn-success fw-bold shadow-sm" onclick="abrirModalPagoPrellenado()"><i class="bi bi-currency-dollar me-1"></i> Registrar Abono Libre</button></div><div class="card shadow-sm mb-4"><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover align-middle text-center mb-0"><thead class="table-primary"><tr><th>Fecha</th><th>Voucher</th><th>Concepto</th><th>Ingreso</th><th>Gasto</th><th>Saldo</th></tr></thead><tbody>${hF}</tbody></table></div></div></div>`;
+            vE.innerHTML = `
+                <div class="row mb-4">
+                    <div class="col-md-4 mb-3">
+                        <div class="card text-white bg-primary shadow-sm h-100">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="bi bi-wallet2 me-2"></i>Total Gastos Asignados</h6>
+                                <h3 class="fw-bold mb-0">$${tA.toFixed(2)}</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card text-white bg-success shadow-sm h-100">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="bi bi-piggy-bank-fill me-2"></i>Total Abonado (Aprobado)</h6>
+                                <h3 class="fw-bold mb-0">$${tP.toFixed(2)}</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card text-white bg-danger shadow-sm h-100">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="bi bi-exclamation-triangle-fill me-2"></i>Saldo Pendiente (Deuda)</h6>
+                                <h3 class="fw-bold mb-0">$${Math.max(0, pen).toFixed(2)}</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 border-bottom pb-2">
+                    <h4 class="fw-bold text-primary mb-3 mb-md-0"><i class="bi bi-clock-history me-2"></i>Mi Libro Mayor</h4>
+                    <button class="btn btn-success fw-bold shadow-sm" onclick="abrirModalPagoPrellenado()">
+                        <i class="bi bi-currency-dollar me-1"></i> Registrar Abono Libre
+                    </button>
+                </div>
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle text-center mb-0">
+                                <thead class="table-primary">
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Voucher</th>
+                                        <th>Concepto</th>
+                                        <th>Ingreso</th>
+                                        <th>Gasto</th>
+                                        <th>Saldo</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${hF}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
+        
+        setTimeout(hacerTablasResponsivas, 200);
     });
 }
 
 async function descargarArchivoInmune(url, nD) {
     try {
-        const resp = await fetch(url); const data = await resp.json();
+        const resp = await fetch(url);
+        const data = await resp.json();
+        
         if (data.exito && data.base64) {
             let b64 = data.base64;
+            
             if (!b64.includes('base64,')) {
-                if (b64.startsWith('JVBER')) b64 = 'data:application/pdf;base64,' + b64;
-                else if (b64.startsWith('/9j/') || b64.startsWith('iVBOR')) b64 = 'data:image/jpeg;base64,' + b64;
-                else b64 = 'data:application/pdf;base64,' + b64; 
+                if (b64.startsWith('JVBER')) {
+                    b64 = 'data:application/pdf;base64,' + b64;
+                } else if (b64.startsWith('/9j/') || b64.startsWith('iVBOR')) {
+                    b64 = 'data:image/jpeg;base64,' + b64;
+                } else {
+                    b64 = 'data:application/pdf;base64,' + b64; 
+                }
             }
-            const arr = b64.split(','); const mime = arr[0].match(/:(.*?);/)[1]; const bstr = atob(arr[1]);
-            let n = bstr.length; const u8arr = new Uint8Array(n); while(n--) { u8arr[n] = bstr.charCodeAt(n); }
-            const blob = new Blob([u8arr], {type: mime}); const blobUrl = window.URL.createObjectURL(blob);
-            const a = document.createElement("a"); a.href = blobUrl; a.download = nD; document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(blobUrl);
-        } else mostrarAlerta("Documento no encontrado.", "❌"); 
-    } catch (e) { mostrarAlerta("Error al descargar.", "❌"); }
+            
+            const arr = b64.split(',');
+            const mime = arr[0].match(/:(.*?);/)[1];
+            const bstr = atob(arr[1]);
+            
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            
+            while(n--) {
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            
+            const blob = new Blob([u8arr], {type: mime});
+            const blobUrl = window.URL.createObjectURL(blob);
+            
+            const a = document.createElement("a");
+            a.href = blobUrl;
+            a.download = nD;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(blobUrl);
+            
+        } else {
+            mostrarAlerta("Documento no encontrado o corrupto.", "❌"); 
+        }
+    } catch (e) {
+        mostrarAlerta("Error al descargar el archivo desde el servidor.", "❌"); 
+    }
 }
 
-function abrirVoucher(id) { descargarArchivoInmune(`${API_URL}/pagos/ver/${id}?t=${new Date().getTime()}`, `voucher_${id}.jpg`); }
-function verDocumentoPDF(id) { descargarArchivoInmune(`${API_URL}/documentos/ver/${id}?t=${new Date().getTime()}`, `contrato_${id}.pdf`); }
-function verActaPDF(id) { descargarArchivoInmune(`${API_URL}/actas/ver/${id}?t=${new Date().getTime()}`, `acta_${id}.pdf`); }
-function verEgresoPDF(id) { descargarArchivoInmune(`${API_URL}/egresos/ver/${id}?t=${new Date().getTime()}`, `factura_${id}.pdf`); }
-function verActividadPDF(id) { descargarArchivoInmune(`${API_URL}/actividades/ver/${id}?t=${new Date().getTime()}`, `respaldo_${id}.pdf`); }
+function abrirVoucher(id) { 
+    descargarArchivoInmune(`${API_URL}/pagos/ver/${id}?t=${new Date().getTime()}`, `voucher_pago_${id}.jpg`); 
+}
+function verDocumentoPDF(id) { 
+    descargarArchivoInmune(`${API_URL}/documentos/ver/${id}?t=${new Date().getTime()}`, `contrato_${id}.pdf`); 
+}
+function verActaPDF(id) { 
+    descargarArchivoInmune(`${API_URL}/actas/ver/${id}?t=${new Date().getTime()}`, `acta_${id}.pdf`); 
+}
+function verEgresoPDF(id) { 
+    descargarArchivoInmune(`${API_URL}/egresos/ver/${id}?t=${new Date().getTime()}`, `factura_${id}.pdf`); 
+}
+function verActividadPDF(id) { 
+    descargarArchivoInmune(`${API_URL}/actividades/ver/${id}?t=${new Date().getTime()}`, `respaldo_${id}.pdf`); 
+}
 
 function leerArchivoComoBase64(file) { 
     return new Promise((res, rej) => { 
-        if(file.size > 3500000) { mostrarAlerta("Archivo muy pesado (Max 3MB).", "⚠️"); rej("Pesado"); return; }
-        const r = new FileReader(); r.onload = () => res(r.result); r.onerror = (e) => rej(e); r.readAsDataURL(file); 
+        if(file.size > 3500000) {
+            mostrarAlerta("Archivo muy pesado (Max 3MB).", "⚠️");
+            rej("Pesado");
+            return;
+        }
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.onerror = (e) => rej(e);
+        r.readAsDataURL(file); 
     }); 
 }
 
 async function registrarPago(e) { 
     e.preventDefault(); 
-    let vB64 = ""; const fI = document.getElementById('pago-voucher-file');
+    let vB64 = "";
+    const fI = document.getElementById('pago-voucher-file');
+    
     if(fI && fI.files[0]) { 
-        if(!fI.files[0].type.match('image/jpeg')) { mostrarAlerta("Solo JPG permitido.", "⚠️"); return; }
-        try { vB64 = await leerArchivoComoBase64(fI.files[0]); } catch (e) { return; }
+        if(!fI.files[0].type.match('image/jpeg')) {
+            mostrarAlerta("Solo formato JPG o JPEG está permitido para comprobantes.", "⚠️");
+            return;
+        }
+        try {
+            vB64 = await leerArchivoComoBase64(fI.files[0]);
+        } catch (e) {
+            return;
+        }
     }
+    
     try {
-        const resp = await fetch(`${API_URL}/pagos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario: document.getElementById('pago-usuario').value, fecha: document.getElementById('pago-fecha').value, voucher: document.getElementById('pago-voucher').value, valor: parseFloat(document.getElementById('pago-valor').value), voucher_b64: vB64 }) }); 
-        if(resp.ok) { bootstrap.Modal.getInstance(document.getElementById('modalPago')).hide(); document.getElementById('form-pago').reset(); limpiarFeedbackArchivos(); mostrarAlerta("Pago registrado exitosamente.", "✅"); if(usuarioActual.rol === 'PADRE') actualizarDashboardPadre(); else renderizarTodasLasTablasAdmin(); }
-    } catch(err) { mostrarAlerta("Error al registrar.", "❌"); }
+        const payload = {
+            usuario: document.getElementById('pago-usuario').value,
+            fecha: document.getElementById('pago-fecha').value,
+            voucher: document.getElementById('pago-voucher').value,
+            valor: parseFloat(document.getElementById('pago-valor').value),
+            voucher_b64: vB64
+        };
+        
+        const resp = await fetch(`${API_URL}/pagos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }); 
+        
+        const data = await resp.json();
+        
+        if(resp.ok && data.exito) { 
+            bootstrap.Modal.getInstance(document.getElementById('modalPago')).hide(); 
+            document.getElementById('form-pago').reset();
+            limpiarFeedbackArchivos(); 
+            
+            mostrarAlerta("Pago registrado exitosamente. En espera de aprobación del administrador.", "✅"); 
+            
+            if(usuarioActual.rol === 'PADRE') {
+                actualizarDashboardPadre();
+            } else {
+                renderizarTodasLasTablasAdmin();
+            }
+        } else {
+            mostrarAlerta("Error al registrar pago: " + data.mensaje, "❌");
+        }
+    } catch(err) {
+        mostrarAlerta("Error de conexión al subir el pago.", "❌");
+    }
 }
 
 async function validarPago(id) { 
     try {
-        const resp = await fetch(`${API_URL}/pagos/validar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({id: id}) }); 
-        if(resp.ok) { mostrarAlerta("Aprobado.", "✅"); renderizarTodasLasTablasAdmin(); }
-    } catch(err) { mostrarAlerta("Error.", "❌"); }
+        const payload = { id: id };
+        
+        const resp = await fetch(`${API_URL}/pagos/validar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }); 
+        
+        const data = await resp.json();
+        
+        if(resp.ok && data.exito) {
+            mostrarAlerta("Transferencia verificada y aprobada.", "✅");
+            renderizarTodasLasTablasAdmin();
+        } else {
+            mostrarAlerta("Error al validar la transferencia: " + data.mensaje, "❌");
+        }
+    } catch(err) {
+        mostrarAlerta("Error de conexión.", "❌");
+    }
 }
 
 async function registrarActividad(e) { 
     e.preventDefault();
-    const fI = document.getElementById('act-file'); const f = fI ? fI.files[0] : null;
-    if(!f) { mostrarAlerta("Adjunta el PDF obligatoriamente.", "⚠️"); return; }
-    let b64 = ""; try { b64 = await leerArchivoComoBase64(f); } catch(err) { return; }
+    const fI = document.getElementById('act-file');
+    const f = fI ? fI.files[0] : null;
+    
+    if(!f) {
+        mostrarAlerta("Debes adjuntar el archivo PDF de respaldo obligatoriamente.", "⚠️");
+        return;
+    }
+    
+    let b64 = "";
     try {
-        const resp = await fetch(`${API_URL}/actividades`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ curso: document.getElementById('act-curso').value.trim(), descripcion: document.getElementById('act-desc').value.trim(), fecha: document.getElementById('act-fecha').value, valor: parseFloat(document.getElementById('act-valor').value), archivoNombre: f.name, archivoData: b64 }) });
-        if(resp.ok) { bootstrap.Modal.getInstance(document.getElementById('modalActividad')).hide(); mostrarAlerta("Registrado.", "✅"); renderizarTodasLasTablasAdmin(); }
-    } catch(e) { mostrarAlerta("Error.", "❌"); }
+        b64 = await leerArchivoComoBase64(f);
+    } catch(err) {
+        return;
+    }
+    
+    try {
+        const payload = {
+            curso: document.getElementById('act-curso').value.trim(),
+            descripcion: document.getElementById('act-desc').value.trim(),
+            fecha: document.getElementById('act-fecha').value,
+            valor: parseFloat(document.getElementById('act-valor').value),
+            archivoNombre: f.name,
+            archivoData: b64
+        };
+        
+        const resp = await fetch(`${API_URL}/actividades`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        const data = await resp.json();
+        
+        if(resp.ok && data.exito) {
+            bootstrap.Modal.getInstance(document.getElementById('modalActividad')).hide();
+            document.getElementById('form-actividad').reset();
+            limpiarFeedbackArchivos();
+            
+            mostrarAlerta("Ingreso por Actividad guardado y registrado correctamente.", "✅");
+            renderizarTodasLasTablasAdmin();
+        } else {
+            mostrarAlerta("Error al subir actividad: " + data.mensaje, "❌");
+        }
+    } catch(e) {
+        mostrarAlerta("Error de conexión.", "❌");
+    }
 }
 
 async function registrarEgreso(e) {
     e.preventDefault();
-    const fI = document.getElementById('egreso-file'); const f = fI ? fI.files[0] : null;
-    let b64 = ""; let fN = ""; if(f) { try { b64 = await leerArchivoComoBase64(f); fN = f.name; } catch(err) { return; } }
+    const fI = document.getElementById('egreso-file');
+    const f = fI ? fI.files[0] : null;
+    
+    let b64 = "";
+    let fN = "";
+    if(f) {
+        try {
+            b64 = await leerArchivoComoBase64(f);
+            fN = f.name;
+        } catch(err) {
+            return;
+        }
+    }
+    
     try {
-        const resp = await fetch(`${API_URL}/egresos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fecha: document.getElementById('egreso-fecha').value, descripcion: document.getElementById('egreso-desc').value, proveedor: document.getElementById('egreso-prov').value, valor: parseFloat(document.getElementById('egreso-valor').value), archivoNombre: fN, archivoData: b64 }) });
-        if(resp.ok) { bootstrap.Modal.getInstance(document.getElementById('modalEgreso')).hide(); mostrarAlerta("Registrado.", "✅"); renderizarTodasLasTablasAdmin(); }
-    } catch(e) { mostrarAlerta("Error.", "❌"); }
+        const payload = {
+            fecha: document.getElementById('egreso-fecha').value,
+            descripcion: document.getElementById('egreso-desc').value,
+            proveedor: document.getElementById('egreso-prov').value,
+            valor: parseFloat(document.getElementById('egreso-valor').value),
+            archivoNombre: fN,
+            archivoData: b64
+        };
+        
+        const resp = await fetch(`${API_URL}/egresos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        const data = await resp.json();
+        
+        if(resp.ok && data.exito) {
+            bootstrap.Modal.getInstance(document.getElementById('modalEgreso')).hide();
+            document.getElementById('form-egreso').reset();
+            limpiarFeedbackArchivos();
+            
+            mostrarAlerta("Egreso del Comité registrado en la base de datos.", "✅");
+            renderizarTodasLasTablasAdmin();
+        } else {
+            mostrarAlerta("Error al registrar egreso: " + data.mensaje, "❌");
+        }
+    } catch(e) {
+        mostrarAlerta("Error de conexión al registrar egreso.", "❌");
+    }
 }
 
 async function subirActa(e) { 
     e.preventDefault();
-    const fI = document.getElementById('acta-file'); const f = fI ? fI.files[0] : null;
-    if(!f) { mostrarAlerta("Adjunta el PDF obligatoriamente.", "⚠️"); return; }
-    let b64 = ""; try { b64 = await leerArchivoComoBase64(f); } catch(err) { return; }
+    const fI = document.getElementById('acta-file');
+    const f = fI ? fI.files[0] : null;
+    
+    if(!f) {
+        mostrarAlerta("Por favor, selecciona un documento PDF obligatoriamente.", "⚠️");
+        return;
+    }
+    
+    let b64 = "";
     try {
-        const resp = await fetch(`${API_URL}/actas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fecha: document.getElementById('acta-fecha').value, descripcion: document.getElementById('acta-desc').value, archivoNombre: f.name, archivoData: b64 }) });
-        if(resp.ok) { bootstrap.Modal.getInstance(document.getElementById('modalActa')).hide(); mostrarAlerta("Acta subida.", "✅"); renderizarTodasLasTablasAdmin(); }
-    } catch(e) { mostrarAlerta("Error.", "❌"); }
+        b64 = await leerArchivoComoBase64(f);
+    } catch(err) {
+        return;
+    }
+    
+    try {
+        const payload = {
+            fecha: document.getElementById('acta-fecha').value,
+            descripcion: document.getElementById('acta-desc').value,
+            archivoNombre: f.name,
+            archivoData: b64
+        };
+        
+        const resp = await fetch(`${API_URL}/actas`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        const data = await resp.json();
+        
+        if(resp.ok && data.exito) {
+            bootstrap.Modal.getInstance(document.getElementById('modalActa')).hide();
+            document.getElementById('form-acta').reset();
+            limpiarFeedbackArchivos();
+            
+            mostrarAlerta("Acta subida correctamente al sistema.", "✅");
+            renderizarTodasLasTablasAdmin();
+        } else {
+            mostrarAlerta("Error al subir el acta: " + data.mensaje, "❌");
+        }
+    } catch(e) {
+        mostrarAlerta("Error de conexión.", "❌");
+    }
 }
 
 function abrirModalUsuario(username = null) { 
     const f = document.getElementById('form-usuario');
+    
     if(username) {
-        const u = usuariosBD.find(x => x.username === username);
-        document.getElementById('usu-modo').value = "EDITAR"; document.getElementById('usu-id').value = u.username; document.getElementById('usu-id').readOnly = true;
-        document.getElementById('usu-nombre').value = u.nombre; document.getElementById('usu-rol').value = u.rol; document.getElementById('usu-curso').value = u.curso;
-        document.getElementById('div-usu-clave').classList.add('oculto'); document.getElementById('usu-clave').required = false; 
+        const u = usuariosBD.find(x => String(x.username) === String(username));
+        document.getElementById('usu-modo').value = "EDITAR";
+        document.getElementById('usu-id').value = u.username;
+        document.getElementById('usu-id').readOnly = true;
+        
+        document.getElementById('usu-nombre').value = u.nombre;
+        document.getElementById('usu-rol').value = u.rol;
+        document.getElementById('usu-curso').value = u.curso;
+        
+        document.getElementById('div-usu-clave').classList.add('oculto');
+        document.getElementById('usu-clave').required = false; 
     } else {
-        f.reset(); document.getElementById('usu-modo').value = "CREAR"; document.getElementById('usu-id').readOnly = false;
-        document.getElementById('div-usu-clave').classList.remove('oculto'); document.getElementById('usu-clave').required = true; 
+        f.reset();
+        document.getElementById('usu-modo').value = "CREAR";
+        document.getElementById('usu-id').readOnly = false;
+        
+        document.getElementById('div-usu-clave').classList.remove('oculto');
+        document.getElementById('usu-clave').required = true; 
     }
+    
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalUsuario')).show(); 
 }
 
@@ -1359,41 +2208,198 @@ async function guardarUsuario(e) {
     e.preventDefault(); 
     try {
         const isC = document.getElementById('usu-modo').value === "CREAR";
-        const resp = await fetch(`${API_URL}/usuarios`, { method: isC ? 'POST' : 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: document.getElementById('usu-id').value.trim(), nombre: document.getElementById('usu-nombre').value, rol: document.getElementById('usu-rol').value, curso: document.getElementById('usu-curso').value, password: document.getElementById('usu-clave').value, asiste_fiesta: 'NO', adultos_fiesta: 0, ninos_fiesta: 0 }) });
-        if(resp.ok) { bootstrap.Modal.getInstance(document.getElementById('modalUsuario')).hide(); mostrarAlerta("Usuario guardado.", "✅"); renderizarTodasLasTablasAdmin(); }
-    } catch(e) { mostrarAlerta("Error.", "❌"); }
+        const method = isC ? 'POST' : 'PUT';
+        
+        const payload = {
+            username: document.getElementById('usu-id').value.trim(),
+            nombre: document.getElementById('usu-nombre').value,
+            rol: document.getElementById('usu-rol').value,
+            curso: document.getElementById('usu-curso').value,
+            password: document.getElementById('usu-clave').value,
+            asiste_fiesta: 'NO',
+            adultos_fiesta: 0,
+            ninos_fiesta: 0
+        };
+        
+        const resp = await fetch(`${API_URL}/usuarios`, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        const data = await resp.json();
+        
+        if(resp.ok && data.exito) {
+            bootstrap.Modal.getInstance(document.getElementById('modalUsuario')).hide();
+            mostrarAlerta("Usuario guardado y registrado exitosamente.", "✅");
+            renderizarTodasLasTablasAdmin();
+        } else {
+            mostrarAlerta("Error al guardar el usuario: " + data.mensaje, "❌");
+        }
+    } catch(e) {
+        mostrarAlerta("Error de conexión al guardar usuario.", "❌");
+    }
 }
 
 async function toggleEstadoUsuario(usr) { 
-    try { const u = usuariosBD.find(x => x.username === usr); await fetch(`${API_URL}/usuarios/estado`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: usr, estado: u.estado === "ACTIVO" ? "INACTIVO" : "ACTIVO" }) }); renderizarTodasLasTablasAdmin(); } catch(e) { mostrarAlerta("Error.", "❌"); }
+    try {
+        const u = usuariosBD.find(x => String(x.username) === String(usr));
+        const nuevoEstado = u.estado === "ACTIVO" ? "INACTIVO" : "ACTIVO";
+        
+        const payload = {
+            username: usr,
+            estado: nuevoEstado
+        };
+        
+        await fetch(`${API_URL}/usuarios/estado`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        renderizarTodasLasTablasAdmin();
+    } catch(e) {
+        mostrarAlerta("Error al cambiar el estado del usuario.", "❌");
+    }
 }
 
 function abrirModalCuota(user, val) { 
-    document.getElementById('cuota-usu').value = user; document.getElementById('nueva-cuota-input').value = parseFloat(val).toFixed(2); bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAsignarCuota')).show(); 
+    document.getElementById('cuota-usu').value = user;
+    document.getElementById('nueva-cuota-input').value = parseFloat(val).toFixed(2);
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAsignarCuota')).show(); 
 }
 
 async function guardarNuevaCuota(e) { 
     e.preventDefault(); 
-    try { const resp = await fetch(`${API_URL}/usuarios/cuota`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: document.getElementById('cuota-usu').value, valor: parseFloat(document.getElementById('nueva-cuota-input').value) }) }); if(resp.ok) { bootstrap.Modal.getInstance(document.getElementById('modalAsignarCuota')).hide(); mostrarAlerta("Cuota actualizada.", "✅"); renderizarTodasLasTablasAdmin(); } } catch(err) { mostrarAlerta("Error.", "❌"); }
+    try {
+        const payload = {
+            username: document.getElementById('cuota-usu').value,
+            valor: parseFloat(document.getElementById('nueva-cuota-input').value)
+        };
+        
+        const resp = await fetch(`${API_URL}/usuarios/cuota`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        const data = await resp.json();
+        
+        if(resp.ok && data.exito) {
+            bootstrap.Modal.getInstance(document.getElementById('modalAsignarCuota')).hide();
+            mostrarAlerta("La Cuota Base del estudiante ha sido actualizada.", "✅");
+            renderizarTodasLasTablasAdmin();
+        } else {
+            mostrarAlerta("Error al actualizar la cuota base.", "❌");
+        }
+    } catch(err) {
+        mostrarAlerta("Error de conexión.", "❌");
+    }
 }
 
 async function subirDocumento(e, tipo) { 
     e.preventDefault(); 
-    const fI = document.getElementById('ctr-file'); const f = fI ? fI.files[0] : null;
-    if(!f) { mostrarAlerta("Adjunta documento.", "⚠️"); return; }
-    let b64 = ""; try { b64 = await leerArchivoComoBase64(f); } catch(err) { return; }
-    try { const resp = await fetch(`${API_URL}/documentos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tipo: tipo, fecha: document.getElementById('ctr-fecha').value, desc: document.getElementById('ctr-desc').value, prov: document.getElementById('ctr-prov').value, valor: parseFloat(document.getElementById('ctr-valor').value), archivoNombre: f.name, archivoData: b64, visible: document.getElementById('ctr-visible').checked ? 1 : 0 }) }); if(resp.ok) { bootstrap.Modal.getInstance(document.getElementById('modalContrato')).hide(); mostrarAlerta("Contrato guardado.", "✅"); renderizarTodasLasTablasAdmin(); } } catch(e) { mostrarAlerta("Error.", "❌"); }
+    const fI = document.getElementById('ctr-file');
+    const f = fI ? fI.files[0] : null;
+    
+    if(!f) {
+        mostrarAlerta("Por favor, selecciona un documento obligatoriamente.", "⚠️");
+        return;
+    }
+    
+    let b64 = "";
+    try {
+        b64 = await leerArchivoComoBase64(f);
+    } catch(err) {
+        return;
+    }
+    
+    try {
+        const payload = {
+            tipo: tipo,
+            fecha: document.getElementById('ctr-fecha').value,
+            desc: document.getElementById('ctr-desc').value,
+            prov: document.getElementById('ctr-prov').value,
+            valor: parseFloat(document.getElementById('ctr-valor').value),
+            archivoNombre: f.name,
+            archivoData: b64,
+            visible: document.getElementById('ctr-visible').checked ? 1 : 0
+        };
+        
+        const resp = await fetch(`${API_URL}/documentos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        const data = await resp.json();
+        
+        if(resp.ok && data.exito) {
+            bootstrap.Modal.getInstance(document.getElementById('modalContrato')).hide();
+            document.getElementById('form-contrato').reset();
+            limpiarFeedbackArchivos();
+            
+            mostrarAlerta("Contrato guardado y subido exitosamente.", "✅");
+            renderizarTodasLasTablasAdmin();
+        } else {
+            mostrarAlerta("Error al guardar el contrato: " + data.mensaje, "❌");
+        }
+    } catch(e) {
+        mostrarAlerta("Error de conexión.", "❌");
+    }
 }
 
 async function toggleVisibleDoc(id, val) { 
-    try { await fetch(`${API_URL}/documentos/visible`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, visible: val ? 1 : 0 }) }); renderizarTodasLasTablasAdmin(); } catch(err) { mostrarAlerta("Error.", "❌"); }
+    try {
+        const payload = {
+            id: id,
+            visible: val ? 1 : 0
+        };
+        
+        await fetch(`${API_URL}/documentos/visible`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        renderizarTodasLasTablasAdmin();
+    } catch(err) {
+        mostrarAlerta("Error al cambiar la visibilidad del documento.", "❌");
+    }
 }
 
 async function marcarEgresoEstado(id, est) { 
-    try { await fetch(`${API_URL}/egresos/estado`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, estado: est }) }); renderizarTodasLasTablasAdmin(); } catch(err) { mostrarAlerta("Error.", "❌"); }
+    try {
+        const payload = {
+            id: id,
+            estado: est
+        };
+        
+        await fetch(`${API_URL}/egresos/estado`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        renderizarTodasLasTablasAdmin();
+    } catch(err) {
+        mostrarAlerta("Error al cambiar el estado del egreso.", "❌");
+    }
 }
 
 async function eliminarEgreso(id) { 
-    if(!confirm("¿Borrar definitivamente?")) return; 
-    try { await fetch(`${API_URL}/egresos/${id}`, { method: 'DELETE' }); renderizarTodasLasTablasAdmin(); } catch(err) { mostrarAlerta("Error.", "❌"); }
+    if(!confirm("¿Borrar definitivamente este egreso del comité? Esto no se puede deshacer.")) {
+        return; 
+    }
+    
+    try {
+        await fetch(`${API_URL}/egresos/${id}`, {
+            method: 'DELETE'
+        });
+        
+        mostrarAlerta("Egreso eliminado permanentemente del sistema.", "✅");
+        renderizarTodasLasTablasAdmin();
+    } catch(err) {
+        mostrarAlerta("Error al eliminar el egreso.", "❌");
+    }
 }
