@@ -265,24 +265,50 @@ function verDetalleGastosPadre(username, reRender = false) {
     tbody.innerHTML = '';
 
     const deudas = gastosPadres.filter(g => String(g.username) === String(username));
+    
+    // Calcular el Saldo a Favor disponible para mostrar la cascada al Admin
+    const mP = pagosGlobales.filter(p => String(p.usuario) === String(username));
+    let sumPagosValidados = mP.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
+    let sumGastosMarcadosPagados = deudas.filter(g => g.estado === 'PAGADO').reduce((sum, g) => sum + parseFloat(g.valor || 0), 0);
+    let abonoDisponible = Math.max(sumPagosValidados, sumGastosMarcadosPagados);
 
     if (deudas.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-muted py-4">Este padre no tiene deudas registradas.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="text-muted py-4">Este padre no tiene deudas registradas.</td></tr>`;
     } else {
         deudas.forEach(g => {
+            let valorRubro = parseFloat(g.valor || 0);
+            let saldoRubro = valorRubro;
+
+            // Logica de cascada
+            if (abonoDisponible > 0) {
+                if (abonoDisponible >= valorRubro) {
+                    saldoRubro = 0;
+                    abonoDisponible -= valorRubro;
+                } else {
+                    saldoRubro = valorRubro - abonoDisponible;
+                    abonoDisponible = 0;
+                }
+            }
+
+            if (g.estado === 'PAGADO') {
+                saldoRubro = 0;
+            }
+
+            const bE = saldoRubro === 0 ? '<span class="badge bg-success">PAGADO</span>' : (saldoRubro < valorRubro ? '<span class="badge bg-info text-dark">ABONO PARCIAL</span>' : '<span class="badge bg-warning text-dark">PENDIENTE</span>');
+
             const btnSt = g.estado === 'PENDIENTE'
-                ? `<button class="btn btn-sm btn-success fw-bold shadow-sm me-1" onclick="cambiarEstadoGastoAdmin(${g.id}, 'PAGADO')"><i class="bi bi-check2"></i> Pagar</button>`
-                : `<button class="btn btn-sm btn-warning fw-bold shadow-sm me-1" onclick="cambiarEstadoGastoAdmin(${g.id}, 'PENDIENTE')"><i class="bi bi-arrow-counterclockwise"></i> Revertir</button>`;
+                ? `<button class="btn btn-sm btn-success fw-bold shadow-sm me-1" onclick="cambiarEstadoGastoAdmin(${g.id}, 'PAGADO')" title="Forzar pago de este rubro manualmente"><i class="bi bi-check2"></i> Pagar</button>`
+                : `<button class="btn btn-sm btn-warning fw-bold shadow-sm me-1" onclick="cambiarEstadoGastoAdmin(${g.id}, 'PENDIENTE')" title="Revertir este pago"><i class="bi bi-arrow-counterclockwise"></i> Revertir</button>`;
 
-            let claseInsignia = g.estado === 'PAGADO' ? 'bg-success' : 'bg-warning text-dark';
-
+            // Inyectar HTML en la tabla del administrador
             tbody.innerHTML += `
             <tr>
                 <td><input type="checkbox" class="form-check-input chk-gasto-item" value="${g.id}"></td>
                 <td>${g.fecha}</td>
                 <td class="fw-bold text-dark text-start">${g.concepto}</td>
-                <td class="fw-bold text-danger">$${parseFloat(g.valor||0).toFixed(2)}</td>
-                <td><span class="badge ${claseInsignia}">${g.estado}</span></td>
+                <td class="fw-bold text-dark">$${valorRubro.toFixed(2)}</td>
+                <td class="fw-bold text-danger">$${saldoRubro.toFixed(2)}</td>
+                <td>${bE}</td>
                 <td>
                     <div class="d-flex justify-content-center">
                         ${btnSt}
@@ -904,7 +930,8 @@ function inyectarNuevasFunciones() {
                                 </th>
                                 <th>Fecha</th>
                                 <th>Concepto (Deuda)</th>
-                                <th>Valor</th>
+                                <th>Valor Original</th>
+                                <th>Saldo Pendiente</th>
                                 <th>Estado</th>
                                 <th>Acciones</th>
                             </tr>
@@ -1173,7 +1200,7 @@ function cargarPortalSegunRol(usuario) {
 
         const portalPadre = document.getElementById('portal-padre');
 
-        // RESTRUCTURACIÓN COMPLETA DE LA TABLA MIS GASTOS PARA TENER "VALOR ORIGINAL" Y "SALDO PENDIENTE"
+        // TABLA PADRE LIMPIA: Sin botón de Subir Pago ni columna de Acciones
         if (portalPadre && !document.getElementById('padre-vista-misgastos')) {
             const vistaGastosHTML = `
             <div id="padre-vista-misgastos" class="oculto">
@@ -1184,7 +1211,7 @@ function cargarPortalSegunRol(usuario) {
                     </button>
                 </div>
                 <div class="alert alert-info small">
-                    Aquí puede ver el desglose de los rubros que debe pagar. Haga clic en <strong>Subir Pago</strong> para enviar su comprobante.
+                    Aquí puede ver el desglose de sus rubros y cómo se descuentan sus abonos automáticamente. Para abonar a su cuenta, diríjase a la pestaña <strong>Estado de Cuenta</strong>.
                 </div>
                 <div class="card shadow-sm mb-4">
                     <div class="card-body p-0">
@@ -1197,7 +1224,6 @@ function cargarPortalSegunRol(usuario) {
                                         <th>Valor Original</th>
                                         <th>Saldo Pendiente</th>
                                         <th>Estado</th>
-                                        <th>Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody id="tabla-misgastos-padre"></tbody>
@@ -1887,12 +1913,12 @@ function actualizarDashboardPadre() {
 
         const vMG = document.getElementById('tabla-misgastos-padre');
 
-        // AQUI ESTÁ LA SOLUCIÓN DEFINITIVA A LA TABLA DE MIS GASTOS (SE AGREGARON LAS COLUMNAS VALOR ORIGINAL Y SALDO)
         if(vMG) {
             vMG.innerHTML = '';
 
             if (mG.length === 0) {
-                vMG.innerHTML = `<tr><td colspan="6" class="text-muted py-4">No tiene rubros asignados.</td></tr>`;
+                // Se quitó la columna de acciones (colspan de 6 a 5)
+                vMG.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No tiene rubros asignados.</td></tr>`;
             } else {
                 let abonoDisponible = tP;
 
@@ -1900,7 +1926,6 @@ function actualizarDashboardPadre() {
                     let valorRubro = parseFloat(g.valor || 0);
                     let saldoRubro = valorRubro;
 
-                    // Lógica para que los abonos libres cubran de a pocos los rubros más antiguos
                     if (abonoDisponible > 0) {
                         if (abonoDisponible >= valorRubro) {
                             saldoRubro = 0;
@@ -1911,15 +1936,13 @@ function actualizarDashboardPadre() {
                         }
                     }
 
-                    // Si el administrador manualmente lo puso como PAGADO, forzar el saldo a cero
                     if(g.estado === 'PAGADO') {
                         saldoRubro = 0;
                     }
 
                     const bE = saldoRubro === 0 ? '<span class="badge bg-success">PAGADO</span>' : (saldoRubro < valorRubro ? '<span class="badge bg-info text-dark">ABONO PARCIAL</span>' : '<span class="badge bg-warning text-dark">PENDIENTE</span>');
-                    const bA = saldoRubro > 0 ? `<button class="btn btn-sm btn-success fw-bold shadow-sm" onclick="abrirModalPagoPrellenado(${saldoRubro})"><i class="bi bi-upload"></i> Subir Pago</button>` : `<i class="bi bi-check-circle-fill text-success fs-5"></i>`;
-
-                    // Inyección HTML con las DOS columnas para no perder el costo original de vista
+                    
+                    // AQUI SE REMOVIÓ EL BOTON DE ACCIONES PARA EL PADRE
                     vMG.innerHTML += `
                     <tr>
                         <td>${g.fecha}</td>
@@ -1927,7 +1950,6 @@ function actualizarDashboardPadre() {
                         <td class="text-dark fw-bold">$${valorRubro.toFixed(2)}</td>
                         <td class="fw-bold text-danger">$${saldoRubro.toFixed(2)}</td>
                         <td>${bE}</td>
-                        <td>${bA}</td>
                     </tr>`;
                 });
             }
