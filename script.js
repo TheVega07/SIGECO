@@ -1139,7 +1139,7 @@ function cargarPortalSegunRol(usuario) {
         cambiarModuloAdmin('resumen', document.querySelector('#menu-navegacion .nav-link')); 
     } else {
         let menuHTMLPadre = `
-            <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarVistaPadre('estado', this)"><i class="bi bi-clock-history me-2"></i> Mi Libro Mayor</a></li>
+            <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarVistaPadre('estado', this)"><i class="bi bi-clock-history me-2"></i> Estado de Cuenta</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('misgastos', this)"><i class="bi bi-bag-x-fill me-2"></i> Mis Gastos Asignados</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarVistaPadre('documentos', this)"><i class="bi bi-folder2-open-fill me-2"></i> Documentos</a></li>
         `;
@@ -1576,7 +1576,6 @@ async function renderizarTodasLasTablasAdmin() {
             const mG = gastosPadres.filter(g => String(g.username) === String(u.username));
             const tG = mG.reduce((s, g) => s + parseFloat(g.valor||0), 0);
             
-            // ELIMINACIÓN DE LA CUOTA BASE PARA LOS CÁLCULOS
             const tD = tG; 
             
             const sumPagosFisicos = pagosGlobales.filter(p => String(p.usuario) === String(u.username) && p.estado === 'VALIDADO').reduce((s, p) => s + parseFloat(p.valor||0), 0);
@@ -1598,7 +1597,6 @@ async function renderizarTodasLasTablasAdmin() {
                     <div class="fw-bold text-danger border-top pt-1 mt-1">Saldo: $${sP.toFixed(2)}</div>
                 </td>
                 <td>
-                    <!-- Botón Base Desactivado temporalmente -->
                     <button class="btn btn-sm btn-secondary" disabled>
                         <i class="bi bi-slash-circle"></i> N/A
                     </button>
@@ -1687,7 +1685,7 @@ function renderizarDashboardAdmin(pagosRender, actiRender) {
         
     uMeta.forEach(u => {
         let deudasPadre = gastosPadres.filter(g => String(g.username) === String(u.username)).reduce((s, g) => s + parseFloat(g.valor||0), 0);
-        metaTotal += deudasPadre; // ELIMINADA SUMA DE CUOTA BASE
+        metaTotal += deudasPadre;
         
         let uPagos = pagosRender.filter(p => String(p.usuario) === String(u.username) && p.estado === 'VALIDADO').reduce((s, p) => s + parseFloat(p.valor || 0), 0);
         let uGastosPagados = gastosPadres.filter(g => String(g.username) === String(u.username) && g.estado === 'PAGADO').reduce((s, g) => s + parseFloat(g.valor || 0), 0);
@@ -1741,10 +1739,12 @@ function renderizarDashboardCurso() {
         
         alumnos.forEach(a => {
             let deudaPadre = gastosPadres.filter(g => String(g.username) === String(a.username)).reduce((s, g) => s + parseFloat(g.valor||0), 0);
-            mC += deudaPadre; // ELIMINADA SUMA DE CUOTA BASE
+            mC += deudaPadre;
             
+            // CORRECCIÓN: Filtrar pagos por estado VALIDADO y por el usuario actual
             let uPagos = pagosGlobales.filter(p => p.estado === 'VALIDADO' && String(p.usuario) === String(a.username)).reduce((s, p) => s + parseFloat(p.valor||0), 0);
             let uGastosPagados = gastosPadres.filter(g => String(g.username) === String(a.username) && g.estado === 'PAGADO').reduce((s, g) => s + parseFloat(g.valor||0), 0);
+            
             pV += Math.max(uPagos, uGastosPagados);
         });
         
@@ -1829,7 +1829,7 @@ function actualizarDashboardPadre() {
         const mG = gastosPadres.filter(g => String(g.username) === String(usuarioActual.username));
         
         let tR = mG.reduce((s, g) => s + parseFloat(g.valor||0), 0);
-        let tA = tR; // SE ELIMINÓ POR COMPLETO LA CUOTA BASE
+        let tA = tR; 
         
         let sumPagosValidados = mP.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
         let sumGastosMarcadosPagados = mG.filter(g => g.estado === 'PAGADO').reduce((sum, g) => sum + parseFloat(g.valor || 0), 0);
@@ -1844,21 +1844,42 @@ function actualizarDashboardPadre() {
             
             if (mG.length === 0) {
                 vMG.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No tiene rubros asignados.</td></tr>`;
-            }
-            
-            mG.forEach(g => {
-                const bE = g.estado === 'PAGADO' ? '<span class="badge bg-success">PAGADO</span>' : '<span class="badge bg-warning text-dark">PENDIENTE</span>';
-                const bA = g.estado === 'PENDIENTE' ? `<button class="btn btn-sm btn-success fw-bold shadow-sm" onclick="abrirModalPagoPrellenado(${g.valor})"><i class="bi bi-upload"></i> Subir Pago</button>` : `<i class="bi bi-check-circle-fill text-success fs-5"></i>`;
+            } else {
+                // CORRECCIÓN: Calcular saldo pendiente para cada rubro si hay abonos parciales
+                let abonoDisponible = tP;
                 
-                vMG.innerHTML += `
-                <tr>
-                    <td>${g.fecha}</td>
-                    <td class="fw-bold text-start">${g.concepto}</td>
-                    <td class="fw-bold text-danger">$${parseFloat(g.valor||0).toFixed(2)}</td>
-                    <td>${bE}</td>
-                    <td>${bA}</td>
-                </tr>`;
-            });
+                mG.forEach(g => {
+                    let valorRubro = parseFloat(g.valor || 0);
+                    let saldoRubro = valorRubro;
+                    
+                    if (abonoDisponible > 0) {
+                        if (abonoDisponible >= valorRubro) {
+                            saldoRubro = 0;
+                            abonoDisponible -= valorRubro;
+                        } else {
+                            saldoRubro = valorRubro - abonoDisponible;
+                            abonoDisponible = 0;
+                        }
+                    }
+
+                    // Forzar saldo 0 si el admin lo marcó como PAGADO manualmente
+                    if(g.estado === 'PAGADO') {
+                        saldoRubro = 0;
+                    }
+
+                    const bE = saldoRubro === 0 ? '<span class="badge bg-success">PAGADO</span>' : (saldoRubro < valorRubro ? '<span class="badge bg-info text-dark">ABONO PARCIAL</span>' : '<span class="badge bg-warning text-dark">PENDIENTE</span>');
+                    const bA = saldoRubro > 0 ? `<button class="btn btn-sm btn-success fw-bold shadow-sm" onclick="abrirModalPagoPrellenado(${saldoRubro})"><i class="bi bi-upload"></i> Subir Pago</button>` : `<i class="bi bi-check-circle-fill text-success fs-5"></i>`;
+                    
+                    vMG.innerHTML += `
+                    <tr>
+                        <td>${g.fecha}</td>
+                        <td class="fw-bold text-start">${g.concepto}</td>
+                        <td class="fw-bold text-danger">$${saldoRubro.toFixed(2)}</td>
+                        <td>${bE}</td>
+                        <td>${bA}</td>
+                    </tr>`;
+                });
+            }
         }
 
         const vE = document.getElementById('padre-vista-estado');
@@ -1903,14 +1924,16 @@ function actualizarDashboardPadre() {
             tr.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
             let hF = '';
-            let dA = 0; 
+            
+            // CORRECCIÓN SALDOS: Iniciar el cálculo del saldo desde el total de la deuda
+            let dA = tA; 
             
             if (tr.length === 0) {
                 hF = `<tr><td colspan="6" class="text-muted py-4">No hay movimientos registrados.</td></tr>`;
             } else {
                 tr.forEach(t => {
                     if (t.v) {
-                        dA += t.g;
+                        // Restar ingresos del saldo pendiente total
                         dA -= t.i;
                     }
                     
@@ -1961,7 +1984,7 @@ function actualizarDashboardPadre() {
                     </div>
                 </div>
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 border-bottom pb-2">
-                    <h4 class="fw-bold text-primary mb-3 mb-md-0"><i class="bi bi-clock-history me-2"></i>Mi Libro Mayor</h4>
+                    <h4 class="fw-bold text-primary mb-3 mb-md-0"><i class="bi bi-clock-history me-2"></i>Estado de Cuenta</h4>
                     <button class="btn btn-success fw-bold shadow-sm" onclick="abrirModalPagoPrellenado()">
                         <i class="bi bi-currency-dollar me-1"></i> Registrar Abono Libre
                     </button>
