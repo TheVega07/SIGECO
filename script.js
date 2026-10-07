@@ -547,7 +547,6 @@ function inyectarNuevasFunciones() {
 
     const adminPortal = document.getElementById('portal-admin');
 
-    // INYECCIÓN DEL MÓDULO CURSO (SI NO EXISTE)
     if (adminPortal && !document.getElementById('admin-modulo-curso')) {
         const moduloCursoHTML = `
         <div id="admin-modulo-curso" class="oculto mb-4">
@@ -586,7 +585,6 @@ function inyectarNuevasFunciones() {
         </div>`;
         adminPortal.insertAdjacentHTML('beforeend', moduloCursoHTML);
     } else if (adminPortal && document.getElementById('admin-modulo-curso') && !document.getElementById('contenedor-barras-curso')) {
-        // Si el módulo existe pero no tiene el contenedor de barras, lo agregamos
         document.getElementById('admin-modulo-curso').insertAdjacentHTML('beforeend', `
             <h4 class="text-primary fw-bold mb-3 mt-4"><i class="bi bi-graph-up-arrow me-2"></i>Avance por Paralelo</h4>
             <div id="contenedor-barras-curso" class="bg-white rounded shadow border p-3"></div>
@@ -1175,6 +1173,7 @@ function cargarPortalSegunRol(usuario) {
 
         const portalPadre = document.getElementById('portal-padre');
 
+        // RESTRUCTURACIÓN COMPLETA DE LA TABLA MIS GASTOS PARA TENER "VALOR ORIGINAL" Y "SALDO PENDIENTE"
         if (portalPadre && !document.getElementById('padre-vista-misgastos')) {
             const vistaGastosHTML = `
             <div id="padre-vista-misgastos" class="oculto">
@@ -1195,7 +1194,8 @@ function cargarPortalSegunRol(usuario) {
                                     <tr>
                                         <th>Fecha</th>
                                         <th>Rubro / Concepto</th>
-                                        <th>Valor a Pagar</th>
+                                        <th>Valor Original</th>
+                                        <th>Saldo Pendiente</th>
                                         <th>Estado</th>
                                         <th>Acciones</th>
                                     </tr>
@@ -1740,7 +1740,6 @@ function renderizarDashboardAdmin(pagosRender, actiRender) {
     }
 }
 
-// CORRECCIÓN: SE REESCRBIÓ LA FUNCIÓN PARA RENDERIZAR TABLA Y BARRAS DE PROGRESO DE CURSOS
 function renderizarDashboardCurso() {
     const tc = document.getElementById('tabla-dashboard-curso');
     const contenedorBarras = document.getElementById('contenedor-barras-curso');
@@ -1780,9 +1779,8 @@ function renderizarDashboardCurso() {
         });
 
         let aV = actividadesGlobales.filter(a => compararCursos(a.curso, curso)).reduce((s, a) => s + parseFloat(a.valor||0), 0);
-        const tR = pV + aV; // Total Recaudado (Pagos + Actividades del curso)
+        const tR = pV + aV; 
 
-        // Pintar fila en la tabla
         tc.innerHTML += `
         <tr>
             <td class="fw-bold" style="color:#1e3c72;">Paralelo ${curso}</td>
@@ -1791,7 +1789,6 @@ function renderizarDashboardCurso() {
             <td class="fw-bold text-info">$${mC.toFixed(2)}</td>
         </tr>`;
 
-        // Pintar barra de progreso
         let porcentaje = mC > 0 ? (tR / mC) * 100 : 0;
         if(porcentaje > 100) porcentaje = 100;
 
@@ -1890,28 +1887,44 @@ function actualizarDashboardPadre() {
 
         const vMG = document.getElementById('tabla-misgastos-padre');
 
-        // CORRECCIÓN: Lógica para la tabla de Mis Gastos (Valores limpios PENDIENTE o PAGADO)
+        // AQUI ESTÁ LA SOLUCIÓN DEFINITIVA A LA TABLA DE MIS GASTOS (SE AGREGARON LAS COLUMNAS VALOR ORIGINAL Y SALDO)
         if(vMG) {
             vMG.innerHTML = '';
 
             if (mG.length === 0) {
-                vMG.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No tiene rubros asignados.</td></tr>`;
+                vMG.innerHTML = `<tr><td colspan="6" class="text-muted py-4">No tiene rubros asignados.</td></tr>`;
             } else {
+                let abonoDisponible = tP;
+
                 mG.forEach(g => {
                     let valorRubro = parseFloat(g.valor || 0);
                     let saldoRubro = valorRubro;
 
-                    if(g.estado === 'PAGADO') {
-                        saldoRubro = 0; // Si el admin lo marcó pagado, es $0.00
-                    } // Si es PENDIENTE, se queda con su valor original
+                    // Lógica para que los abonos libres cubran de a pocos los rubros más antiguos
+                    if (abonoDisponible > 0) {
+                        if (abonoDisponible >= valorRubro) {
+                            saldoRubro = 0;
+                            abonoDisponible -= valorRubro;
+                        } else {
+                            saldoRubro = valorRubro - abonoDisponible;
+                            abonoDisponible = 0;
+                        }
+                    }
 
-                    const bE = saldoRubro === 0 ? '<span class="badge bg-success">PAGADO</span>' : '<span class="badge bg-warning text-dark">PENDIENTE</span>';
+                    // Si el administrador manualmente lo puso como PAGADO, forzar el saldo a cero
+                    if(g.estado === 'PAGADO') {
+                        saldoRubro = 0;
+                    }
+
+                    const bE = saldoRubro === 0 ? '<span class="badge bg-success">PAGADO</span>' : (saldoRubro < valorRubro ? '<span class="badge bg-info text-dark">ABONO PARCIAL</span>' : '<span class="badge bg-warning text-dark">PENDIENTE</span>');
                     const bA = saldoRubro > 0 ? `<button class="btn btn-sm btn-success fw-bold shadow-sm" onclick="abrirModalPagoPrellenado(${saldoRubro})"><i class="bi bi-upload"></i> Subir Pago</button>` : `<i class="bi bi-check-circle-fill text-success fs-5"></i>`;
 
+                    // Inyección HTML con las DOS columnas para no perder el costo original de vista
                     vMG.innerHTML += `
                     <tr>
                         <td>${g.fecha}</td>
                         <td class="fw-bold text-start">${g.concepto}</td>
+                        <td class="text-dark fw-bold">$${valorRubro.toFixed(2)}</td>
                         <td class="fw-bold text-danger">$${saldoRubro.toFixed(2)}</td>
                         <td>${bE}</td>
                         <td>${bA}</td>
@@ -1961,19 +1974,18 @@ function actualizarDashboardPadre() {
 
             tr.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
-            // Invertir el arreglo para que lo MÁS RECIENTE salga PRIMERO (arriba en la tabla)
             tr.reverse();
 
             let hF = '';
 
             let trParaCalculo = [...tr].reverse();
             let saldosCalculados = [];
-            let dA = 0; // El saldo arranca en CERO.
+            let dA = 0; 
 
             trParaCalculo.forEach(t => {
                 if(t.v) {
-                    dA += t.g; // Suma la deuda
-                    dA -= t.i; // Resta el abono
+                    dA += t.g; 
+                    dA -= t.i; 
                 }
                 saldosCalculados.push(dA);
             });
