@@ -1741,7 +1741,6 @@ function renderizarDashboardCurso() {
             let deudaPadre = gastosPadres.filter(g => String(g.username) === String(a.username)).reduce((s, g) => s + parseFloat(g.valor||0), 0);
             mC += deudaPadre;
             
-            // CORRECCIÓN: Filtrar pagos por estado VALIDADO y por el usuario actual
             let uPagos = pagosGlobales.filter(p => p.estado === 'VALIDADO' && String(p.usuario) === String(a.username)).reduce((s, p) => s + parseFloat(p.valor||0), 0);
             let uGastosPagados = gastosPadres.filter(g => String(g.username) === String(a.username) && g.estado === 'PAGADO').reduce((s, g) => s + parseFloat(g.valor||0), 0);
             
@@ -1845,7 +1844,6 @@ function actualizarDashboardPadre() {
             if (mG.length === 0) {
                 vMG.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No tiene rubros asignados.</td></tr>`;
             } else {
-                // CORRECCIÓN: Calcular saldo pendiente para cada rubro si hay abonos parciales
                 let abonoDisponible = tP;
                 
                 mG.forEach(g => {
@@ -1862,7 +1860,6 @@ function actualizarDashboardPadre() {
                         }
                     }
 
-                    // Forzar saldo 0 si el admin lo marcó como PAGADO manualmente
                     if(g.estado === 'PAGADO') {
                         saldoRubro = 0;
                     }
@@ -1923,25 +1920,46 @@ function actualizarDashboardPadre() {
             
             tr.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
+            // Invertir el arreglo para que lo MÁS RECIENTE salga PRIMERO (arriba en la tabla)
+            tr.reverse();
+
             let hF = '';
             
-            // CORRECCIÓN SALDOS: Iniciar el cálculo del saldo desde el total de la deuda
-            let dA = tA; 
+            // CORRECCIÓN MATEMÁTICA DEL SALDO LÍNEA POR LÍNEA:
+            // Dado que las filas ahora se muestran de la más nueva (arriba) a la más antigua (abajo),
+            // el cálculo del saldo debe recorrer las filas en orden cronológico (de antigua a nueva)
+            // para ir sumando las deudas y restando los pagos.
+            
+            // Clonamos y volvemos a invertir solo para calcular los saldos correctamente
+            let trParaCalculo = [...tr].reverse();
+            let saldosCalculados = [];
+            let dA = 0; // El saldo arranca en CERO.
+            
+            trParaCalculo.forEach(t => {
+                if(t.v) {
+                    dA += t.g; // Suma la deuda
+                    dA -= t.i; // Resta el abono
+                }
+                // Guardamos el saldo de ese momento histórico
+                saldosCalculados.push(dA);
+            });
+            
+            // Volvemos a invertir los saldos para que hagan "match" con el arreglo 'tr' que se mostrará al revés
+            saldosCalculados.reverse();
             
             if (tr.length === 0) {
                 hF = `<tr><td colspan="6" class="text-muted py-4">No hay movimientos registrados.</td></tr>`;
             } else {
-                tr.forEach(t => {
-                    if (t.v) {
-                        // Restar ingresos del saldo pendiente total
-                        dA -= t.i;
-                    }
-                    
+                tr.forEach((t, index) => {
                     let eE = t.v ? '' : '<br><span class="badge bg-warning text-dark mt-1"><i class="bi bi-hourglass-split me-1"></i>En Espera de Aprobación</span>';
                     
                     let vI = t.i > 0 ? '$' + t.i.toFixed(2) : '-';
                     let vG = t.g > 0 ? '$' + t.g.toFixed(2) : '-';
-                    let vS = '$' + Math.max(0, dA).toFixed(2);
+                    
+                    // Toma el saldo calculado matemáticamente exacto para esta línea
+                    let saldoLinea = saldosCalculados[index];
+                    let vS = '$' + Math.max(0, saldoLinea).toFixed(2);
+                    
                     let colorS = t.v ? 'text-primary' : 'text-muted';
                     
                     hF += `
