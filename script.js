@@ -254,7 +254,25 @@ function verDetalleGastosPadre(username, reRender = false) {
 
     document.getElementById('vista-lista-padres-gastos').classList.add('oculto');
     document.getElementById('vista-detalle-padre-gastos').classList.remove('oculto');
-    document.getElementById('titulo-detalle-gastos-padre').innerHTML = `<i class="bi bi-person-lines-fill me-2"></i>Deudas de: <span class="text-primary">${u.nombre}</span>`;
+    
+    // Calcular el Saldo a Favor REAL del padre
+    const mP = pagosGlobales.filter(p => String(p.usuario) === String(username));
+    let sumPagosValidados = mP.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
+    const deudas = gastosPadres.filter(g => String(g.username) === String(username));
+    let sumGastosMarcadosPagados = deudas.filter(g => g.estado === 'PAGADO').reduce((sum, g) => sum + parseFloat(g.valor || 0), 0);
+    
+    let saldoAFavor = sumPagosValidados - sumGastosMarcadosPagados;
+    if (saldoAFavor < 0) saldoAFavor = 0; // Evitar negativos visuales si pagaron de más manualmente
+
+    // Título y letrero de saldo a favor
+    document.getElementById('titulo-detalle-gastos-padre').innerHTML = `
+        <div class="d-flex flex-column">
+            <span><i class="bi bi-person-lines-fill me-2"></i>Deudas de: <span class="text-primary">${u.nombre}</span></span>
+            <span class="badge bg-success mt-2 fs-6 text-start p-2 shadow-sm" style="width:fit-content;">
+                <i class="bi bi-wallet-fill me-2"></i>Saldo a Favor del Padre para asignar: $${saldoAFavor.toFixed(2)}
+            </span>
+        </div>
+    `;
 
     const chkAll = document.getElementById('chk-all-gastos');
     if(chkAll) {
@@ -264,41 +282,31 @@ function verDetalleGastosPadre(username, reRender = false) {
     const tbody = document.getElementById('tabla-detalle-gastos');
     tbody.innerHTML = '';
 
-    const deudas = gastosPadres.filter(g => String(g.username) === String(username));
-    
-    // Calcular el Saldo a Favor disponible para mostrar la cascada al Admin
-    const mP = pagosGlobales.filter(p => String(p.usuario) === String(username));
-    let sumPagosValidados = mP.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
-    let sumGastosMarcadosPagados = deudas.filter(g => g.estado === 'PAGADO').reduce((sum, g) => sum + parseFloat(g.valor || 0), 0);
-    let abonoDisponible = Math.max(sumPagosValidados, sumGastosMarcadosPagados);
-
     if (deudas.length === 0) {
         tbody.innerHTML = `<tr><td colspan="7" class="text-muted py-4">Este padre no tiene deudas registradas.</td></tr>`;
     } else {
         deudas.forEach(g => {
             let valorRubro = parseFloat(g.valor || 0);
-            let saldoRubro = valorRubro;
+            
+            // LOGICA MANUAL DIRECTA SIN CASCADA
+            let saldoRubro = g.estado === 'PAGADO' ? 0 : valorRubro;
+            const bE = g.estado === 'PAGADO' ? '<span class="badge bg-success">PAGADO</span>' : '<span class="badge bg-warning text-dark">PENDIENTE</span>';
 
-            // Logica de cascada
-            if (abonoDisponible > 0) {
-                if (abonoDisponible >= valorRubro) {
-                    saldoRubro = 0;
-                    abonoDisponible -= valorRubro;
+            let btnSt = '';
+            
+            if (g.estado === 'PENDIENTE') {
+                if (saldoAFavor >= valorRubro) {
+                    btnSt = `<button class="btn btn-sm btn-success fw-bold shadow-sm me-1 mb-1" onclick="cambiarEstadoGastoAdmin(${g.id}, 'PAGADO')" title="Cobrar usando el saldo a favor"><i class="bi bi-cash-coin"></i> Cobrar $${valorRubro.toFixed(2)}</button>`;
+                } else if (saldoAFavor > 0) {
+                    btnSt = `<button class="btn btn-sm btn-info text-dark fw-bold shadow-sm me-1 mb-1" onclick="aplicarAbonoParcialAdmin(${g.id}, '${g.concepto}', ${valorRubro}, '${g.fecha}', '${username}', ${saldoAFavor})" title="Abonar el saldo sobrante a esta deuda"><i class="bi bi-pie-chart-fill"></i> Abonar $${saldoAFavor.toFixed(2)}</button>`;
                 } else {
-                    saldoRubro = valorRubro - abonoDisponible;
-                    abonoDisponible = 0;
+                    btnSt = `<button class="btn btn-sm btn-outline-secondary shadow-sm me-1 mb-1" disabled title="No hay saldo a favor para cobrar"><i class="bi bi-wallet2"></i> Sin Saldo</button>`;
                 }
+                
+                btnSt += `<button class="btn btn-sm btn-outline-success shadow-sm me-1 mb-1" onclick="cambiarEstadoGastoAdmin(${g.id}, 'PAGADO')" title="Forzar pago sin descontar saldo (Manual)"><i class="bi bi-check-lg"></i></button>`;
+            } else {
+                btnSt = `<button class="btn btn-sm btn-warning fw-bold shadow-sm me-1 mb-1" onclick="cambiarEstadoGastoAdmin(${g.id}, 'PENDIENTE')" title="Revertir este pago"><i class="bi bi-arrow-counterclockwise"></i> Revertir</button>`;
             }
-
-            if (g.estado === 'PAGADO') {
-                saldoRubro = 0;
-            }
-
-            const bE = saldoRubro === 0 ? '<span class="badge bg-success">PAGADO</span>' : (saldoRubro < valorRubro ? '<span class="badge bg-info text-dark">ABONO PARCIAL</span>' : '<span class="badge bg-warning text-dark">PENDIENTE</span>');
-
-            const btnSt = g.estado === 'PENDIENTE'
-                ? `<button class="btn btn-sm btn-success fw-bold shadow-sm me-1" onclick="cambiarEstadoGastoAdmin(${g.id}, 'PAGADO')" title="Forzar pago de este rubro manualmente"><i class="bi bi-check2"></i> Pagar</button>`
-                : `<button class="btn btn-sm btn-warning fw-bold shadow-sm me-1" onclick="cambiarEstadoGastoAdmin(${g.id}, 'PENDIENTE')" title="Revertir este pago"><i class="bi bi-arrow-counterclockwise"></i> Revertir</button>`;
 
             // Inyectar HTML en la tabla del administrador
             tbody.innerHTML += `
@@ -310,13 +318,60 @@ function verDetalleGastosPadre(username, reRender = false) {
                 <td class="fw-bold text-danger">$${saldoRubro.toFixed(2)}</td>
                 <td>${bE}</td>
                 <td>
-                    <div class="d-flex justify-content-center">
+                    <div class="d-flex flex-wrap justify-content-center">
                         ${btnSt}
-                        <button class="btn btn-sm btn-danger fw-bold shadow-sm" onclick="eliminarGastoAdmin(${g.id})"><i class="bi bi-trash-fill"></i></button>
+                        <button class="btn btn-sm btn-danger fw-bold shadow-sm mb-1" onclick="eliminarGastoAdmin(${g.id})"><i class="bi bi-trash-fill"></i></button>
                     </div>
                 </td>
             </tr>`;
         });
+    }
+}
+
+// FUNCION PARA ABONOS PARCIALES MANUALES (Dividir Deuda)
+async function aplicarAbonoParcialAdmin(id, concepto, valorTotal, fecha, username, saldoDisponible) {
+    if(!confirm(`¿Desea asignar los $${saldoDisponible.toFixed(2)} de saldo a favor a la deuda de "${concepto}"?\n\nPara fines contables, el sistema dividirá automáticamente este rubro en dos partes: un Abono Pagado y un Saldo Restante Pendiente.`)) {
+        return;
+    }
+
+    try {
+        await fetch(`${API_URL}/gastos/${id}`, { method: 'DELETE' });
+
+        let payloadAbono = { 
+            usuario: username, 
+            concepto: concepto + " (Abono Asignado)", 
+            fecha: fecha, 
+            valor: saldoDisponible 
+        };
+        await fetch(`${API_URL}/gastos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payloadAbono) });
+
+        let restante = valorTotal - saldoDisponible;
+        let payloadRestante = { 
+            usuario: username, 
+            concepto: concepto + " (Saldo Pendiente)", 
+            fecha: fecha, 
+            valor: restante 
+        };
+        await fetch(`${API_URL}/gastos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payloadRestante) });
+
+        await cargarDatosDesdeServidor();
+
+        let nuevosAbonos = gastosPadres.filter(g => String(g.username) === String(username) && g.concepto === (concepto + " (Abono Asignado)") && g.estado === 'PENDIENTE');
+        if(nuevosAbonos.length > 0) {
+            let idNuevoAbono = nuevosAbonos[nuevosAbonos.length - 1].id;
+            await fetch(`${API_URL}/gastos/estado`, { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({id: idNuevoAbono, estado: 'PAGADO'}) 
+            });
+        }
+
+        mostrarAlerta("Abono manual aplicado y rubro dividido correctamente.", "✅");
+        
+        await renderizarTodasLasTablasAdmin();
+    } catch (e) {
+        console.error(e);
+        mostrarAlerta("Error al procesar el abono parcial. Intente de nuevo.", "❌");
     }
 }
 
@@ -909,7 +964,7 @@ function inyectarNuevasFunciones() {
             <div id="vista-detalle-padre-gastos" class="oculto">
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3 p-3 bg-light rounded border">
                     <h5 class="fw-bold text-dark mb-3 mb-md-0" id="titulo-detalle-gastos-padre"></h5>
-                    <div class="d-flex flex-wrap gap-2">
+                    <div class="d-flex flex-wrap gap-2 mt-2 mt-md-0 align-items-start">
                         <button class="btn btn-sm btn-success fw-bold shadow-sm" id="btn-pagar-seleccionados" onclick="cambiarEstadoSeleccionados('PAGADO')">
                             <i class="bi bi-check-circle-fill me-1"></i>Pagar Seleccionados
                         </button>
@@ -933,7 +988,7 @@ function inyectarNuevasFunciones() {
                                 <th>Valor Original</th>
                                 <th>Saldo Pendiente</th>
                                 <th>Estado</th>
-                                <th>Acciones</th>
+                                <th>Acciones Manuales</th>
                             </tr>
                         </thead>
                         <tbody id="tabla-detalle-gastos"></tbody>
@@ -1200,7 +1255,7 @@ function cargarPortalSegunRol(usuario) {
 
         const portalPadre = document.getElementById('portal-padre');
 
-        // TABLA PADRE LIMPIA: Sin botón de Subir Pago ni columna de Acciones
+        // TABLA PADRE LIMPIA: Muestra saldos reales sin calcular cascada
         if (portalPadre && !document.getElementById('padre-vista-misgastos')) {
             const vistaGastosHTML = `
             <div id="padre-vista-misgastos" class="oculto">
@@ -1211,7 +1266,7 @@ function cargarPortalSegunRol(usuario) {
                     </button>
                 </div>
                 <div class="alert alert-info small">
-                    Aquí puede ver el desglose de sus rubros y cómo se descuentan sus abonos automáticamente. Para abonar a su cuenta, diríjase a la pestaña <strong>Estado de Cuenta</strong>.
+                    Aquí puede ver el desglose de sus rubros. <strong>Recuerde:</strong> Son los administradores quienes aprueban a qué rubro específico se asignan sus abonos. Para hacer un nuevo abono, diríjase a la pestaña <strong>Estado de Cuenta</strong>.
                 </div>
                 <div class="card shadow-sm mb-4">
                     <div class="card-body p-0">
@@ -1628,22 +1683,20 @@ async function renderizarTodasLasTablasAdmin() {
         tc.innerHTML = '';
         usuariosParaRender.filter(u => u.rol === 'PADRE').forEach(u => {
             const mG = gastosPadres.filter(g => String(g.username) === String(u.username));
-            const tG = mG.reduce((s, g) => s + parseFloat(g.valor||0), 0);
-
-            const tD = tG;
+            const tD = mG.reduce((s, g) => s + parseFloat(g.valor||0), 0);
 
             const sumPagosFisicos = pagosGlobales.filter(p => String(p.usuario) === String(u.username) && p.estado === 'VALIDADO').reduce((s, p) => s + parseFloat(p.valor||0), 0);
             const sumGastosPagados = mG.filter(g => g.estado === 'PAGADO').reduce((s, g) => s + parseFloat(g.valor||0), 0);
 
             const tP = Math.max(sumPagosFisicos, sumGastosPagados);
-            const sP = tD - tP;
+            const sP = tD - sumGastosPagados;
 
             tc.innerHTML += `
             <tr>
                 <td class="text-primary fw-bold">${u.username}</td>
                 <td>${u.nombre}</td>
                 <td>
-                    <div class="small text-muted">Rubros Asignados: $${tG.toFixed(2)}</div>
+                    <div class="small text-muted">Rubros Asignados: $${tD.toFixed(2)}</div>
                     <div class="fw-bold border-top pt-1 mt-1">Total Deuda: $${tD.toFixed(2)}</div>
                 </td>
                 <td>
@@ -1909,7 +1962,7 @@ function actualizarDashboardPadre() {
         let sumGastosMarcadosPagados = mG.filter(g => g.estado === 'PAGADO').reduce((sum, g) => sum + parseFloat(g.valor || 0), 0);
 
         let tP = Math.max(sumPagosValidados, sumGastosMarcadosPagados);
-        let pen = tA - tP;
+        let pen = tA - sumGastosMarcadosPagados;
 
         const vMG = document.getElementById('tabla-misgastos-padre');
 
@@ -1917,32 +1970,14 @@ function actualizarDashboardPadre() {
             vMG.innerHTML = '';
 
             if (mG.length === 0) {
-                // Se quitó la columna de acciones (colspan de 6 a 5)
                 vMG.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No tiene rubros asignados.</td></tr>`;
             } else {
-                let abonoDisponible = tP;
-
                 mG.forEach(g => {
                     let valorRubro = parseFloat(g.valor || 0);
-                    let saldoRubro = valorRubro;
+                    let saldoRubro = g.estado === 'PAGADO' ? 0 : valorRubro;
 
-                    if (abonoDisponible > 0) {
-                        if (abonoDisponible >= valorRubro) {
-                            saldoRubro = 0;
-                            abonoDisponible -= valorRubro;
-                        } else {
-                            saldoRubro = valorRubro - abonoDisponible;
-                            abonoDisponible = 0;
-                        }
-                    }
-
-                    if(g.estado === 'PAGADO') {
-                        saldoRubro = 0;
-                    }
-
-                    const bE = saldoRubro === 0 ? '<span class="badge bg-success">PAGADO</span>' : (saldoRubro < valorRubro ? '<span class="badge bg-info text-dark">ABONO PARCIAL</span>' : '<span class="badge bg-warning text-dark">PENDIENTE</span>');
+                    const bE = g.estado === 'PAGADO' ? '<span class="badge bg-success">PAGADO</span>' : '<span class="badge bg-warning text-dark">PENDIENTE</span>';
                     
-                    // AQUI SE REMOVIÓ EL BOTON DE ACCIONES PARA EL PADRE
                     vMG.innerHTML += `
                     <tr>
                         <td>${g.fecha}</td>
@@ -1981,21 +2016,9 @@ function actualizarDashboardPadre() {
                 });
             });
 
-            let ajusteAdmin = sumGastosMarcadosPagados > sumPagosValidados ? (sumGastosMarcadosPagados - sumPagosValidados) : 0;
-            if (ajusteAdmin > 0) {
-                let fechaAjuste = new Date().toISOString().split('T')[0];
-                tr.push({
-                    fecha: fechaAjuste,
-                    cmp: 'SISTEMA',
-                    c: 'Abono Directo en Administración (Aprobado Manual)',
-                    i: ajusteAdmin,
-                    g: 0,
-                    v: true
-                });
-            }
+            // AQUÍ ESTABA EL PARCHE AUTOMÁTICO - ¡LO HEMOS ELIMINADO!
 
             tr.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
-
             tr.reverse();
 
             let hF = '';
