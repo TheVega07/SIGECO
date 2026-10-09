@@ -683,6 +683,9 @@ function inyectarNuevasFunciones() {
                     </div>
                     <div class="modal-body">
                         <form id="form-actividad">
+                            <div class="alert alert-info small">
+                                <strong>Nota Importante:</strong> Al guardar esta actividad, se generará automáticamente una deuda a los padres del paralelo seleccionado para que puedan abonarla en su Estado de Cuenta.
+                            </div>
                             <div class="mb-3">
                                 <label class="fw-bold">Curso / Paralelo</label>
                                 <select class="form-select" id="act-curso" required>
@@ -699,7 +702,7 @@ function inyectarNuevasFunciones() {
                                 <input type="date" class="form-control" id="act-fecha" required>
                             </div>
                             <div class="mb-3">
-                                <label class="fw-bold">Valor Recaudado ($)</label>
+                                <label class="fw-bold">Valor Recaudado / Cuota ($)</label>
                                 <input type="number" step="0.01" class="form-control" id="act-valor" required>
                             </div>
                             <div class="mb-3">
@@ -707,7 +710,7 @@ function inyectarNuevasFunciones() {
                                 <input type="file" class="form-control" id="act-file" accept=".pdf" required>
                                 <div id="feedback-act-file" class="text-success small mt-1 oculto"></div>
                             </div>
-                            <button type="submit" class="btn btn-success w-100 fw-bold">Guardar Actividad</button>
+                            <button type="submit" class="btn btn-success w-100 fw-bold">Guardar Actividad y Asignar Deudas</button>
                         </form>
                     </div>
                 </div>
@@ -1288,6 +1291,37 @@ function cargarPortalSegunRol(usuario) {
                 </div>
             </div>`;
             portalPadre.insertAdjacentHTML('beforeend', vistaGastosHTML);
+        }
+
+        // VISTA DOCUMENTOS PUBLICOS PARA PADRE REESTRUCTURADA
+        if (portalPadre && !document.getElementById('padre-vista-documentos')) {
+            const vistaDocsHTML = `
+            <div id="padre-vista-documentos" class="oculto">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 border-bottom pb-2">
+                    <h4 class="fw-bold text-primary mb-3 mb-md-0"><i class="bi bi-folder2-open-fill me-2"></i>Documentos Públicos</h4>
+                </div>
+                <div class="alert alert-info small">
+                    Aquí podrá visualizar y descargar las Actas, Contratos y respaldos de Actividades del Comité.
+                </div>
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle text-center mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Tipo</th>
+                                        <th>Descripción</th>
+                                        <th>Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabla-documentos-padre"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            portalPadre.insertAdjacentHTML('beforeend', vistaDocsHTML);
         }
 
         document.getElementById('portal-padre').classList.remove('oculto');
@@ -2016,8 +2050,6 @@ function actualizarDashboardPadre() {
                 });
             });
 
-            // AQUÍ ESTABA EL PARCHE AUTOMÁTICO - ¡LO HEMOS ELIMINADO!
-
             tr.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
             tr.reverse();
 
@@ -2118,6 +2150,98 @@ function actualizarDashboardPadre() {
                     </div>
                 </div>
             `;
+        }
+
+        // CARGA VISTA DOCUMENTOS PUBLICOS PARA EL PADRE
+        const vDocs = document.getElementById('padre-vista-documentos');
+        if (vDocs) {
+            // Asegurarse de tener la estructura de tabla correcta si faltaba
+            if(!document.getElementById('tabla-documentos-padre')) {
+                vDocs.innerHTML = `
+                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 border-bottom pb-2">
+                        <h4 class="fw-bold text-primary mb-3 mb-md-0"><i class="bi bi-folder2-open-fill me-2"></i>Documentos Públicos</h4>
+                    </div>
+                    <div class="alert alert-info small">
+                        Aquí podrá visualizar y descargar las Actas, Contratos y respaldos de Actividades del Comité.
+                    </div>
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle text-center mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Fecha</th>
+                                            <th>Tipo</th>
+                                            <th>Descripción</th>
+                                            <th>Acción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabla-documentos-padre"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+
+            const tbDocsPadre = document.getElementById('tabla-documentos-padre');
+            tbDocsPadre.innerHTML = '';
+            let docsArray = [];
+
+            // 1. Actas
+            actasGlobales.forEach(a => {
+                if(a.tiene_doc) {
+                    docsArray.push({
+                        fecha: a.fecha,
+                        tipo: '<span class="badge bg-primary">Acta de Comité</span>',
+                        desc: a.descripcion,
+                        btn: `<button class="btn btn-sm btn-outline-primary fw-bold" onclick="verActaPDF(${a.id})"><i class="bi bi-download me-1"></i>Descargar PDF</button>`
+                    });
+                }
+            });
+
+            // 2. Contratos (Solo visibles al publico)
+            contratosGlobales.forEach(c => {
+                if(c.visible) {
+                    docsArray.push({
+                        fecha: c.fecha,
+                        tipo: '<span class="badge bg-secondary">Contrato</span>',
+                        desc: c.desc || c.descripcion || '',
+                        btn: `<button class="btn btn-sm btn-outline-secondary fw-bold" onclick="verDocumentoPDF(${c.id})"><i class="bi bi-download me-1"></i>Descargar PDF</button>`
+                    });
+                }
+            });
+
+            // 3. Actividades (del curso del padre o si aplica a TODOS)
+            let miCurso = user.curso || '';
+            actividadesGlobales.forEach(a => {
+                if (a.curso === 'TODOS' || compararCursos(a.curso, miCurso)) {
+                    if(a.tiene_doc) {
+                        docsArray.push({
+                            fecha: a.fecha,
+                            tipo: '<span class="badge bg-success">Actividad Extra</span>',
+                            desc: a.descripcion,
+                            btn: `<button class="btn btn-sm btn-outline-success fw-bold" onclick="verActividadPDF(${a.id})"><i class="bi bi-download me-1"></i>Descargar PDF</button>`
+                        });
+                    }
+                }
+            });
+
+            // Ordenar todos los documentos de más reciente a más antiguo
+            docsArray.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+            if (docsArray.length === 0) {
+                tbDocsPadre.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay documentos públicos disponibles en este momento.</td></tr>`;
+            } else {
+                docsArray.forEach(d => {
+                    tbDocsPadre.innerHTML += `
+                    <tr>
+                        <td>${d.fecha}</td>
+                        <td>${d.tipo}</td>
+                        <td class="fw-bold">${d.desc}</td>
+                        <td>${d.btn}</td>
+                    </tr>`;
+                });
+            }
         }
 
         setTimeout(hacerTablasResponsivas, 200);
@@ -2328,11 +2452,48 @@ async function registrarActividad(e) {
         const data = await resp.json();
 
         if(resp.ok && data.exito) {
+
+            // --- INYECCIÓN PARA GENERAR GASTOS A PADRES POR ESTA ACTIVIDAD ---
+            let cursoActividad = document.getElementById('act-curso').value.trim();
+            let descActividad = "Actividad: " + document.getElementById('act-desc').value.trim();
+            let valorActividad = parseFloat(document.getElementById('act-valor').value);
+            let fechaActividad = document.getElementById('act-fecha').value;
+
+            let padresAfectados = usuariosBD.filter(u => u.rol === 'PADRE');
+            if(cursoActividad !== 'TODOS') {
+                padresAfectados = padresAfectados.filter(u => compararCursos(u.curso, cursoActividad));
+            }
+
+            if(padresAfectados.length > 0 && valorActividad > 0) {
+                let formBtn = document.querySelector('#form-actividad button[type="submit"]');
+                let txtOriginal = formBtn ? formBtn.innerHTML : 'Guardar Actividad y Asignar Deudas';
+                if(formBtn) formBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>Asignando rubros a padres...`;
+
+                for(let padre of padresAfectados) {
+                    try {
+                        let payloadGasto = {
+                            usuario: padre.username,
+                            concepto: descActividad,
+                            fecha: fechaActividad,
+                            valor: valorActividad
+                        };
+                        await fetch(`${API_URL}/gastos`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payloadGasto)
+                        });
+                    } catch(err) { console.error("Error asignando actividad como deuda a: ", padre.username); }
+                }
+                
+                if(formBtn) formBtn.innerHTML = txtOriginal;
+            }
+            // --- FIN DE LA INYECCIÓN ---
+
             bootstrap.Modal.getInstance(document.getElementById('modalActividad')).hide();
             document.getElementById('form-actividad').reset();
             limpiarFeedbackArchivos();
 
-            mostrarAlerta("Ingreso por Actividad guardado y registrado correctamente.", "✅");
+            mostrarAlerta("Ingreso por Actividad guardado y rubros asignados a padres correctamente.", "✅");
             renderizarTodasLasTablasAdmin();
         } else {
             mostrarAlerta("Error al subir actividad: " + data.mensaje, "❌");
