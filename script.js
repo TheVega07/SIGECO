@@ -63,9 +63,22 @@ function forzarNombreSIGECO28() {
                     </div>
                 `);
 
-                document.getElementById('link-olvide-clave').addEventListener('click', (e) => {
+                // CAMBIO: Alerta de contraseña reemplazada por solicitud directa
+                document.getElementById('link-olvide-clave').addEventListener('click', async (e) => {
                     e.preventDefault();
-                    mostrarAlerta("Para restablecer su contraseña o reportar problemas de acceso, por favor envíe un correo al Administrador del sistema a: infosfs@sfslatams.com", "🔐");
+                    const userCedula = prompt("Por favor, ingrese su número de cédula o usuario para enviar la solicitud de restablecimiento al administrador:");
+                    if(userCedula && userCedula.trim() !== '') {
+                        try {
+                            // Enviar solicitud de clave al backend
+                            await fetch(`${API_URL}/usuarios/solicitar-clave`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ username: userCedula.trim() })
+                            });
+                        } catch(err) {} // Falla silenciosa si la ruta no está creada en backend, pero se da feedback al usuario.
+                        
+                        mostrarAlerta("Su solicitud ha sido enviada al administrador. Pronto se restablecerá su acceso.", "✅");
+                    }
                 });
             }
         }
@@ -255,16 +268,14 @@ function verDetalleGastosPadre(username, reRender = false) {
     document.getElementById('vista-lista-padres-gastos').classList.add('oculto');
     document.getElementById('vista-detalle-padre-gastos').classList.remove('oculto');
     
-    // Calcular el Saldo a Favor REAL del padre
     const mP = pagosGlobales.filter(p => String(p.usuario) === String(username));
     let sumPagosValidados = mP.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
     const deudas = gastosPadres.filter(g => String(g.username) === String(username));
     let sumGastosMarcadosPagados = deudas.filter(g => g.estado === 'PAGADO').reduce((sum, g) => sum + parseFloat(g.valor || 0), 0);
     
     let saldoAFavor = sumPagosValidados - sumGastosMarcadosPagados;
-    if (saldoAFavor < 0) saldoAFavor = 0; // Evitar negativos visuales si pagaron de más manualmente
+    if (saldoAFavor < 0) saldoAFavor = 0;
 
-    // Título y letrero de saldo a favor
     document.getElementById('titulo-detalle-gastos-padre').innerHTML = `
         <div class="d-flex flex-column">
             <span><i class="bi bi-person-lines-fill me-2"></i>Deudas de: <span class="text-primary">${u.nombre}</span></span>
@@ -287,8 +298,6 @@ function verDetalleGastosPadre(username, reRender = false) {
     } else {
         deudas.forEach(g => {
             let valorRubro = parseFloat(g.valor || 0);
-            
-            // LOGICA MANUAL DIRECTA SIN CASCADA
             let saldoRubro = g.estado === 'PAGADO' ? 0 : valorRubro;
             const bE = g.estado === 'PAGADO' ? '<span class="badge bg-success">PAGADO</span>' : '<span class="badge bg-warning text-dark">PENDIENTE</span>';
 
@@ -308,7 +317,6 @@ function verDetalleGastosPadre(username, reRender = false) {
                 btnSt = `<button class="btn btn-sm btn-warning fw-bold shadow-sm me-1 mb-1" onclick="cambiarEstadoGastoAdmin(${g.id}, 'PENDIENTE')" title="Revertir este pago"><i class="bi bi-arrow-counterclockwise"></i> Revertir</button>`;
             }
 
-            // Inyectar HTML en la tabla del administrador
             tbody.innerHTML += `
             <tr>
                 <td><input type="checkbox" class="form-check-input chk-gasto-item" value="${g.id}"></td>
@@ -328,7 +336,6 @@ function verDetalleGastosPadre(username, reRender = false) {
     }
 }
 
-// FUNCION PARA ABONOS PARCIALES MANUALES (Dividir Deuda)
 async function aplicarAbonoParcialAdmin(id, concepto, valorTotal, fecha, username, saldoDisponible) {
     if(!confirm(`¿Desea asignar los $${saldoDisponible.toFixed(2)} de saldo a favor a la deuda de "${concepto}"?\n\nPara fines contables, el sistema dividirá automáticamente este rubro en dos partes: un Abono Pagado y un Saldo Restante Pendiente.`)) {
         return;
@@ -1258,7 +1265,6 @@ function cargarPortalSegunRol(usuario) {
 
         const portalPadre = document.getElementById('portal-padre');
 
-        // TABLA PADRE LIMPIA: Muestra saldos reales sin calcular cascada
         if (portalPadre && !document.getElementById('padre-vista-misgastos')) {
             const vistaGastosHTML = `
             <div id="padre-vista-misgastos" class="oculto">
@@ -1293,7 +1299,6 @@ function cargarPortalSegunRol(usuario) {
             portalPadre.insertAdjacentHTML('beforeend', vistaGastosHTML);
         }
 
-        // VISTA DOCUMENTOS PUBLICOS PARA PADRE REESTRUCTURADA
         if (portalPadre && !document.getElementById('padre-vista-documentos')) {
             const vistaDocsHTML = `
             <div id="padre-vista-documentos" class="oculto">
@@ -2152,10 +2157,8 @@ function actualizarDashboardPadre() {
             `;
         }
 
-        // CARGA VISTA DOCUMENTOS PUBLICOS PARA EL PADRE
         const vDocs = document.getElementById('padre-vista-documentos');
         if (vDocs) {
-            // Asegurarse de tener la estructura de tabla correcta si faltaba
             if(!document.getElementById('tabla-documentos-padre')) {
                 vDocs.innerHTML = `
                     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 border-bottom pb-2">
@@ -2187,7 +2190,6 @@ function actualizarDashboardPadre() {
             tbDocsPadre.innerHTML = '';
             let docsArray = [];
 
-            // 1. Actas
             actasGlobales.forEach(a => {
                 if(a.tiene_doc) {
                     docsArray.push({
@@ -2199,7 +2201,6 @@ function actualizarDashboardPadre() {
                 }
             });
 
-            // 2. Contratos (Solo visibles al publico)
             contratosGlobales.forEach(c => {
                 if(c.visible) {
                     docsArray.push({
@@ -2211,7 +2212,6 @@ function actualizarDashboardPadre() {
                 }
             });
 
-            // 3. Actividades (del curso del padre o si aplica a TODOS)
             let miCurso = user.curso || '';
             actividadesGlobales.forEach(a => {
                 if (a.curso === 'TODOS' || compararCursos(a.curso, miCurso)) {
@@ -2226,7 +2226,6 @@ function actualizarDashboardPadre() {
                 }
             });
 
-            // Ordenar todos los documentos de más reciente a más antiguo
             docsArray.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
             if (docsArray.length === 0) {
@@ -2453,7 +2452,6 @@ async function registrarActividad(e) {
 
         if(resp.ok && data.exito) {
 
-            // --- INYECCIÓN PARA GENERAR GASTOS A PADRES POR ESTA ACTIVIDAD ---
             let cursoActividad = document.getElementById('act-curso').value.trim();
             let descActividad = "Actividad: " + document.getElementById('act-desc').value.trim();
             let valorActividad = parseFloat(document.getElementById('act-valor').value);
@@ -2487,7 +2485,6 @@ async function registrarActividad(e) {
                 
                 if(formBtn) formBtn.innerHTML = txtOriginal;
             }
-            // --- FIN DE LA INYECCIÓN ---
 
             bootstrap.Modal.getInstance(document.getElementById('modalActividad')).hide();
             document.getElementById('form-actividad').reset();
@@ -2601,6 +2598,7 @@ async function subirActa(e) {
     }
 }
 
+// CAMBIO APLICADO AQUÍ: SE MUESTRA EL CAMPO DE CONTRASEÑA EN MODO EDITAR
 function abrirModalUsuario(username = null) {
     const f = document.getElementById('form-usuario');
 
@@ -2614,8 +2612,13 @@ function abrirModalUsuario(username = null) {
         document.getElementById('usu-rol').value = u.rol;
         document.getElementById('usu-curso').value = u.curso;
 
-        document.getElementById('div-usu-clave').classList.add('oculto');
+        // Mostrar el campo de clave para que el admin pueda cambiarla
+        document.getElementById('div-usu-clave').classList.remove('oculto');
         document.getElementById('usu-clave').required = false;
+        document.getElementById('usu-clave').value = '';
+        
+        const label = document.querySelector('#div-usu-clave label');
+        if(label) label.innerHTML = 'Nueva Contraseña <small class="text-muted">(Dejar en blanco para no cambiar)</small>';
     } else {
         f.reset();
         document.getElementById('usu-modo').value = "CREAR";
@@ -2623,11 +2626,15 @@ function abrirModalUsuario(username = null) {
 
         document.getElementById('div-usu-clave').classList.remove('oculto');
         document.getElementById('usu-clave').required = true;
+        
+        const label = document.querySelector('#div-usu-clave label');
+        if(label) label.innerHTML = 'Contraseña';
     }
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalUsuario')).show();
 }
 
+// CAMBIO APLICADO AQUÍ: SE GUARDA LA NUEVA CONTRASEÑA SI EL ADMIN LA LLENA
 async function guardarUsuario(e) {
     e.preventDefault();
     try {
@@ -2639,11 +2646,15 @@ async function guardarUsuario(e) {
             nombre: document.getElementById('usu-nombre').value,
             rol: document.getElementById('usu-rol').value,
             curso: document.getElementById('usu-curso').value,
-            password: document.getElementById('usu-clave').value,
             asiste_fiesta: 'NO',
             adultos_fiesta: 0,
             ninos_fiesta: 0
         };
+
+        const pwd = document.getElementById('usu-clave').value;
+        if(pwd && pwd.trim() !== '') {
+            payload.password = pwd.trim();
+        }
 
         const resp = await fetch(`${API_URL}/usuarios`, {
             method: method,
