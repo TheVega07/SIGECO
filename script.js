@@ -55,20 +55,20 @@ function forzarNombreSIGECO28() {
                     
                     <!-- Enlace de Desarrollo e IA -->
                     <p class="mb-3">
-                        <a href="https://www.sfslatams.com" target="_blank" class="text-decoration-none fw-bold text-primary" style="font-size: 0.95rem;">
+                        <a href="https://www.sfslatams.com/" target="_blank" class="text-decoration-none fw-bold text-primary" style="font-size: 0.95rem;">
                             Consulta por nuestros servicios de Desarrollo de Software e implementación de IA para tu negocio
                         </a>
                     </p>
                     
                     <!-- Logo de WhatsApp y Número -->
                     <div class="d-flex justify-content-center align-items-center mb-4">
-                        <a href="https://wa.me/593999999999" target="_blank" class="btn btn-outline-success rounded-pill fw-bold d-flex align-items-center px-4 py-2 shadow-sm">
-                            <i class="bi bi-whatsapp fs-4 me-2"></i> +593 99 999 9999
+                        <a href="https://wa.me/59395 911 0281" target="_blank" class="btn btn-outline-success rounded-pill fw-bold d-flex align-items-center px-4 py-2 shadow-sm">
+                            <i class="bi bi-whatsapp fs-4 me-2"></i> +593 95 911 0281
                         </a>
                     </div>
 
                     <p class="mb-0 text-muted small">Desarrollado por SmartFastSolution LATAM</p>
-                    <a href="mailto:infosfs@sfslatams.com" class="text-success small text-decoration-none">infosfs@sfslatams.com</a>
+                    <a href="https://www.sfslatams.com/" target="_blank" class="text-success small text-decoration-none">https://www.sfslatams.com/</a>
                 </div>
             `;
             formLogin.insertAdjacentHTML('beforeend', marcaHTML);
