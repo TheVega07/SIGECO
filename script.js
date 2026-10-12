@@ -44,9 +44,29 @@ function forzarNombreSIGECO28() {
 
     if (formLogin) {
         if (!document.getElementById('marca-login-sfs')) {
+            // NUEVO BLOQUE CENTRAL: Textos, Link y Logo de WhatsApp
             const marcaHTML = `
-                <div id="marca-login-sfs" class="text-center mt-4 pt-3 border-top">
-                    <p class="mb-0 fw-bold text-dark">SIGECO 28</p>
+                <div id="marca-login-sfs" class="text-center mt-4 pt-4 border-top">
+                    
+                    <!-- Mensaje SFS Latam -->
+                    <p class="mb-3 fw-bold text-dark" style="font-size: 1.1rem; line-height: 1.4;">
+                        Toda empresa o negocio necesita un Sistema, llama a SFS Latam tu soporte inmediato.
+                    </p>
+                    
+                    <!-- Enlace de Desarrollo e IA -->
+                    <p class="mb-3">
+                        <a href="https://www.sfslatams.com" target="_blank" class="text-decoration-none fw-bold text-primary" style="font-size: 0.95rem;">
+                            Consulta por nuestros servicios de Desarrollo de Software e implementación de IA para tu negocio
+                        </a>
+                    </p>
+                    
+                    <!-- Logo de WhatsApp y Número -->
+                    <div class="d-flex justify-content-center align-items-center mb-4">
+                        <a href="https://wa.me/593999999999" target="_blank" class="btn btn-outline-success rounded-pill fw-bold d-flex align-items-center px-4 py-2 shadow-sm">
+                            <i class="bi bi-whatsapp fs-4 me-2"></i> +593 99 999 9999
+                        </a>
+                    </div>
+
                     <p class="mb-0 text-muted small">Desarrollado por SmartFastSolution LATAM</p>
                     <a href="mailto:infosfs@sfslatams.com" class="text-success small text-decoration-none">infosfs@sfslatams.com</a>
                 </div>
@@ -63,19 +83,17 @@ function forzarNombreSIGECO28() {
                     </div>
                 `);
 
-                // CAMBIO: Alerta de contraseña reemplazada por solicitud directa
                 document.getElementById('link-olvide-clave').addEventListener('click', async (e) => {
                     e.preventDefault();
                     const userCedula = prompt("Por favor, ingrese su número de cédula o usuario para enviar la solicitud de restablecimiento al administrador:");
                     if(userCedula && userCedula.trim() !== '') {
                         try {
-                            // Enviar solicitud de clave al backend
                             await fetch(`${API_URL}/usuarios/solicitar-clave`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ username: userCedula.trim() })
                             });
-                        } catch(err) {} // Falla silenciosa si la ruta no está creada en backend, pero se da feedback al usuario.
+                        } catch(err) {} 
                         
                         mostrarAlerta("Su solicitud ha sido enviada al administrador. Pronto se restablecerá su acceso.", "✅");
                     }
@@ -2598,7 +2616,6 @@ async function subirActa(e) {
     }
 }
 
-// CAMBIO APLICADO AQUÍ: SE MUESTRA EL CAMPO DE CONTRASEÑA EN MODO EDITAR
 function abrirModalUsuario(username = null) {
     const f = document.getElementById('form-usuario');
 
@@ -2612,7 +2629,6 @@ function abrirModalUsuario(username = null) {
         document.getElementById('usu-rol').value = u.rol;
         document.getElementById('usu-curso').value = u.curso;
 
-        // Mostrar el campo de clave para que el admin pueda cambiarla
         document.getElementById('div-usu-clave').classList.remove('oculto');
         document.getElementById('usu-clave').required = false;
         document.getElementById('usu-clave').value = '';
@@ -2634,15 +2650,16 @@ function abrirModalUsuario(username = null) {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalUsuario')).show();
 }
 
-// CAMBIO APLICADO AQUÍ: SE GUARDA LA NUEVA CONTRASEÑA SI EL ADMIN LA LLENA
 async function guardarUsuario(e) {
     e.preventDefault();
     try {
         const isC = document.getElementById('usu-modo').value === "CREAR";
         const method = isC ? 'POST' : 'PUT';
+        const username = document.getElementById('usu-id').value.trim();
+        const pwd = document.getElementById('usu-clave').value;
 
         const payload = {
-            username: document.getElementById('usu-id').value.trim(),
+            username: username,
             nombre: document.getElementById('usu-nombre').value,
             rol: document.getElementById('usu-rol').value,
             curso: document.getElementById('usu-curso').value,
@@ -2651,11 +2668,11 @@ async function guardarUsuario(e) {
             ninos_fiesta: 0
         };
 
-        const pwd = document.getElementById('usu-clave').value;
-        if(pwd && pwd.trim() !== '') {
+        if(isC) {
             payload.password = pwd.trim();
         }
 
+        // Llamada general para actualizar los datos
         const resp = await fetch(`${API_URL}/usuarios`, {
             method: method,
             headers: { 'Content-Type': 'application/json' },
@@ -2665,6 +2682,24 @@ async function guardarUsuario(e) {
         const data = await resp.json();
 
         if(resp.ok && data.exito) {
+            
+            // LÓGICA DE CORRECCIÓN: Si es edición y el admin escribió una clave, forzamos el endpoint de cambio de contraseña
+            if(!isC && pwd && pwd.trim() !== '') {
+                try {
+                    await fetch(`${API_URL}/usuarios/clave`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            username: username,
+                            password: pwd.trim(),
+                            forzar: 0 
+                        })
+                    });
+                } catch(errorClave) {
+                    console.error("Error secundario al forzar clave:", errorClave);
+                }
+            }
+
             bootstrap.Modal.getInstance(document.getElementById('modalUsuario')).hide();
             mostrarAlerta("Usuario guardado y registrado exitosamente.", "✅");
             renderizarTodasLasTablasAdmin();
