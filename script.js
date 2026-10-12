@@ -609,6 +609,22 @@ async function procesarPagoMasivoRubro(e) {
 function inyectarNuevasFunciones() {
     forzarNombreSIGECO28();
 
+    // NUEVO: Inyectar pie de página (footer) al fondo de la aplicación con el correo
+    const vistaApp = document.getElementById('vista-app');
+    if (vistaApp && !document.getElementById('sfs-footer-app')) {
+        const footerApp = `
+            <footer id="sfs-footer-app" class="text-center py-4 mt-5 border-top">
+                <p class="mb-1 text-muted small">
+                    Desarrollado por <a href="https://www.sfslatams.com/" target="_blank" class="text-primary fw-bold text-decoration-none">SmartFastSolution LATAM</a>
+                </p>
+                <a href="mailto:infosfs@sfslatams.com" class="text-success fw-bold text-decoration-none small">
+                    <i class="bi bi-envelope-at-fill me-1"></i> infosfs@sfslatams.com
+                </a>
+            </footer>
+        `;
+        vistaApp.insertAdjacentHTML('beforeend', footerApp);
+    }
+
     const filePago = document.getElementById('pago-voucher-file');
     if(filePago) {
         filePago.setAttribute('accept', '.jpg, .jpeg');
