@@ -24,7 +24,7 @@ function forzarNombreSIGECO28() {
             <div class="d-flex flex-column">
                 <span class="fw-bold"><i class="bi bi-shield-check me-2"></i>SIGECO 28</span>
                 <span style="font-size: 0.85rem; font-weight: normal; opacity: 0.9; line-height: 1.2; margin-top: 2px; text-transform: none;">
-                    Desarrollado por SmartFastSolution LATAM<br>infosfs@sfslatams.com
+                    <a href="https://www.sfslatams.com/" target="_blank" class="text-white text-decoration-none">Desarrollado por SmartFastSolution LATAM</a><br>infosfs@sfslatams.com
                 </span>
             </div>
         `;
@@ -44,7 +44,6 @@ function forzarNombreSIGECO28() {
 
     if (formLogin) {
         if (!document.getElementById('marca-login-sfs')) {
-            // NUEVO BLOQUE CENTRAL: Textos, Link y Logo de WhatsApp
             const marcaHTML = `
                 <div id="marca-login-sfs" class="text-center mt-4 pt-4 border-top">
                     
@@ -53,22 +52,16 @@ function forzarNombreSIGECO28() {
                         Toda empresa o negocio necesita un Sistema, llama a SFS Latam tu soporte inmediato.
                     </p>
                     
-                    <!-- Enlace de Desarrollo e IA -->
-                    <p class="mb-3">
-                        <a href="https://www.sfslatams.com/" target="_blank" class="text-decoration-none fw-bold text-primary" style="font-size: 0.95rem;">
-                    
-                        </a>
-                    </p>
-                    
                     <!-- Logo de WhatsApp y Número -->
                     <div class="d-flex justify-content-center align-items-center mb-4">
-                        <a href="https://wa.me/59395 911 0281" target="_blank" class="btn btn-outline-success rounded-pill fw-bold d-flex align-items-center px-4 py-2 shadow-sm">
+                        <a href="https://wa.me/593959110281" target="_blank" class="btn btn-outline-success rounded-pill fw-bold d-flex align-items-center px-4 py-2 shadow-sm">
                             <i class="bi bi-whatsapp fs-4 me-2"></i> +593 95 911 0281
                         </a>
                     </div>
 
-                    <p class="mb-0 text-muted small">Desarrollado por SmartFastSolution LATAM</p>
-                    <a href="https://www.sfslatams.com/" target="_blank" class="text-success small text-decoration-none">https://www.sfslatams.com/</a>
+                    <!-- Enlace a la empresa -->
+                    <a href="https://www.sfslatams.com/" target="_blank" class="text-muted small text-decoration-none d-block mb-0">Desarrollado por SmartFastSolution LATAM</a>
+                    <a href="mailto:infosfs@sfslatams.com" class="text-success small text-decoration-none">infosfs@sfslatams.com</a>
                 </div>
             `;
             formLogin.insertAdjacentHTML('beforeend', marcaHTML);
