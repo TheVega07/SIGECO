@@ -56,7 +56,7 @@ function forzarNombreSIGECO28() {
                     <!-- Enlace de Desarrollo e IA -->
                     <p class="mb-3">
                         <a href="https://www.sfslatams.com/" target="_blank" class="text-decoration-none fw-bold text-primary" style="font-size: 0.95rem;">
-                            Consulta por nuestros servicios de Desarrollo de Software e implementación de IA para tu negocio
+                    
                         </a>
                     </p>
                     
