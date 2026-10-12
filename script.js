@@ -52,16 +52,22 @@ function forzarNombreSIGECO28() {
                         Toda empresa o negocio necesita un Sistema, llama a SFS Latam tu soporte inmediato.
                     </p>
                     
+                    <!-- Enlace a la página web (ARRIBA DEL NÚMERO) -->
+                    <a href="https://www.sfslatams.com/" target="_blank" class="text-primary d-block mb-3 fw-bold text-decoration-none fs-6">
+                        <i class="bi bi-globe me-1"></i> www.sfslatams.com
+                    </a>
+
                     <!-- Logo de WhatsApp y Número -->
-                    <div class="d-flex justify-content-center align-items-center mb-4">
+                    <div class="d-flex justify-content-center align-items-center mb-3">
                         <a href="https://wa.me/593959110281" target="_blank" class="btn btn-outline-success rounded-pill fw-bold d-flex align-items-center px-4 py-2 shadow-sm">
                             <i class="bi bi-whatsapp fs-4 me-2"></i> +593 95 911 0281
                         </a>
                     </div>
-
-                    <!-- Enlace a la empresa -->
-                    <a href="https://www.sfslatams.com/" target="_blank" class="text-muted small text-decoration-none d-block mb-0">Desarrollado por SmartFastSolution LATAM</a>
-                    <a href="mailto:infosfs@sfslatams.com" class="text-success small text-decoration-none">infosfs@sfslatams.com</a>
+                    
+                    <!-- Correo de contacto -->
+                    <a href="mailto:infosfs@sfslatams.com" class="text-success small text-decoration-none d-block">
+                        <i class="bi bi-envelope-at-fill me-1"></i> infosfs@sfslatams.com
+                    </a>
                 </div>
             `;
             formLogin.insertAdjacentHTML('beforeend', marcaHTML);
@@ -609,7 +615,6 @@ async function procesarPagoMasivoRubro(e) {
 function inyectarNuevasFunciones() {
     forzarNombreSIGECO28();
 
-    // NUEVO: Inyectar pie de página (footer) al fondo de la aplicación con el correo
     const vistaApp = document.getElementById('vista-app');
     if (vistaApp && !document.getElementById('sfs-footer-app')) {
         const footerApp = `
