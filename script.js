@@ -854,6 +854,40 @@ function inyectarNuevasFunciones() {
         document.getElementById('form-carga-masiva').addEventListener('submit', procesarCargaMasiva);
     }
 
+    // NUEVO MODAL: Carga Histórica de Estado de Cuenta desde Excel
+    if (!document.getElementById('modalHistorialExcel')) {
+        const modalHistorialHTML = `
+        <div class="modal fade" id="modalHistorialExcel" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-warning text-dark">
+                        <h5 class="modal-title fw-bold"><i class="bi bi-clock-history me-2"></i>Cargar Historial de Estado de Cuenta (Desde Excel)</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="form-historial-excel">
+                            <div class="alert alert-warning small text-dark">
+                                <strong>Instrucciones:</strong> Ve al Excel del alumno. Copia todas las filas desde donde empiezan los datos (Fecha, Comprobante, Concepto, Ingreso, Gasto) y pégalas aquí. El sistema registrará los saldos automáticamente.
+                            </div>
+                            <div class="mb-3">
+                                <label class="fw-bold">Seleccionar Padre/Alumno:</label>
+                                <select class="form-select border-warning" id="historial-usuario" required></select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="fw-bold"><i class="bi bi-clipboard-data me-1"></i>Pega aquí las filas copiadas de Excel:</label>
+                                <textarea class="form-control border-warning" id="historial-texto" rows="8" required placeholder="Ej: 25/08/2025   550740   Cuota de Junio   30       130"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-warning w-100 fw-bold fs-5 text-dark" id="btn-historial-excel">Subir Historial Exacto</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+
+        document.body.insertAdjacentHTML('beforeend', modalHistorialHTML);
+        document.getElementById('form-historial-excel').addEventListener('submit', procesarHistorialExcel);
+    }
+
     if (!document.getElementById('modalPagoMasivoRubro')) {
         const modalPMRHTML = `
         <div class="modal fade" id="modalPagoMasivoRubro" tabindex="-1">
@@ -968,6 +1002,9 @@ function inyectarNuevasFunciones() {
                     <button class="btn btn-dark shadow-sm fw-bold" onclick="abrirModalCargaMasiva()">
                         <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i> Carga Masiva (Excel)
                     </button>
+                    <button class="btn btn-warning shadow-sm fw-bold text-dark" onclick="abrirModalHistorialExcel()">
+                        <i class="bi bi-clock-history me-1"></i> Historial (Excel)
+                    </button>
                     <button class="btn btn-success shadow-sm fw-bold" onclick="abrirModalPagoMasivoRubro()">
                         <i class="bi bi-check2-all me-1"></i> Pagar a Todos
                     </button>
@@ -1041,6 +1078,130 @@ function inyectarNuevasFunciones() {
 
         adminPortal.insertAdjacentHTML('afterbegin', moduloGastosHTML);
     }
+}
+
+// LOGICA DE PROCESAMIENTO DEL NUEVO HISTORIAL EXCEL
+function abrirModalHistorialExcel() {
+    document.getElementById('form-historial-excel').reset();
+    
+    const sel = document.getElementById('historial-usuario');
+    sel.innerHTML = `<option value="">-- Seleccione a quién subirle el historial --</option>`;
+    
+    let padres = usuariosBD.filter(u => u.rol === 'PADRE');
+    padres.sort((a, b) => a.nombre.localeCompare(b.nombre));
+    padres.forEach(u => {
+        sel.innerHTML += `<option value="${u.username}">${u.nombre} (Paralelo ${u.curso||'Sin curso'})</option>`;
+    });
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalHistorialExcel')).show();
+}
+
+async function procesarHistorialExcel(e) {
+    e.preventDefault();
+    const usuarioSel = document.getElementById('historial-usuario').value;
+    const texto = document.getElementById('historial-texto').value;
+
+    const lineas = texto.split('\n');
+    let registros = [];
+    let lastDate = new Date().toISOString().split('T')[0];
+
+    for (let linea of lineas) {
+        if (linea.trim() === '') continue;
+
+        let celdas = linea.split('\t');
+        if(celdas.length < 3) continue;
+
+        let rawFecha = celdas[0]?.trim();
+        if (rawFecha && rawFecha !== '') {
+            lastDate = rawFecha.split(' ')[0]; 
+        }
+        
+        let comp = celdas[1]?.trim() || '-';
+        let concepto = celdas[2]?.trim() || '';
+        let ingreso = parseFloat((celdas[3] || '').replace(',', '.').replace(/[^0-9.-]/g, ''));
+        let gasto = parseFloat((celdas[4] || '').replace(',', '.').replace(/[^0-9.-]/g, ''));
+
+        if(isNaN(ingreso)) ingreso = 0;
+        if(isNaN(gasto)) gasto = 0;
+
+        if (ingreso === 0 && gasto === 0) continue;
+
+        registros.push({ fecha: lastDate, comp, concepto, ingreso, gasto });
+    }
+
+    if (registros.length === 0) {
+        mostrarAlerta("No se detectaron valores válidos. Asegúrate de copiar las columnas Ingreso o Gasto.", "⚠️");
+        return;
+    }
+
+    if(!confirm(`Se detectaron ${registros.length} movimientos históricos. ¿Proceder a subirlos a la cuenta de este usuario?`)) {
+        return;
+    }
+
+    const btn = document.getElementById('btn-historial-excel');
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Subiendo al sistema...`;
+
+    let exitosIngresos = 0;
+    let exitosGastos = 0;
+
+    for (let reg of registros) {
+        if (reg.ingreso > 0) {
+            try {
+                let payloadPago = {
+                    usuario: usuarioSel,
+                    fecha: reg.fecha,
+                    voucher: `${reg.comp} || ${reg.concepto}`,
+                    valor: reg.ingreso,
+                    voucher_b64: ""
+                };
+
+                await fetch(`${API_URL}/pagos`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payloadPago)
+                });
+                exitosIngresos++;
+                
+                await cargarDatosDesdeServidor();
+                let pagosUsu = pagosGlobales.filter(p => p.usuario === usuarioSel && p.estado === 'PENDIENTE');
+                if(pagosUsu.length > 0) {
+                    let ultPago = pagosUsu[pagosUsu.length - 1];
+                    await fetch(`${API_URL}/pagos/validar`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({id: ultPago.id})
+                    });
+                }
+            } catch(e) {}
+        }
+
+        if (reg.gasto > 0) {
+            try {
+                let payloadGasto = {
+                    usuario: usuarioSel,
+                    concepto: reg.concepto,
+                    fecha: reg.fecha,
+                    valor: reg.gasto
+                };
+
+                await fetch(`${API_URL}/gastos`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payloadGasto)
+                });
+                exitosGastos++;
+            } catch(e) {}
+        }
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = `Subir Historial Exacto`;
+
+    bootstrap.Modal.getInstance(document.getElementById('modalHistorialExcel')).hide();
+    mostrarAlerta(`Historial cargado con éxito: ${exitosIngresos} Ingresos y ${exitosGastos} Gastos registrados.`, "✅");
+
+    renderizarTodasLasTablasAdmin();
 }
 
 function abrirModalCargaMasiva() {
@@ -1694,13 +1855,17 @@ async function renderizarTodasLasTablasAdmin() {
                     : '<i class="bi bi-check-circle-fill text-success fs-5"></i>';
 
                 let claseEstado = p.estado === 'VALIDADO' ? 'bg-success' : 'bg-warning text-dark';
+                
+                // Limpieza por si viene del historial excel
+                let compMostrar = p.voucher;
+                if(compMostrar && compMostrar.includes('||')) compMostrar = compMostrar.replace('||', '-');
 
                 tp.innerHTML += `
                 <tr>
                     <td class="fw-bold text-start">${dU ? dU.nombre : p.usuario}<br><small class="text-muted">${dU ? dU.curso : ''}</small></td>
                     <td class="text-primary fw-bold">${p.usuario}</td>
                     <td>${p.fecha}</td>
-                    <td>${p.voucher} ${btnV}</td>
+                    <td>${compMostrar} ${btnV}</td>
                     <td class="fw-bold text-success">$${parseFloat(p.valor||0).toFixed(2)}</td>
                     <td><span class="badge ${claseEstado}">${p.estado}</span></td>
                     <td>${btnA}</td>
@@ -2077,10 +2242,20 @@ function actualizarDashboardPadre() {
             });
 
             mP.forEach(p => {
+                let compTexto = p.voucher || '-';
+                let conceptoAbono = 'Abono / Transferencia Registrada';
+
+                // Lógica inteligente para reproducir exactamente las columnas del Excel si vienen de ahí
+                if(compTexto.includes('||')) {
+                    let partes = compTexto.split('||');
+                    compTexto = partes[0].trim();
+                    conceptoAbono = partes[1].trim();
+                }
+
                 tr.push({
                     fecha: p.fecha,
-                    cmp: p.voucher || '-',
-                    c: 'Abono / Transferencia Registrada',
+                    cmp: compTexto,
+                    c: conceptoAbono,
                     i: parseFloat(p.valor || 0),
                     g: 0,
                     v: p.estado === 'VALIDADO'
