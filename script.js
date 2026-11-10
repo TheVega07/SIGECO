@@ -47,24 +47,20 @@ function forzarNombreSIGECO28() {
             const marcaHTML = `
                 <div id="marca-login-sfs" class="text-center mt-4 pt-4 border-top">
                     
-                    <!-- Mensaje SFS Latam -->
                     <p class="mb-3 fw-bold text-dark" style="font-size: 1.1rem; line-height: 1.4;">
                         Toda empresa o negocio necesita un Sistema, llama a SFS Latam tu soporte inmediato.
                     </p>
                     
-                    <!-- Enlace a la página web (ARRIBA DEL NÚMERO) -->
                     <a href="https://www.sfslatams.com/" target="_blank" class="text-primary d-block mb-3 fw-bold text-decoration-none fs-6">
                         <i class="bi bi-globe me-1"></i> www.sfslatams.com
                     </a>
 
-                    <!-- Logo de WhatsApp y Número -->
                     <div class="d-flex justify-content-center align-items-center mb-3">
                         <a href="https://wa.me/593959110281" target="_blank" class="btn btn-outline-success rounded-pill fw-bold d-flex align-items-center px-4 py-2 shadow-sm">
                             <i class="bi bi-whatsapp fs-4 me-2"></i> +593 95 911 0281
                         </a>
                     </div>
                     
-                    <!-- Correo de contacto -->
                     <a href="mailto:infosfs@sfslatams.com" class="text-success small text-decoration-none d-block">
                         <i class="bi bi-envelope-at-fill me-1"></i> infosfs@sfslatams.com
                     </a>
@@ -819,7 +815,7 @@ function inyectarNuevasFunciones() {
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
                     <div class="modal-header bg-dark text-white">
-                        <h5 class="modal-title"><i class="bi bi-file-earmark-spreadsheet-fill me-2"></i>Carga Masiva desde Excel</h5>
+                        <h5 class="modal-title"><i class="bi bi-file-earmark-spreadsheet-fill me-2"></i>Carga Masiva desde Texto</h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
@@ -854,30 +850,32 @@ function inyectarNuevasFunciones() {
         document.getElementById('form-carga-masiva').addEventListener('submit', procesarCargaMasiva);
     }
 
-    // NUEVO MODAL: Carga Histórica de Estado de Cuenta desde Excel
+    // MODAL DE EXCEL NUEVO (REEMPLAZA AL DE TEXTO)
     if (!document.getElementById('modalHistorialExcel')) {
         const modalHistorialHTML = `
         <div class="modal fade" id="modalHistorialExcel" tabindex="-1">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
                     <div class="modal-header bg-warning text-dark">
-                        <h5 class="modal-title fw-bold"><i class="bi bi-clock-history me-2"></i>Cargar Historial de Estado de Cuenta (Desde Excel)</h5>
+                        <h5 class="modal-title fw-bold"><i class="bi bi-file-earmark-excel-fill me-2"></i>Subir Historial Directo (Excel)</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
                         <form id="form-historial-excel">
                             <div class="alert alert-warning small text-dark">
-                                <strong>Instrucciones:</strong> Ve al Excel del alumno. Copia todas las filas desde donde empiezan los datos (Fecha, Comprobante, Concepto, Ingreso, Gasto) y pégalas aquí. El sistema registrará los saldos automáticamente.
+                                <strong>Instrucciones:</strong> Sube directamente el archivo Excel (.xlsx) del alumno que te envió el ingeniero. El sistema leerá los Ingresos y Gastos automáticamente.
                             </div>
                             <div class="mb-3">
                                 <label class="fw-bold">Seleccionar Padre/Alumno:</label>
-                                <select class="form-select border-warning" id="historial-usuario" required></select>
+                                <select class="form-select border-warning shadow-sm" id="historial-usuario" required></select>
                             </div>
-                            <div class="mb-3">
-                                <label class="fw-bold"><i class="bi bi-clipboard-data me-1"></i>Pega aquí las filas copiadas de Excel:</label>
-                                <textarea class="form-control border-warning" id="historial-texto" rows="8" required placeholder="Ej: 25/08/2025   550740   Cuota de Junio   30       130"></textarea>
+                            <div class="mb-4">
+                                <label class="fw-bold"><i class="bi bi-upload me-1"></i>Archivo Excel del Alumno (.xlsx):</label>
+                                <input type="file" class="form-control border-warning shadow-sm" id="historial-file" accept=".xlsx, .xls" required>
                             </div>
-                            <button type="submit" class="btn btn-warning w-100 fw-bold fs-5 text-dark" id="btn-historial-excel">Subir Historial Exacto</button>
+                            <button type="submit" class="btn btn-warning w-100 fw-bold fs-5 text-dark shadow" id="btn-historial-excel">
+                                <i class="bi bi-magic me-1"></i> Leer Excel y Guardar Datos
+                            </button>
                         </form>
                     </div>
                 </div>
@@ -1000,10 +998,10 @@ function inyectarNuevasFunciones() {
                         <i class="bi bi-plus-circle me-1"></i> Asignar 1x1
                     </button>
                     <button class="btn btn-dark shadow-sm fw-bold" onclick="abrirModalCargaMasiva()">
-                        <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i> Carga Masiva (Excel)
+                        <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i> Carga Masiva (Texto)
                     </button>
                     <button class="btn btn-warning shadow-sm fw-bold text-dark" onclick="abrirModalHistorialExcel()">
-                        <i class="bi bi-clock-history me-1"></i> Historial (Excel)
+                        <i class="bi bi-file-excel-fill me-1"></i> Historial Directo (Excel)
                     </button>
                     <button class="btn btn-success shadow-sm fw-bold" onclick="abrirModalPagoMasivoRubro()">
                         <i class="bi bi-check2-all me-1"></i> Pagar a Todos
@@ -1080,10 +1078,9 @@ function inyectarNuevasFunciones() {
     }
 }
 
-// LOGICA DE PROCESAMIENTO DEL NUEVO HISTORIAL EXCEL
+// LOGICA DE LECTURA DIRECTA DE EXCEL
 function abrirModalHistorialExcel() {
     document.getElementById('form-historial-excel').reset();
-    
     const sel = document.getElementById('historial-usuario');
     sel.innerHTML = `<option value="">-- Seleccione a quién subirle el historial --</option>`;
     
@@ -1099,109 +1096,148 @@ function abrirModalHistorialExcel() {
 async function procesarHistorialExcel(e) {
     e.preventDefault();
     const usuarioSel = document.getElementById('historial-usuario').value;
-    const texto = document.getElementById('historial-texto').value;
+    const fileInput = document.getElementById('historial-file');
 
-    const lineas = texto.split('\n');
-    let registros = [];
-    let lastDate = new Date().toISOString().split('T')[0];
-
-    for (let linea of lineas) {
-        if (linea.trim() === '') continue;
-
-        let celdas = linea.split('\t');
-        if(celdas.length < 3) continue;
-
-        let rawFecha = celdas[0]?.trim();
-        if (rawFecha && rawFecha !== '') {
-            lastDate = rawFecha.split(' ')[0]; 
-        }
-        
-        let comp = celdas[1]?.trim() || '-';
-        let concepto = celdas[2]?.trim() || '';
-        let ingreso = parseFloat((celdas[3] || '').replace(',', '.').replace(/[^0-9.-]/g, ''));
-        let gasto = parseFloat((celdas[4] || '').replace(',', '.').replace(/[^0-9.-]/g, ''));
-
-        if(isNaN(ingreso)) ingreso = 0;
-        if(isNaN(gasto)) gasto = 0;
-
-        if (ingreso === 0 && gasto === 0) continue;
-
-        registros.push({ fecha: lastDate, comp, concepto, ingreso, gasto });
-    }
-
-    if (registros.length === 0) {
-        mostrarAlerta("No se detectaron valores válidos. Asegúrate de copiar las columnas Ingreso o Gasto.", "⚠️");
+    if (fileInput.files.length === 0) {
+        mostrarAlerta("Por favor, selecciona un archivo Excel.", "⚠️");
         return;
     }
 
-    if(!confirm(`Se detectaron ${registros.length} movimientos históricos. ¿Proceder a subirlos a la cuenta de este usuario?`)) {
+    if (typeof XLSX === 'undefined') {
+        mostrarAlerta("Falta el lector de Excel. Asegúrate de poner el script en tu HTML.", "❌");
         return;
     }
 
     const btn = document.getElementById('btn-historial-excel');
     btn.disabled = true;
-    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Subiendo al sistema...`;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Analizando Excel...`;
 
-    let exitosIngresos = 0;
-    let exitosGastos = 0;
+    const file = fileInput.files[0];
+    const reader = new FileReader();
 
-    for (let reg of registros) {
-        if (reg.ingreso > 0) {
-            try {
-                let payloadPago = {
-                    usuario: usuarioSel,
-                    fecha: reg.fecha,
-                    voucher: `${reg.comp} || ${reg.concepto}`,
-                    valor: reg.ingreso,
-                    voucher_b64: ""
-                };
+    reader.onload = async function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const firstSheetName = workbook.SheetNames[0]; 
+            const worksheet = workbook.Sheets[firstSheetName];
+            
+            const excelData = XLSX.utils.sheet_to_json(worksheet, {header: 1, raw: false});
 
-                await fetch(`${API_URL}/pagos`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payloadPago)
-                });
-                exitosIngresos++;
+            let registros = [];
+            let lastDate = new Date().toISOString().split('T')[0];
+
+            for (let i = 0; i < excelData.length; i++) {
+                let fila = excelData[i];
+                if (!fila || fila.length === 0) continue;
+
+                let rawFecha = fila[0];
+                let comp = fila[1] ? String(fila[1]).trim() : '-';
+                let concepto = fila[2] ? String(fila[2]).trim() : '';
                 
-                await cargarDatosDesdeServidor();
-                let pagosUsu = pagosGlobales.filter(p => p.usuario === usuarioSel && p.estado === 'PENDIENTE');
-                if(pagosUsu.length > 0) {
-                    let ultPago = pagosUsu[pagosUsu.length - 1];
-                    await fetch(`${API_URL}/pagos/validar`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({id: ultPago.id})
-                    });
+                let strIngreso = String(fila[3] || '0').replace('$', '').replace(',', '').trim();
+                let strGasto = String(fila[4] || '0').replace('$', '').replace(',', '').trim();
+                
+                let ingreso = parseFloat(strIngreso) || 0;
+                let gasto = parseFloat(strGasto) || 0;
+
+                // Filtros para ignorar encabezados del Excel
+                if (concepto.toLowerCase().includes('concepto') || concepto.toLowerCase().includes('anuario')) continue;
+                if (ingreso === 0 && gasto === 0) continue;
+
+                if (rawFecha && String(rawFecha).trim() !== '') {
+                    // Formatear fecha excel si es necesario
+                    if(String(rawFecha).includes('/')) {
+                        let partes = String(rawFecha).split(' ')[0].split('/');
+                        if(partes.length === 3) {
+                            if(partes[2].length === 4) {
+                                lastDate = `${partes[2]}-${partes[1]}-${partes[0]}`;
+                            } else {
+                                lastDate = String(rawFecha).trim();
+                            }
+                        } else {
+                            lastDate = String(rawFecha).trim();
+                        }
+                    } else {
+                        lastDate = String(rawFecha).trim();
+                    }
                 }
-            } catch(e) {}
+
+                registros.push({ fecha: lastDate, comp, concepto, ingreso, gasto });
+            }
+
+            if (registros.length === 0) {
+                mostrarAlerta("No se encontraron ingresos o gastos en el Excel.", "⚠️");
+                btn.disabled = false;
+                btn.innerHTML = "<i class='bi bi-magic me-1'></i> Leer Excel y Guardar Datos";
+                return;
+            }
+
+            if(!confirm(`Se detectaron ${registros.length} movimientos de ingresos y gastos en el Excel. ¿Deseas guardarlos en el sistema?`)) {
+                btn.disabled = false;
+                btn.innerHTML = "<i class='bi bi-magic me-1'></i> Leer Excel y Guardar Datos";
+                return;
+            }
+
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Guardando en BD...`;
+
+            let exitosIngresos = 0;
+            let exitosGastos = 0;
+
+            for (let reg of registros) {
+                if (reg.ingreso > 0) {
+                    try {
+                        let payloadPago = {
+                            usuario: usuarioSel,
+                            fecha: reg.fecha,
+                            voucher: `${reg.comp} || ${reg.concepto}`,
+                            valor: reg.ingreso,
+                            voucher_b64: ""
+                        };
+                        await fetch(`${API_URL}/pagos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payloadPago) });
+                        exitosIngresos++;
+                        
+                        await cargarDatosDesdeServidor();
+                        let pagosUsu = pagosGlobales.filter(p => p.usuario === usuarioSel && p.estado === 'PENDIENTE');
+                        if(pagosUsu.length > 0) {
+                            let ultPago = pagosUsu[pagosUsu.length - 1];
+                            await fetch(`${API_URL}/pagos/validar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({id: ultPago.id}) });
+                        }
+                    } catch(e) {
+                        console.error(e);
+                    }
+                }
+
+                if (reg.gasto > 0) {
+                    try {
+                        let payloadGasto = {
+                            usuario: usuarioSel,
+                            concepto: reg.concepto,
+                            fecha: reg.fecha,
+                            valor: reg.gasto
+                        };
+                        await fetch(`${API_URL}/gastos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payloadGasto) });
+                        exitosGastos++;
+                    } catch(e) {
+                        console.error(e);
+                    }
+                }
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = `<i class='bi bi-magic me-1'></i> Leer Excel y Guardar Datos`;
+            bootstrap.Modal.getInstance(document.getElementById('modalHistorialExcel')).hide();
+            mostrarAlerta(`¡Éxito! Archivo procesado: ${exitosIngresos} Ingresos y ${exitosGastos} Gastos registrados.`, "✅");
+            renderizarTodasLasTablasAdmin();
+
+        } catch (error) {
+            console.error(error);
+            mostrarAlerta("Error al leer el archivo Excel. Asegúrate de que no esté corrupto.", "❌");
+            btn.disabled = false;
+            btn.innerHTML = "<i class='bi bi-magic me-1'></i> Leer Excel y Guardar Datos";
         }
-
-        if (reg.gasto > 0) {
-            try {
-                let payloadGasto = {
-                    usuario: usuarioSel,
-                    concepto: reg.concepto,
-                    fecha: reg.fecha,
-                    valor: reg.gasto
-                };
-
-                await fetch(`${API_URL}/gastos`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payloadGasto)
-                });
-                exitosGastos++;
-            } catch(e) {}
-        }
-    }
-
-    btn.disabled = false;
-    btn.innerHTML = `Subir Historial Exacto`;
-
-    bootstrap.Modal.getInstance(document.getElementById('modalHistorialExcel')).hide();
-    mostrarAlerta(`Historial cargado con éxito: ${exitosIngresos} Ingresos y ${exitosGastos} Gastos registrados.`, "✅");
-
-    renderizarTodasLasTablasAdmin();
+    };
+    reader.readAsArrayBuffer(file);
 }
 
 function abrirModalCargaMasiva() {
@@ -1856,9 +1892,10 @@ async function renderizarTodasLasTablasAdmin() {
 
                 let claseEstado = p.estado === 'VALIDADO' ? 'bg-success' : 'bg-warning text-dark';
                 
-                // Limpieza por si viene del historial excel
                 let compMostrar = p.voucher;
-                if(compMostrar && compMostrar.includes('||')) compMostrar = compMostrar.replace('||', '-');
+                if(compMostrar && compMostrar.includes('||')) {
+                    compMostrar = compMostrar.replace('||', '-');
+                }
 
                 tp.innerHTML += `
                 <tr>
@@ -2245,7 +2282,6 @@ function actualizarDashboardPadre() {
                 let compTexto = p.voucher || '-';
                 let conceptoAbono = 'Abono / Transferencia Registrada';
 
-                // Lógica inteligente para reproducir exactamente las columnas del Excel si vienen de ahí
                 if(compTexto.includes('||')) {
                     let partes = compTexto.split('||');
                     compTexto = partes[0].trim();
@@ -2687,7 +2723,9 @@ async function registrarActividad(e) {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(payloadGasto)
                         });
-                    } catch(err) { console.error("Error asignando actividad como deuda a: ", padre.username); }
+                    } catch(err) { 
+                        console.error("Error asignando actividad como deuda a: ", padre.username); 
+                    }
                 }
                 
                 if(formBtn) formBtn.innerHTML = txtOriginal;
@@ -2861,7 +2899,6 @@ async function guardarUsuario(e) {
             payload.password = pwd.trim();
         }
 
-        // Llamada general para actualizar los datos
         const resp = await fetch(`${API_URL}/usuarios`, {
             method: method,
             headers: { 'Content-Type': 'application/json' },
@@ -2872,7 +2909,6 @@ async function guardarUsuario(e) {
 
         if(resp.ok && data.exito) {
             
-            // LÓGICA DE CORRECCIÓN: Si es edición y el admin escribió una clave, forzamos el endpoint de cambio de contraseña
             if(!isC && pwd && pwd.trim() !== '') {
                 try {
                     await fetch(`${API_URL}/usuarios/clave`, {
@@ -2920,12 +2956,6 @@ async function toggleEstadoUsuario(usr) {
     } catch(e) {
         mostrarAlerta("Error al cambiar el estado del usuario.", "❌");
     }
-}
-
-function abrirModalCuota(user, val) {
-    document.getElementById('cuota-usu').value = user;
-    document.getElementById('nueva-cuota-input').value = parseFloat(val).toFixed(2);
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAsignarCuota')).show();
 }
 
 async function guardarNuevaCuota(e) {
