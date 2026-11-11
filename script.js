@@ -2226,13 +2226,17 @@ function actualizarDashboardPadre() {
         }
 
         const mP = pagosGlobales.filter(p => String(p.usuario) === String(usuarioActual.username));
+        // FILTRO: Ignoramos la palabra "Total" en mis gastos si existe
         const mG = gastosPadres.filter(g => String(g.username) === String(usuarioActual.username));
 
-        let tR = mG.reduce((s, g) => s + parseFloat(g.valor||0), 0);
+        // Para los cálculos de los cards (resumen arriba), no incluimos el 'Total' para evitar duplicar deuda
+        const mG_calculo = mG.filter(g => g.concepto.toLowerCase() !== 'total');
+
+        let tR = mG_calculo.reduce((s, g) => s + parseFloat(g.valor||0), 0);
         let tA = tR;
 
         let sumPagosValidados = mP.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
-        let sumGastosMarcadosPagados = mG.filter(g => g.estado === 'PAGADO').reduce((sum, g) => sum + parseFloat(g.valor || 0), 0);
+        let sumGastosMarcadosPagados = mG_calculo.filter(g => g.estado === 'PAGADO').reduce((sum, g) => sum + parseFloat(g.valor || 0), 0);
 
         let tP = Math.max(sumPagosValidados, sumGastosMarcadosPagados);
         let pen = tA - sumGastosMarcadosPagados;
@@ -2241,11 +2245,12 @@ function actualizarDashboardPadre() {
 
         if(vMG) {
             vMG.innerHTML = '';
-
-            if (mG.length === 0) {
+            
+            // Aquí en Mis Gastos también ignoramos el 'Total'
+            if (mG_calculo.length === 0) {
                 vMG.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No tiene rubros asignados.</td></tr>`;
             } else {
-                mG.forEach(g => {
+                mG_calculo.forEach(g => {
                     let valorRubro = parseFloat(g.valor || 0);
                     let saldoRubro = g.estado === 'PAGADO' ? 0 : valorRubro;
 
@@ -2266,81 +2271,84 @@ function actualizarDashboardPadre() {
         const vE = document.getElementById('padre-vista-estado');
 
         if (vE) {
-            let tr = [];
+            // Construir array unificado de movimientos exactamente como en Excel
+            let movimientos = [];
 
-            mG.forEach(g => {
-                tr.push({
+            mG_calculo.forEach(g => {
+                movimientos.push({
                     fecha: g.fecha,
-                    c: `Gasto Asignado: ${g.concepto}`,
-                    i: 0,
-                    g: parseFloat(g.valor||0),
-                    v: true
+                    comp: '-',
+                    concepto: g.concepto,
+                    ingreso: 0,
+                    gasto: parseFloat(g.valor || 0),
+                    v: true // Gastos siempre son válidos
                 });
             });
 
             mP.forEach(p => {
                 let compTexto = p.voucher || '-';
-                let conceptoAbono = 'Abono / Transferencia Registrada';
-
+                let conceptoTexto = 'Cuota / Pago';
                 if(compTexto.includes('||')) {
                     let partes = compTexto.split('||');
                     compTexto = partes[0].trim();
-                    conceptoAbono = partes[1].trim();
+                    conceptoTexto = partes[1].trim();
                 }
-
-                tr.push({
+                movimientos.push({
                     fecha: p.fecha,
-                    cmp: compTexto,
-                    c: conceptoAbono,
-                    i: parseFloat(p.valor || 0),
-                    g: 0,
+                    comp: compTexto,
+                    concepto: conceptoTexto,
+                    ingreso: parseFloat(p.valor || 0),
+                    gasto: 0,
                     v: p.estado === 'VALIDADO'
                 });
             });
 
-            tr.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
-            tr.reverse();
+            // Ordenar por fecha desde el más antiguo al más nuevo para calcular el saldo progresivo
+            movimientos.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
-            let hF = '';
+            let saldoAcumulado = 0;
+            let totalIngresos = 0;
+            let totalGastos = 0;
+            let filasHTML = '';
 
-            let trParaCalculo = [...tr].reverse();
-            let saldosCalculados = [];
-            let dA = 0; 
-
-            trParaCalculo.forEach(t => {
-                if(t.v) {
-                    dA += t.g; 
-                    dA -= t.i; 
-                }
-                saldosCalculados.push(dA);
-            });
-
-            saldosCalculados.reverse();
-
-            if (tr.length === 0) {
-                hF = `<tr><td colspan="6" class="text-muted py-4">No hay movimientos registrados.</td></tr>`;
+            if (movimientos.length === 0) {
+                filasHTML = `<tr><td colspan="6" class="text-muted py-4">No hay movimientos registrados.</td></tr>`;
             } else {
-                tr.forEach((t, index) => {
-                    let eE = t.v ? '' : '<br><span class="badge bg-warning text-dark mt-1"><i class="bi bi-hourglass-split me-1"></i>En Espera de Aprobación</span>';
+                movimientos.forEach(m => {
+                    let eE = m.v ? '' : '<br><span class="badge bg-warning text-dark mt-1"><i class="bi bi-hourglass-split me-1"></i>En Espera de Aprobación</span>';
 
-                    let vI = t.i > 0 ? '$' + t.i.toFixed(2) : '-';
-                    let vG = t.g > 0 ? '$' + t.g.toFixed(2) : '-';
+                    // Solo sumar al saldo y totales si el movimiento es validado
+                    if (m.v) {
+                        saldoAcumulado = saldoAcumulado + m.ingreso - m.gasto;
+                        totalIngresos += m.ingreso;
+                        totalGastos += m.gasto;
+                    }
 
-                    let saldoLinea = saldosCalculados[index];
-                    let vS = '$' + Math.max(0, saldoLinea).toFixed(2);
+                    let vI = m.ingreso > 0 ? '$' + m.ingreso.toFixed(2) : '-';
+                    let vG = m.gasto > 0 ? '$' + m.gasto.toFixed(2) : '-';
+                    
+                    let colorS = m.v ? 'text-primary' : 'text-muted';
+                    let vS = m.v ? '$' + saldoAcumulado.toFixed(2) : '-';
 
-                    let colorS = t.v ? 'text-primary' : 'text-muted';
-
-                    hF += `
+                    filasHTML += `
                     <tr>
-                        <td>${t.fecha}</td>
-                        <td>${t.cmp||'-'}</td>
-                        <td class="fw-bold text-start">${t.c} ${eE}</td>
+                        <td>${m.fecha}</td>
+                        <td>${m.comp}</td>
+                        <td class="fw-bold text-start">${m.concepto} ${eE}</td>
                         <td class="text-success fw-bold">${vI}</td>
                         <td class="text-danger fw-bold">${vG}</td>
                         <td class="fw-bold ${colorS}">${vS}</td>
                     </tr>`;
                 });
+
+                // CREAR APARTADO DE TOTAL SEPARADO (Última fila de la tabla)
+                filasHTML += `
+                <tr class="table-secondary fw-bold" style="border-top: 2px solid #000;">
+                    <td colspan="3" class="text-end text-dark">Total:</td>
+                    <td class="text-success">$${totalIngresos.toFixed(2)}</td>
+                    <td class="text-danger">$${totalGastos.toFixed(2)}</td>
+                    <td class="text-primary">$${saldoAcumulado.toFixed(2)}</td>
+                </tr>`;
             }
 
             vE.innerHTML = `
@@ -2391,7 +2399,7 @@ function actualizarDashboardPadre() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${hF}
+                                    ${filasHTML}
                                 </tbody>
                             </table>
                         </div>
