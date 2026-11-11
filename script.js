@@ -2238,8 +2238,18 @@ function actualizarDashboardPadre() {
         let sumPagosValidados = mP.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
         let sumGastosMarcadosPagados = mG_calculo.filter(g => g.estado === 'PAGADO').reduce((sum, g) => sum + parseFloat(g.valor || 0), 0);
 
-        let tP = Math.max(sumPagosValidados, sumGastosMarcadosPagados);
-        let pen = tA - sumGastosMarcadosPagados;
+        
+        let tP = sumPagosValidados;
+        // Calculamos el saldo real restando lo que debe menos lo que ha abonado
+        let pen = tA - sumPagosValidados; 
+        
+        // Si el resultado es negativo (abono más de lo que debe), el saldo a favor es su dinero extra
+        let saldoAFavor = 0;
+        if (pen < 0) {
+            saldoAFavor = Math.abs(pen);
+            pen = 0; // Ya no debe nada
+        }
+
 
         const vMG = document.getElementById('tabla-misgastos-padre');
 
@@ -2352,9 +2362,18 @@ function actualizarDashboardPadre() {
             }
 
             vE.innerHTML = `
+                
                 <div class="row mb-4">
                     <div class="col-md-4 mb-3">
-                        <div class="card text-white bg-primary shadow-sm h-100">
+                        <div class="card text-dark shadow-sm h-100" style="background-color: #9cd1ff;"> <!-- Celeste -->
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="bi bi-piggy-bank-fill me-2"></i>Total Abonado (Ingreso)</h6>
+                                <h3 class="fw-bold mb-0">$${tP.toFixed(2)}</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card text-dark shadow-sm h-100" style="background-color: #fdfd96;"> <!-- Amarillo pastel -->
                             <div class="card-body">
                                 <h6 class="card-title"><i class="bi bi-wallet2 me-2"></i>Total Gastos Asignados</h6>
                                 <h3 class="fw-bold mb-0">$${tA.toFixed(2)}</h3>
@@ -2362,22 +2381,18 @@ function actualizarDashboardPadre() {
                         </div>
                     </div>
                     <div class="col-md-4 mb-3">
-                        <div class="card text-white bg-success shadow-sm h-100">
+                        <div class="card text-white bg-success shadow-sm h-100"> <!-- Verde -->
                             <div class="card-body">
-                                <h6 class="card-title"><i class="bi bi-piggy-bank-fill me-2"></i>Total Abonado (Reconocido)</h6>
-                                <h3 class="fw-bold mb-0">$${tP.toFixed(2)}</h3>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="card text-white bg-danger shadow-sm h-100">
-                            <div class="card-body">
-                                <h6 class="card-title"><i class="bi bi-exclamation-triangle-fill me-2"></i>Saldo Pendiente (Deuda)</h6>
-                                <h3 class="fw-bold mb-0">$${Math.max(0, pen).toFixed(2)}</h3>
+                                <h6 class="card-title">
+                                    <i class="bi ${saldoAFavor > 0 ? 'bi-plus-circle-fill' : 'bi-exclamation-triangle-fill'} me-2"></i>
+                                    ${saldoAFavor > 0 ? 'Saldo a Favor del Padre' : 'Saldo Pendiente (Deuda)'}
+                                </h6>
+                                <h3 class="fw-bold mb-0">$${saldoAFavor > 0 ? saldoAFavor.toFixed(2) : pen.toFixed(2)}</h3>
                             </div>
                         </div>
                     </div>
                 </div>
+
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 border-bottom pb-2">
                     <h4 class="fw-bold text-primary mb-3 mb-md-0"><i class="bi bi-clock-history me-2"></i>Estado de Cuenta</h4>
                     <button class="btn btn-success fw-bold shadow-sm" onclick="abrirModalPagoPrellenado()">
