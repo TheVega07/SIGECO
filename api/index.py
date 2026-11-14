@@ -249,7 +249,7 @@ def cuota_usuario():
         if conexion: conexion.close()
 
 # ==========================================
-# RUTAS PARA LOS GASTOS DE LOS PADRES (NUEVO)
+# RUTAS PARA LOS GASTOS DE LOS PADRES
 # ==========================================
 @app.route('/api/gastos', methods=['POST'])
 def asignar_gasto():
@@ -277,6 +277,32 @@ def asignar_gasto():
         conexion.commit()
         return jsonify({"exito": True})
     except Exception as e: return jsonify({"exito": False, "mensaje": str(e)})
+    finally:
+        if cursor: cursor.close()
+        if conexion: conexion.close()
+
+@app.route('/api/gastos/masivo', methods=['POST'])
+def asignar_gasto_masivo_seleccion():
+    conexion, cursor = None, None
+    try:
+        data = request.get_json()
+        usuarios = data.get('usuarios', [])
+        concepto = data.get('concepto')
+        valor = data.get('valor')
+        fecha = data.get('fecha')
+
+        if not usuarios or not concepto or valor is None or not fecha:
+            return jsonify({"exito": False, "mensaje": "Datos incompletos"}), 400
+
+        conexion = get_db_connection()
+        cursor = conexion.cursor()
+        sql = "INSERT INTO gastos_padres (username, concepto, valor, fecha, estado) VALUES (%s, %s, %s, %s, 'PENDIENTE')"
+        valores = [(str(u), concepto, valor, fecha) for u in usuarios]
+        cursor.executemany(sql, valores)
+        conexion.commit()
+        return jsonify({"exito": True, "insertados": len(valores)})
+    except Exception as e:
+        return jsonify({"exito": False, "mensaje": str(e)}), 500
     finally:
         if cursor: cursor.close()
         if conexion: conexion.close()
