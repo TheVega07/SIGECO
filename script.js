@@ -16,6 +16,246 @@ const API_URL = "/api";
 const PRECIO_ADULTO = 101.00;
 const PRECIO_NINO = 81.00;
 
+// =========================================================================
+// MODO OSCURO Y ORDENAMIENTO CRONOLÓGICO DE FECHAS
+// =========================================================================
+function inyectarEstilosModoOscuro() {
+    if (document.getElementById('sigeco-dark-mode-styles')) return;
+
+    const style = document.createElement('style');
+    style.id = 'sigeco-dark-mode-styles';
+    style.textContent = `
+        body.dark-mode {
+            background-color: #0f172a !important;
+            color: #e2e8f0 !important;
+        }
+        body.dark-mode .main-content-area {
+            background-color: #0f172a !important;
+            color: #e2e8f0 !important;
+        }
+        body.dark-mode .sidebar {
+            background-color: #1e293b !important;
+            border-right: 1px solid #334155 !important;
+        }
+        body.dark-mode .sidebar .nav-link {
+            color: #cbd5e1 !important;
+        }
+        body.dark-mode .sidebar .nav-link:hover,
+        body.dark-mode .sidebar .nav-link.active {
+            background-color: #2563eb !important;
+            color: #ffffff !important;
+        }
+        body.dark-mode .glass-card {
+            background: rgba(30, 41, 59, 0.95) !important;
+            color: #f1f5f9 !important;
+            border: 1px solid #334155 !important;
+        }
+        body.dark-mode .bg-white,
+        body.dark-mode .card,
+        body.dark-mode .modal-content,
+        body.dark-mode .table-modern {
+            background-color: #1e293b !important;
+            color: #e2e8f0 !important;
+            border-color: #334155 !important;
+        }
+        body.dark-mode .bg-light,
+        body.dark-mode .alert-light {
+            background-color: #263349 !important;
+            color: #e2e8f0 !important;
+            border-color: #334155 !important;
+        }
+        body.dark-mode .alert-info {
+            background-color: #172554 !important;
+            color: #bfdbfe !important;
+            border-color: #1d4ed8 !important;
+        }
+        body.dark-mode .alert-warning {
+            background-color: #422006 !important;
+            color: #fef08a !important;
+            border-color: #a16207 !important;
+        }
+        body.dark-mode .text-dark,
+        body.dark-mode .form-label,
+        body.dark-mode label {
+            color: #f1f5f9 !important;
+        }
+        body.dark-mode .text-secondary,
+        body.dark-mode .text-muted {
+            color: #94a3b8 !important;
+        }
+        body.dark-mode h1[style*="#1e3c72"],
+        body.dark-mode h2[style*="#1e3c72"],
+        body.dark-mode h3[style*="#1e3c72"],
+        body.dark-mode h4[style*="#1e3c72"],
+        body.dark-mode td[style*="#1e3c72"] {
+            color: #60a5fa !important;
+        }
+        body.dark-mode .card[style*="#9cd1ff"] .card-title,
+        body.dark-mode .card[style*="#9cd1ff"] h3,
+        body.dark-mode .card[style*="#fdfd96"] .card-title,
+        body.dark-mode .card[style*="#fdfd96"] h3 {
+            color: #0f172a !important;
+        }
+        body.dark-mode .table {
+            --bs-table-bg: #1e293b;
+            --bs-table-color: #e2e8f0;
+            --bs-table-border-color: #334155;
+            --bs-table-striped-bg: #263349;
+            --bs-table-striped-color: #f1f5f9;
+            --bs-table-hover-bg: #293548;
+            --bs-table-hover-color: #ffffff;
+            color: #e2e8f0 !important;
+        }
+        body.dark-mode .table td,
+        body.dark-mode .table th {
+            border-color: #334155 !important;
+        }
+        body.dark-mode .table-primary {
+            --bs-table-bg: #1e3a8a;
+            --bs-table-color: #dbeafe;
+            --bs-table-border-color: #1d4ed8;
+        }
+        body.dark-mode .table-danger {
+            --bs-table-bg: #7f1d1d;
+            --bs-table-color: #fee2e2;
+            --bs-table-border-color: #991b1b;
+        }
+        body.dark-mode .table-success {
+            --bs-table-bg: #14532d;
+            --bs-table-color: #dcfce7;
+            --bs-table-border-color: #166534;
+        }
+        body.dark-mode .table-secondary {
+            --bs-table-bg: #334155;
+            --bs-table-color: #f8fafc;
+            --bs-table-border-color: #475569;
+        }
+        body.dark-mode .table-light {
+            --bs-table-bg: #263349;
+            --bs-table-color: #f1f5f9;
+            --bs-table-border-color: #334155;
+        }
+        body.dark-mode .form-control,
+        body.dark-mode .form-select,
+        body.dark-mode .input-group-text {
+            background-color: #0f172a !important;
+            color: #f1f5f9 !important;
+            border-color: #475569 !important;
+        }
+        body.dark-mode .form-control::placeholder {
+            color: #64748b !important;
+        }
+        body.dark-mode .form-control:disabled,
+        body.dark-mode .form-control[readonly] {
+            background-color: #1e293b !important;
+            color: #94a3b8 !important;
+        }
+        body.dark-mode .border,
+        body.dark-mode .border-top,
+        body.dark-mode .border-bottom {
+            border-color: #334155 !important;
+        }
+        body.dark-mode #marca-login-sfs p {
+            color: #e2e8f0 !important;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+function aplicarTemaGuardado() {
+    inyectarEstilosModoOscuro();
+    const tema = localStorage.getItem('temaSIGECO') || 'light';
+    if (tema === 'dark') {
+        document.body.classList.add('dark-mode');
+        document.documentElement.setAttribute('data-bs-theme', 'dark');
+    } else {
+        document.body.classList.remove('dark-mode');
+        document.documentElement.setAttribute('data-bs-theme', 'light');
+    }
+    actualizarBotonesTema(tema);
+}
+
+function alternarModoOscuro() {
+    inyectarEstilosModoOscuro();
+    const esOscuro = document.body.classList.toggle('dark-mode');
+    const nuevoTema = esOscuro ? 'dark' : 'light';
+    localStorage.setItem('temaSIGECO', nuevoTema);
+    document.documentElement.setAttribute('data-bs-theme', nuevoTema);
+    actualizarBotonesTema(nuevoTema);
+}
+
+function actualizarBotonesTema(tema) {
+    const esOscuro = tema === 'dark';
+    const btnApp = document.getElementById('btn-toggle-darkmode');
+    if (btnApp) {
+        btnApp.className = esOscuro
+            ? 'btn btn-warning btn-sm fw-bold me-2 rounded-pill px-3 text-dark'
+            : 'btn btn-outline-info btn-sm fw-bold me-2 rounded-pill px-3';
+        btnApp.innerHTML = esOscuro
+            ? '<i class="bi bi-sun-fill me-1"></i><span>Modo Claro</span>'
+            : '<i class="bi bi-moon-stars-fill me-1"></i><span>Modo Oscuro</span>';
+    }
+    const btnLogin = document.getElementById('btn-toggle-darkmode-login');
+    if (btnLogin) {
+        btnLogin.className = esOscuro
+            ? 'btn btn-warning btn-sm fw-bold rounded-pill px-3 shadow position-fixed top-0 end-0 m-3 text-dark'
+            : 'btn btn-dark btn-sm fw-bold rounded-pill px-3 shadow position-fixed top-0 end-0 m-3';
+        btnLogin.innerHTML = esOscuro
+            ? '<i class="bi bi-sun-fill me-1"></i><span>Modo Claro</span>'
+            : '<i class="bi bi-moon-stars-fill me-1"></i><span>Modo Oscuro</span>';
+    }
+}
+
+function parsearFechaSegura(fechaStr) {
+    if (!fechaStr) return 0;
+    const limpio = String(fechaStr).trim().split(' ')[0].split('T')[0];
+
+    // Formato YYYY-MM-DD o YYYY/MM/DD
+    let mISO = limpio.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+    if (mISO) {
+        return new Date(Number(mISO[1]), Number(mISO[2]) - 1, Number(mISO[3])).getTime();
+    }
+
+    // Formato DD/MM/YYYY o DD-MM-YYYY
+    let mLatam = limpio.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+    if (mLatam) {
+        return new Date(Number(mLatam[3]), Number(mLatam[2]) - 1, Number(mLatam[1])).getTime();
+    }
+
+    const parsed = Date.parse(limpio);
+    return isNaN(parsed) ? 0 : parsed;
+}
+
+function normalizarFechaISO(fechaStr) {
+    if (!fechaStr) return new Date().toISOString().split('T')[0];
+    const limpio = String(fechaStr).trim().split(' ')[0].split('T')[0];
+
+    let mISO = limpio.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+    if (mISO) {
+        return `${mISO[1]}-${mISO[2].padStart(2, '0')}-${mISO[3].padStart(2, '0')}`;
+    }
+
+    let mLatam = limpio.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+    if (mLatam) {
+        return `${mLatam[3]}-${mLatam[2].padStart(2, '0')}-${mLatam[1].padStart(2, '0')}`;
+    }
+
+    return limpio;
+}
+
+function compararFechasAsc(a, b) {
+    const fA = typeof a === 'object' && a !== null ? a.fecha : a;
+    const fB = typeof b === 'object' && b !== null ? b.fecha : b;
+    return parsearFechaSegura(fA) - parsearFechaSegura(fB);
+}
+
+function compararFechasDesc(a, b) {
+    const fA = typeof a === 'object' && a !== null ? a.fecha : a;
+    const fB = typeof b === 'object' && b !== null ? b.fecha : b;
+    return parsearFechaSegura(fB) - parsearFechaSegura(fA);
+}
+
+
 function forzarNombreSIGECO28() {
     document.title = "SIGECO 28";
     const brand = document.querySelector('.navbar-brand');
@@ -114,6 +354,7 @@ function hacerTablasResponsivas() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+    aplicarTemaGuardado();
     forzarNombreSIGECO28();
 
     const sesionGuardada = sessionStorage.getItem('sesionSIGECO');
@@ -284,7 +525,7 @@ function verDetalleGastosPadre(username, reRender = false) {
     
     const mP = pagosGlobales.filter(p => String(p.usuario) === String(username));
     let sumPagosValidados = mP.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
-    const deudas = gastosPadres.filter(g => String(g.username) === String(username));
+    const deudas = gastosPadres.filter(g => String(g.username) === String(username)).sort(compararFechasAsc);
     let sumGastosMarcadosPagados = deudas.filter(g => g.estado === 'PAGADO').reduce((sum, g) => sum + parseFloat(g.valor || 0), 0);
     
     let saldoAFavor = sumPagosValidados - sumGastosMarcadosPagados;
@@ -858,7 +1099,7 @@ function renderizarEstadoCuentaAdmin(username) {
 
     const mP = pagosGlobales.filter(p => String(p.usuario) === String(username));
     const mG = gastosPadres.filter(g => String(g.username) === String(username));
-    const mG_calculo = mG.filter(g => g.concepto.toLowerCase() !== 'total');
+    const mG_calculo = mG.filter(g => g.concepto.toLowerCase() !== 'total').sort(compararFechasAsc);
 
     let tA = mG_calculo.reduce((s, g) => s + parseFloat(g.valor || 0), 0);
     let sumPagosValidados = mP.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
@@ -903,7 +1144,7 @@ function renderizarEstadoCuentaAdmin(username) {
         });
     });
 
-    movimientos.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+    movimientos.sort(compararFechasAsc);
 
     let saldoAcumulado = 0;
     let totalIngresos = 0;
@@ -1024,7 +1265,25 @@ function irAGestionarDeudasDesdeEstado(username) {
 }
 
 function inyectarNuevasFunciones() {
+    aplicarTemaGuardado();
     forzarNombreSIGECO28();
+
+    const navActions = document.querySelector('#navbarApp .ms-auto');
+    if (navActions && !document.getElementById('btn-toggle-darkmode')) {
+        const btnLogout = navActions.querySelector('button[onclick="cerrarSesion()"]');
+        const btnDark = document.createElement('button');
+        btnDark.type = 'button';
+        btnDark.id = 'btn-toggle-darkmode';
+        btnDark.className = 'btn btn-outline-info btn-sm fw-bold me-2 rounded-pill px-3';
+        btnDark.onclick = alternarModoOscuro;
+        btnDark.innerHTML = '<i class="bi bi-moon-stars-fill me-1"></i><span>Modo Oscuro</span>';
+        if (btnLogout) {
+            navActions.insertBefore(btnDark, btnLogout);
+        } else {
+            navActions.appendChild(btnDark);
+        }
+        actualizarBotonesTema(localStorage.getItem('temaSIGECO') || 'light');
+    }
 
     const vistaApp = document.getElementById('vista-app');
     if (vistaApp && !document.getElementById('sfs-footer-app')) {
@@ -1685,21 +1944,7 @@ async function procesarHistorialExcel(e) {
                 if (ingreso === 0 && gasto === 0) continue;
 
                 if (rawFecha && String(rawFecha).trim() !== '') {
-                    // Formatear fecha excel si es necesario
-                    if(String(rawFecha).includes('/')) {
-                        let partes = String(rawFecha).split(' ')[0].split('/');
-                        if(partes.length === 3) {
-                            if(partes[2].length === 4) {
-                                lastDate = `${partes[2]}-${partes[1]}-${partes[0]}`;
-                            } else {
-                                lastDate = String(rawFecha).trim();
-                            }
-                        } else {
-                            lastDate = String(rawFecha).trim();
-                        }
-                    } else {
-                        lastDate = String(rawFecha).trim();
-                    }
+                    lastDate = normalizarFechaISO(rawFecha);
                 }
 
                 registros.push({ fecha: lastDate, comp, concepto, ingreso, gasto });
@@ -2420,7 +2665,7 @@ async function renderizarTodasLasTablasAdmin() {
         if(pagosParaRender.length === 0) {
             tp.innerHTML = `<tr><td colspan="7" class="text-muted py-4">No hay pagos.</td></tr>`;
         } else {
-            pagosParaRender.forEach(p => {
+            [...pagosParaRender].sort(compararFechasDesc).forEach(p => {
                 const dU = usuariosBD.find(u => String(u.username) === String(p.usuario));
 
                 const btnV = p.tiene_voucher
@@ -2459,7 +2704,7 @@ async function renderizarTodasLasTablasAdmin() {
         if(egresosGlobales.length === 0) {
             te.innerHTML = `<tr><td colspan="6" class="text-muted py-4">No hay egresos.</td></tr>`;
         } else {
-            egresosGlobales.forEach(e => {
+            [...egresosGlobales].sort(compararFechasDesc).forEach(e => {
                 const bD = e.tiene_doc
                     ? `<button class="btn btn-sm btn-outline-danger" onclick="verEgresoPDF(${e.id})">Factura</button>`
                     : '-';
@@ -2533,7 +2778,7 @@ async function renderizarTodasLasTablasAdmin() {
         if(actasGlobales.length === 0) {
             ta.innerHTML = `<tr><td colspan="3" class="text-muted py-4">No hay actas.</td></tr>`;
         } else {
-            actasGlobales.forEach(a => {
+            [...actasGlobales].sort(compararFechasDesc).forEach(a => {
                 const bDoc = a.tiene_doc ? `<button class="btn btn-sm btn-dark" onclick="verActaPDF(${a.id})">Abrir Acta</button>` : '-';
 
                 ta.innerHTML += `
@@ -2553,7 +2798,7 @@ async function renderizarTodasLasTablasAdmin() {
         if(actividadesParaRender.length === 0) {
             tact.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay actividades.</td></tr>`;
         } else {
-            actividadesParaRender.forEach(a => {
+            [...actividadesParaRender].sort(compararFechasDesc).forEach(a => {
                 const bDoc = a.tiene_doc ? `<button class="btn btn-sm btn-outline-success" onclick="verActividadPDF(${a.id})">Ver Respaldo</button>` : '-';
 
                 tact.innerHTML += `
@@ -2575,7 +2820,7 @@ async function renderizarTodasLasTablasAdmin() {
         if (contratosGlobales.length === 0) {
             tbDocs.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No hay contratos.</td></tr>`;
         } else {
-            contratosGlobales.forEach(c => {
+            [...contratosGlobales].sort(compararFechasDesc).forEach(c => {
                 const cCh = c.visible ? 'checked' : '';
 
                 tbDocs.innerHTML += `
@@ -2769,7 +3014,7 @@ function actualizarDashboardPadre() {
         const mP = pagosGlobales.filter(p => String(p.usuario) === String(usuarioActual.username));
         const mG = gastosPadres.filter(g => String(g.username) === String(usuarioActual.username));
 
-        const mG_calculo = mG.filter(g => g.concepto.toLowerCase() !== 'total');
+        const mG_calculo = mG.filter(g => g.concepto.toLowerCase() !== 'total').sort(compararFechasAsc);
 
         let tR = mG_calculo.reduce((s, g) => s + parseFloat(g.valor||0), 0);
         let tA = tR;
@@ -2846,7 +3091,7 @@ function actualizarDashboardPadre() {
                 });
             });
 
-            movimientos.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+            movimientos.sort(compararFechasAsc);
 
             let saldoAcumulado = 0;
             let totalIngresos = 0;
@@ -3021,7 +3266,7 @@ function actualizarDashboardPadre() {
                 }
             });
 
-            docsArray.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+            docsArray.sort(compararFechasDesc);
 
             if (docsArray.length === 0) {
                 tbDocsPadre.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay documentos públicos disponibles en este momento.</td></tr>`;
