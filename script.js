@@ -10,6 +10,7 @@ let usuarioActual = null;
 let cursoFiltroActual = "TODOS";
 let cursoFiltroGastos = "TODOS";
 let padreViendoGastosActual = null;
+let padreViendoEstadoCuentaAdmin = null;
 
 const API_URL = "/api";
 const PRECIO_ADULTO = 101.00;
@@ -608,6 +609,420 @@ async function procesarPagoMasivoRubro(e) {
     renderizarTodasLasTablasAdmin();
 }
 
+// =========================================================================
+// NUEVA FUNCIÓN 1: ASIGNAR RUBRO MARCANDO PADRES CON CHECKBOXES (EJ. ANUARIO)
+// =========================================================================
+function abrirModalAsignarDeudaCheck() {
+    document.getElementById('form-asignar-deuda-check').reset();
+    document.getElementById('adc-fecha').value = new Date().toISOString().split('T')[0];
+
+    const selCurso = document.getElementById('adc-filtro-curso');
+    const cursosBrutos = usuariosBD.filter(u => u.rol === 'PADRE').map(u => u.curso).filter(c => c && c.trim() !== '');
+    const cursosUnicos = [...new Set(cursosBrutos)].sort();
+
+    selCurso.innerHTML = '<option value="TODOS">Todos los Paralelos</option>';
+    cursosUnicos.forEach(c => {
+        selCurso.innerHTML += `<option value="${c}">Paralelo ${c}</option>`;
+    });
+
+    const tbody = document.getElementById('adc-tabla-padres');
+    tbody.innerHTML = '';
+
+    let padres = usuariosBD.filter(u => u.rol === 'PADRE');
+    padres.sort((a, b) => {
+        const cmpCurso = (a.curso || '').localeCompare(b.curso || '');
+        if (cmpCurso !== 0) return cmpCurso;
+        return a.nombre.localeCompare(b.nombre);
+    });
+
+    if (padres.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="text-muted py-4">No hay padres registrados.</td></tr>`;
+    } else {
+        padres.forEach(u => {
+            const tr = document.createElement('tr');
+            tr.className = 'fila-adc-padre';
+            tr.setAttribute('data-curso', u.curso || '');
+            tr.setAttribute('data-nombre', `${u.nombre} ${u.username}`.toLowerCase());
+            tr.style.cursor = 'pointer';
+
+            tr.innerHTML = `
+                <td>
+                    <input type="checkbox" class="form-check-input chk-adc-padre" value="${u.username}" style="transform: scale(1.25);">
+                </td>
+                <td class="fw-bold text-start text-dark">${u.nombre}</td>
+                <td class="text-primary fw-bold">${u.username}</td>
+                <td><span class="badge bg-dark">${u.curso || 'Sin curso'}</span></td>
+            `;
+
+            tr.addEventListener('click', (ev) => {
+                if (ev.target.type !== 'checkbox') {
+                    const cb = tr.querySelector('.chk-adc-padre');
+                    cb.checked = !cb.checked;
+                }
+                actualizarResumenDeudaCheck();
+            });
+
+            tbody.appendChild(tr);
+        });
+    }
+
+    document.getElementById('adc-check-todos').checked = false;
+    actualizarResumenDeudaCheck();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAsignarDeudaCheckboxes')).show();
+}
+
+function filtrarTablaDeudaCheck() {
+    const cursoSel = document.getElementById('adc-filtro-curso').value;
+    const texto = document.getElementById('adc-buscador').value.toLowerCase().trim();
+    const filas = document.querySelectorAll('.fila-adc-padre');
+
+    filas.forEach(fila => {
+        const cursoFila = fila.getAttribute('data-curso');
+        const nombreFila = fila.getAttribute('data-nombre');
+
+        const coincideCurso = (cursoSel === 'TODOS') || compararCursos(cursoFila, cursoSel);
+        const coincideTexto = (texto === '') || nombreFila.includes(texto);
+
+        fila.style.display = (coincideCurso && coincideTexto) ? '' : 'none';
+    });
+
+    document.getElementById('adc-check-todos').checked = false;
+}
+
+function toggleVisiblesDeudaCheck(estadoForzado = null) {
+    const chkMaster = document.getElementById('adc-check-todos');
+    const marcar = estadoForzado !== null ? estadoForzado : chkMaster.checked;
+    chkMaster.checked = marcar;
+
+    const filas = document.querySelectorAll('.fila-adc-padre');
+    filas.forEach(fila => {
+        if (fila.style.display !== 'none') {
+            const cb = fila.querySelector('.chk-adc-padre');
+            if (cb) cb.checked = marcar;
+        }
+    });
+
+    actualizarResumenDeudaCheck();
+}
+
+function actualizarResumenDeudaCheck() {
+    const seleccionados = document.querySelectorAll('.chk-adc-padre:checked').length;
+    const valorUnitario = parseFloat(document.getElementById('adc-valor').value) || 0;
+    const totalGeneral = seleccionados * valorUnitario;
+
+    const resumenEl = document.getElementById('adc-resumen-seleccion');
+    if (resumenEl) {
+        resumenEl.innerHTML = `
+            <span class="badge bg-primary fs-6 me-2">${seleccionados} padre(s) marcado(s)</span>
+            <span class="text-dark fw-bold">Total a cargar: <span class="text-danger">$${totalGeneral.toFixed(2)}</span></span>
+        `;
+    }
+}
+
+async function procesarAsignarDeudaCheck(e) {
+    e.preventDefault();
+    const concepto = document.getElementById('adc-concepto').value.trim();
+    const valor = parseFloat(document.getElementById('adc-valor').value);
+    const fecha = document.getElementById('adc-fecha').value;
+
+    const checkboxes = document.querySelectorAll('.chk-adc-padre:checked');
+    const usuariosSeleccionados = Array.from(checkboxes).map(cb => cb.value);
+
+    if (!concepto || isNaN(valor) || valor <= 0 || !fecha) {
+        mostrarAlerta("Por favor completa Concepto, Valor ($) y Fecha.", "⚠️");
+        return;
+    }
+
+    if (usuariosSeleccionados.length === 0) {
+        mostrarAlerta("Debes marcar al menos a un padre en la lista.", "⚠️");
+        return;
+    }
+
+    if (!confirm(`¿Confirmas asignar el rubro "${concepto}" por $${valor.toFixed(2)} a los ${usuariosSeleccionados.length} padres seleccionados?`)) {
+        return;
+    }
+
+    const btn = document.getElementById('btn-adc-submit');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> Subiendo deudas...`;
+
+    try {
+        const resp = await fetch(`${API_URL}/gastos/masivo`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                usuarios: usuariosSeleccionados,
+                concepto: concepto,
+                valor: valor,
+                fecha: fecha
+            })
+        });
+
+        const data = await resp.json();
+
+        if (resp.ok && data.exito) {
+            bootstrap.Modal.getInstance(document.getElementById('modalAsignarDeudaCheckboxes')).hide();
+            mostrarAlerta(`¡Listo! Se asignó "${concepto}" ($${valor.toFixed(2)}) a ${usuariosSeleccionados.length} padres de una sola vez.`, "✅");
+            await renderizarTodasLasTablasAdmin();
+        } else {
+            mostrarAlerta("Error al guardar las deudas: " + (data.mensaje || "Intente nuevamente"), "❌");
+        }
+    } catch (err) {
+        console.error(err);
+        mostrarAlerta("Error de conexión al subir las deudas.", "❌");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
+}
+
+// =========================================================================
+// NUEVA FUNCIÓN 2: MÓDULO ESTADOS DE CUENTA EN EL PORTAL DEL ADMINISTRADOR
+// =========================================================================
+function actualizarSelectorEstadosCuentaAdmin() {
+    const selCurso = document.getElementById('ec-admin-filtro-curso');
+    const selPadre = document.getElementById('ec-admin-select-padre');
+    const inputBuscar = document.getElementById('ec-admin-buscador');
+
+    if (!selCurso || !selPadre) return;
+
+    const cursoAnterior = selCurso.value || 'TODOS';
+    const padreAnterior = selPadre.value || padreViendoEstadoCuentaAdmin || '';
+    const textoFiltro = inputBuscar ? inputBuscar.value.toLowerCase().trim() : '';
+
+    const cursosBrutos = usuariosBD.filter(u => u.rol === 'PADRE').map(u => u.curso).filter(c => c && c.trim() !== '');
+    const cursosUnicos = [...new Set(cursosBrutos)].sort();
+
+    selCurso.innerHTML = '<option value="TODOS">Todos los Paralelos</option>';
+    cursosUnicos.forEach(c => {
+        selCurso.innerHTML += `<option value="${c}">Paralelo ${c}</option>`;
+    });
+    if (cursosUnicos.includes(cursoAnterior) || cursoAnterior === 'TODOS') {
+        selCurso.value = cursoAnterior;
+    }
+
+    let padres = usuariosBD.filter(u => u.rol === 'PADRE');
+    if (selCurso.value !== 'TODOS') {
+        padres = padres.filter(u => compararCursos(u.curso, selCurso.value));
+    }
+    if (textoFiltro !== '') {
+        padres = padres.filter(u =>
+            u.nombre.toLowerCase().includes(textoFiltro) ||
+            String(u.username).toLowerCase().includes(textoFiltro)
+        );
+    }
+
+    padres.sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+    selPadre.innerHTML = `<option value="">-- Seleccione un Padre / Estudiante (${padres.length}) --</option>`;
+    padres.forEach(u => {
+        selPadre.innerHTML += `<option value="${u.username}">${u.nombre} — Paralelo ${u.curso || 'Sin curso'} (${u.username})</option>`;
+    });
+
+    if (padreAnterior && padres.some(u => String(u.username) === String(padreAnterior))) {
+        selPadre.value = padreAnterior;
+        renderizarEstadoCuentaAdmin(padreAnterior);
+    } else if (padres.length === 1 && textoFiltro !== '') {
+        selPadre.value = padres[0].username;
+        renderizarEstadoCuentaAdmin(padres[0].username);
+    } else {
+        padreViendoEstadoCuentaAdmin = null;
+        const contenedor = document.getElementById('ec-admin-contenido');
+        if (contenedor) {
+            contenedor.innerHTML = `
+                <div class="alert alert-light border text-center text-muted py-5">
+                    <i class="bi bi-person-badge fs-1 d-block mb-2 text-primary"></i>
+                    Seleccione un padre o estudiante de la lista superior para visualizar su Estado de Cuenta completo.
+                </div>`;
+        }
+    }
+}
+
+function renderizarEstadoCuentaAdmin(username) {
+    padreViendoEstadoCuentaAdmin = username;
+    const contenedor = document.getElementById('ec-admin-contenido');
+    if (!contenedor) return;
+
+    if (!username) {
+        contenedor.innerHTML = `
+            <div class="alert alert-light border text-center text-muted py-5">
+                <i class="bi bi-person-badge fs-1 d-block mb-2 text-primary"></i>
+                Seleccione un padre o estudiante de la lista superior para visualizar su Estado de Cuenta completo.
+            </div>`;
+        return;
+    }
+
+    const user = usuariosBD.find(u => String(u.username) === String(username));
+    if (!user) return;
+
+    const mP = pagosGlobales.filter(p => String(p.usuario) === String(username));
+    const mG = gastosPadres.filter(g => String(g.username) === String(username));
+    const mG_calculo = mG.filter(g => g.concepto.toLowerCase() !== 'total');
+
+    let tA = mG_calculo.reduce((s, g) => s + parseFloat(g.valor || 0), 0);
+    let sumPagosValidados = mP.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
+
+    let tP = sumPagosValidados;
+    let pen = tA - sumPagosValidados;
+    let saldoAFavor = 0;
+
+    if (pen < 0) {
+        saldoAFavor = Math.abs(pen);
+        pen = 0;
+    }
+
+    let movimientos = [];
+
+    mG_calculo.forEach(g => {
+        movimientos.push({
+            fecha: g.fecha,
+            comp: '-',
+            concepto: g.concepto,
+            ingreso: 0,
+            gasto: parseFloat(g.valor || 0),
+            v: true
+        });
+    });
+
+    mP.forEach(p => {
+        let compTexto = p.voucher || '-';
+        let conceptoTexto = 'Cuota / Pago';
+        if (compTexto.includes('||')) {
+            let partes = compTexto.split('||');
+            compTexto = partes[0].trim();
+            conceptoTexto = partes[1].trim();
+        }
+        movimientos.push({
+            fecha: p.fecha,
+            comp: compTexto,
+            concepto: conceptoTexto,
+            ingreso: parseFloat(p.valor || 0),
+            gasto: 0,
+            v: p.estado === 'VALIDADO'
+        });
+    });
+
+    movimientos.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+    let saldoAcumulado = 0;
+    let totalIngresos = 0;
+    let totalGastos = 0;
+    let filasHTML = '';
+
+    if (movimientos.length === 0) {
+        filasHTML = `<tr><td colspan="6" class="text-muted py-4">Este padre no tiene movimientos registrados.</td></tr>`;
+    } else {
+        movimientos.forEach(m => {
+            let eE = m.v ? '' : '<br><span class="badge bg-warning text-dark mt-1"><i class="bi bi-hourglass-split me-1"></i>En Espera de Aprobación</span>';
+
+            if (m.v) {
+                saldoAcumulado = saldoAcumulado + m.ingreso - m.gasto;
+                totalIngresos += m.ingreso;
+                totalGastos += m.gasto;
+            }
+
+            let vI = m.ingreso > 0 ? '$' + m.ingreso.toFixed(2) : '-';
+            let vG = m.gasto > 0 ? '$' + m.gasto.toFixed(2) : '-';
+            let colorS = m.v ? (saldoAcumulado < 0 ? 'text-danger' : 'text-primary') : 'text-muted';
+            let vS = m.v ? '$' + saldoAcumulado.toFixed(2) : '-';
+
+            filasHTML += `
+            <tr>
+                <td>${m.fecha}</td>
+                <td>${m.comp}</td>
+                <td class="fw-bold text-start">${m.concepto} ${eE}</td>
+                <td class="text-success fw-bold">${vI}</td>
+                <td class="text-danger fw-bold">${vG}</td>
+                <td class="fw-bold ${colorS}">${vS}</td>
+            </tr>`;
+        });
+
+        filasHTML += `
+        <tr class="table-secondary fw-bold" style="border-top: 2px solid #000;">
+            <td colspan="3" class="text-end text-dark">Total:</td>
+            <td class="text-success">$${totalIngresos.toFixed(2)}</td>
+            <td class="text-danger">$${totalGastos.toFixed(2)}</td>
+            <td class="${saldoAcumulado < 0 ? 'text-danger' : 'text-primary'}">$${saldoAcumulado.toFixed(2)}</td>
+        </tr>`;
+    }
+
+    contenedor.innerHTML = `
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center bg-light p-3 rounded border mb-4">
+            <div>
+                <h5 class="fw-bold text-dark mb-1"><i class="bi bi-person-circle me-2 text-primary"></i>${user.nombre}</h5>
+                <span class="badge bg-dark me-2">Paralelo ${user.curso || 'Sin curso'}</span>
+                <span class="text-muted small fw-bold">Usuario/Cédula: ${user.username}</span>
+            </div>
+            <div class="mt-2 mt-md-0">
+                <button class="btn btn-sm btn-outline-danger fw-bold" onclick="irAGestionarDeudasDesdeEstado('${user.username}')">
+                    <i class="bi bi-pencil-square me-1"></i> Gestionar Rubros de este Padre
+                </button>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-4 mb-3">
+                <div class="card text-dark shadow-sm h-100" style="background-color: #9cd1ff;">
+                    <div class="card-body">
+                        <h6 class="card-title"><i class="bi bi-piggy-bank-fill me-2"></i>Total Abonado (Ingreso)</h6>
+                        <h3 class="fw-bold mb-0">$${tP.toFixed(2)}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card text-dark shadow-sm h-100" style="background-color: #fdfd96;">
+                    <div class="card-body">
+                        <h6 class="card-title"><i class="bi bi-wallet2 me-2"></i>Total Gastos Asignados</h6>
+                        <h3 class="fw-bold mb-0">$${tA.toFixed(2)}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card text-white ${saldoAFavor > 0 || pen === 0 ? 'bg-success' : 'bg-danger'} shadow-sm h-100">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="bi ${saldoAFavor > 0 ? 'bi-plus-circle-fill' : 'bi-exclamation-triangle-fill'} me-2"></i>
+                            ${saldoAFavor > 0 ? 'Saldo a Favor del Padre' : 'Saldo Pendiente (Deuda)'}
+                        </h6>
+                        <h3 class="fw-bold mb-0">$${saldoAFavor > 0 ? saldoAFavor.toFixed(2) : pen.toFixed(2)}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle text-center mb-0 text-nowrap">
+                        <thead class="table-primary">
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Comprobante</th>
+                                <th>Concepto</th>
+                                <th>Ingreso</th>
+                                <th>Gasto</th>
+                                <th>Saldo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filasHTML}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function irAGestionarDeudasDesdeEstado(username) {
+    const linkGastos = Array.from(document.querySelectorAll('#menu-navegacion .nav-link'))
+        .find(a => a.getAttribute('onclick') && a.getAttribute('onclick').includes("'gastospadres'"));
+    cambiarModuloAdmin('gastospadres', linkGastos).then(() => {
+        verDetalleGastosPadre(username);
+    });
+}
+
 function inyectarNuevasFunciones() {
     forzarNombreSIGECO28();
 
@@ -809,6 +1224,87 @@ function inyectarNuevasFunciones() {
         document.getElementById('form-asignar-gasto').addEventListener('submit', guardarNuevoGastoAdmin);
     }
 
+    // MODAL NUEVO: ASIGNAR RUBRO MARCANDO PADRES CON CHECKBOXES
+    if (!document.getElementById('modalAsignarDeudaCheckboxes')) {
+        const modalAdcHTML = `
+        <div class="modal fade" id="modalAsignarDeudaCheckboxes" tabindex="-1">
+            <div class="modal-dialog modal-xl">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title fw-bold"><i class="bi bi-ui-checks me-2"></i>Asignar Rubro / Deuda Seleccionando Padres</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="form-asignar-deuda-check">
+                            <div class="row g-3 mb-3 p-3 bg-light rounded border">
+                                <div class="col-md-5">
+                                    <label class="fw-bold">Concepto / Rubro:</label>
+                                    <input type="text" class="form-control border-primary" id="adc-concepto" placeholder="Ej: Anuario, Chompa, Kit..." required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="fw-bold">Valor ($):</label>
+                                    <input type="number" step="0.01" class="form-control border-primary fw-bold text-danger" id="adc-valor" placeholder="165.00" oninput="actualizarResumenDeudaCheck()" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="fw-bold">Fecha:</label>
+                                    <input type="date" class="form-control border-primary" id="adc-fecha" required>
+                                </div>
+                            </div>
+
+                            <div class="row g-2 mb-3 align-items-center">
+                                <div class="col-md-4">
+                                    <select class="form-select border-dark fw-bold" id="adc-filtro-curso" onchange="filtrarTablaDeudaCheck()">
+                                        <option value="TODOS">Todos los Paralelos</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <input type="text" class="form-control" id="adc-buscador" placeholder="Buscar padre por nombre o cédula..." onkeyup="filtrarTablaDeudaCheck()">
+                                </div>
+                                <div class="col-md-4 d-flex gap-2 justify-content-md-end">
+                                    <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="toggleVisiblesDeudaCheck(true)">
+                                        <i class="bi bi-check-all me-1"></i>Marcar Visibles
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary fw-bold" onclick="toggleVisiblesDeudaCheck(false)">
+                                        <i class="bi bi-x-lg me-1"></i>Desmarcar
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="table-responsive border rounded shadow-sm" style="max-height: 360px; overflow-y: auto;">
+                                <table class="table table-hover align-middle text-center mb-0">
+                                    <thead class="table-primary" style="position: sticky; top: 0; z-index: 2;">
+                                        <tr>
+                                            <th style="width: 50px;">
+                                                <input type="checkbox" class="form-check-input" id="adc-check-todos" onchange="toggleVisiblesDeudaCheck()" title="Marcar/Desmarcar visibles">
+                                            </th>
+                                            <th class="text-start">Padre / Estudiante</th>
+                                            <th>Usuario / Cédula</th>
+                                            <th>Paralelo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="adc-tabla-padres"></tbody>
+                                </table>
+                            </div>
+
+                            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mt-3 pt-3 border-top">
+                                <div id="adc-resumen-seleccion" class="mb-2 mb-md-0">
+                                    <span class="badge bg-primary fs-6 me-2">0 padre(s) marcado(s)</span>
+                                    <span class="text-dark fw-bold">Total a cargar: <span class="text-danger">$0.00</span></span>
+                                </div>
+                                <button type="submit" class="btn btn-primary fw-bold px-4 py-2 shadow" id="btn-adc-submit">
+                                    <i class="bi bi-cloud-upload-fill me-2"></i>Subir Deuda a Seleccionados
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+
+        document.body.insertAdjacentHTML('beforeend', modalAdcHTML);
+        document.getElementById('form-asignar-deuda-check').addEventListener('submit', procesarAsignarDeudaCheck);
+    }
+
     if (!document.getElementById('modalCargaMasivaGastos')) {
         const modalMasivaHTML = `
         <div class="modal fade" id="modalCargaMasivaGastos" tabindex="-1">
@@ -987,6 +1483,46 @@ function inyectarNuevasFunciones() {
         adminPortal.insertAdjacentHTML('beforeend', moduloActividadesHTML);
     }
 
+    // MÓDULO NUEVO: ESTADOS DE CUENTA DESDE LA CUENTA DEL ADMINISTRADOR
+    if (adminPortal && !document.getElementById('admin-modulo-estadoscuenta')) {
+        const moduloEstadosCuentaHTML = `
+        <div id="admin-modulo-estadoscuenta" class="oculto bg-white p-4 rounded-4 shadow-sm mb-4">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 border-bottom pb-2">
+                <h3 class="fw-bold mb-2 mb-md-0" style="color: #1e3c72;">
+                    <i class="bi bi-file-earmark-spreadsheet me-2 text-primary"></i>Estados de Cuenta por Padre / Estudiante
+                </h3>
+            </div>
+
+            <div class="row g-3 mb-4 p-3 bg-light rounded border">
+                <div class="col-md-3">
+                    <label class="fw-bold text-dark small mb-1">1. Filtrar Paralelo:</label>
+                    <select id="ec-admin-filtro-curso" class="form-select border-primary fw-bold" onchange="actualizarSelectorEstadosCuentaAdmin()">
+                        <option value="TODOS">Todos los Paralelos</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="fw-bold text-dark small mb-1">2. Buscar por Nombre o Cédula:</label>
+                    <input type="text" id="ec-admin-buscador" class="form-control border-primary" placeholder="Escribe apellido, nombre o cédula..." onkeyup="actualizarSelectorEstadosCuentaAdmin()">
+                </div>
+                <div class="col-md-5">
+                    <label class="fw-bold text-dark small mb-1">3. Seleccionar Padre / Estudiante:</label>
+                    <select id="ec-admin-select-padre" class="form-select border-primary fw-bold" onchange="renderizarEstadoCuentaAdmin(this.value)">
+                        <option value="">-- Seleccione un Padre / Estudiante --</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="ec-admin-contenido">
+                <div class="alert alert-light border text-center text-muted py-5">
+                    <i class="bi bi-person-badge fs-1 d-block mb-2 text-primary"></i>
+                    Seleccione un padre o estudiante de la lista superior para visualizar su Estado de Cuenta completo.
+                </div>
+            </div>
+        </div>`;
+
+        adminPortal.insertAdjacentHTML('afterbegin', moduloEstadosCuentaHTML);
+    }
+
     if (adminPortal && !document.getElementById('admin-modulo-gastospadres')) {
         const moduloGastosHTML = `
         <div id="admin-modulo-gastospadres" class="oculto mb-4">
@@ -994,6 +1530,9 @@ function inyectarNuevasFunciones() {
                 <h4 class="text-danger fw-bold mb-3 mb-md-0"><i class="bi bi-bag-x-fill me-2"></i>Deudas por Rubros (Padres)</h4>
 
                 <div class="d-flex flex-wrap gap-2">
+                    <button class="btn btn-primary shadow-sm fw-bold" onclick="abrirModalAsignarDeudaCheck()">
+                        <i class="bi bi-ui-checks me-1"></i> Asignar Rubro (Marcar Padres)
+                    </button>
                     <button class="btn btn-danger shadow-sm fw-bold" onclick="abrirModalGastoAdmin()">
                         <i class="bi bi-plus-circle me-1"></i> Asignar 1x1
                     </button>
@@ -1458,6 +1997,7 @@ function cargarPortalSegunRol(usuario) {
     if (usuario.rol === 'ADMIN' || usuario.rol === 'COMITE') {
         let menuHTML = `
             <li class="nav-item"><a class="nav-link active" style="cursor:pointer" onclick="cambiarModuloAdmin('resumen', this)"><i class="bi bi-grid-1x2-fill me-2"></i> Resumen General</a></li>
+            <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('estadoscuenta', this)"><i class="bi bi-file-earmark-spreadsheet me-2"></i> Estados de Cuenta</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('gastospadres', this)"><i class="bi bi-bag-x-fill me-2"></i> Gastos a Padres</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('pagos', this)"><i class="bi bi-journal-check me-2"></i> Control de Pagos</a></li>
             <li class="nav-item"><a class="nav-link" style="cursor:pointer" onclick="cambiarModuloAdmin('egresos', this)"><i class="bi bi-cart-fill me-2"></i> Egresos Comité</a></li>
@@ -1768,6 +2308,7 @@ async function eliminarGastoAdmin(id) {
 async function renderizarTodasLasTablasAdmin() {
     await cargarDatosDesdeServidor();
     actualizarSelectCursos();
+    actualizarSelectorEstadosCuentaAdmin();
 
     let usuariosParaRender = usuariosBD;
     let pagosParaRender = pagosGlobales;
@@ -2226,10 +2767,8 @@ function actualizarDashboardPadre() {
         }
 
         const mP = pagosGlobales.filter(p => String(p.usuario) === String(usuarioActual.username));
-        // FILTRO: Ignoramos la palabra "Total" en mis gastos si existe
         const mG = gastosPadres.filter(g => String(g.username) === String(usuarioActual.username));
 
-        // Para los cálculos de los cards (resumen arriba), no incluimos el 'Total' para evitar duplicar deuda
         const mG_calculo = mG.filter(g => g.concepto.toLowerCase() !== 'total');
 
         let tR = mG_calculo.reduce((s, g) => s + parseFloat(g.valor||0), 0);
@@ -2238,25 +2777,20 @@ function actualizarDashboardPadre() {
         let sumPagosValidados = mP.filter(p => p.estado === 'VALIDADO').reduce((sum, p) => sum + parseFloat(p.valor || 0), 0);
         let sumGastosMarcadosPagados = mG_calculo.filter(g => g.estado === 'PAGADO').reduce((sum, g) => sum + parseFloat(g.valor || 0), 0);
 
-        
         let tP = sumPagosValidados;
-        // Calculamos el saldo real restando lo que debe menos lo que ha abonado
         let pen = tA - sumPagosValidados; 
         
-        // Si el resultado es negativo (abono más de lo que debe), el saldo a favor es su dinero extra
         let saldoAFavor = 0;
         if (pen < 0) {
             saldoAFavor = Math.abs(pen);
-            pen = 0; // Ya no debe nada
+            pen = 0;
         }
-
 
         const vMG = document.getElementById('tabla-misgastos-padre');
 
         if(vMG) {
             vMG.innerHTML = '';
             
-            // Aquí en Mis Gastos también ignoramos el 'Total'
             if (mG_calculo.length === 0) {
                 vMG.innerHTML = `<tr><td colspan="5" class="text-muted py-4">No tiene rubros asignados.</td></tr>`;
             } else {
@@ -2281,7 +2815,6 @@ function actualizarDashboardPadre() {
         const vE = document.getElementById('padre-vista-estado');
 
         if (vE) {
-            // Construir array unificado de movimientos exactamente como en Excel
             let movimientos = [];
 
             mG_calculo.forEach(g => {
@@ -2291,7 +2824,7 @@ function actualizarDashboardPadre() {
                     concepto: g.concepto,
                     ingreso: 0,
                     gasto: parseFloat(g.valor || 0),
-                    v: true // Gastos siempre son válidos
+                    v: true
                 });
             });
 
@@ -2313,7 +2846,6 @@ function actualizarDashboardPadre() {
                 });
             });
 
-            // Ordenar por fecha desde el más antiguo al más nuevo para calcular el saldo progresivo
             movimientos.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
             let saldoAcumulado = 0;
@@ -2327,7 +2859,6 @@ function actualizarDashboardPadre() {
                 movimientos.forEach(m => {
                     let eE = m.v ? '' : '<br><span class="badge bg-warning text-dark mt-1"><i class="bi bi-hourglass-split me-1"></i>En Espera de Aprobación</span>';
 
-                    // Solo sumar al saldo y totales si el movimiento es validado
                     if (m.v) {
                         saldoAcumulado = saldoAcumulado + m.ingreso - m.gasto;
                         totalIngresos += m.ingreso;
@@ -2351,7 +2882,6 @@ function actualizarDashboardPadre() {
                     </tr>`;
                 });
 
-                // CREAR APARTADO DE TOTAL SEPARADO (Última fila de la tabla)
                 filasHTML += `
                 <tr class="table-secondary fw-bold" style="border-top: 2px solid #000;">
                     <td colspan="3" class="text-end text-dark">Total:</td>
@@ -2362,10 +2892,9 @@ function actualizarDashboardPadre() {
             }
 
             vE.innerHTML = `
-                
                 <div class="row mb-4">
                     <div class="col-md-4 mb-3">
-                        <div class="card text-dark shadow-sm h-100" style="background-color: #9cd1ff;"> <!-- Celeste -->
+                        <div class="card text-dark shadow-sm h-100" style="background-color: #9cd1ff;">
                             <div class="card-body">
                                 <h6 class="card-title"><i class="bi bi-piggy-bank-fill me-2"></i>Total Abonado (Ingreso)</h6>
                                 <h3 class="fw-bold mb-0">$${tP.toFixed(2)}</h3>
@@ -2373,7 +2902,7 @@ function actualizarDashboardPadre() {
                         </div>
                     </div>
                     <div class="col-md-4 mb-3">
-                        <div class="card text-dark shadow-sm h-100" style="background-color: #fdfd96;"> <!-- Amarillo pastel -->
+                        <div class="card text-dark shadow-sm h-100" style="background-color: #fdfd96;">
                             <div class="card-body">
                                 <h6 class="card-title"><i class="bi bi-wallet2 me-2"></i>Total Gastos Asignados</h6>
                                 <h3 class="fw-bold mb-0">$${tA.toFixed(2)}</h3>
@@ -2381,7 +2910,7 @@ function actualizarDashboardPadre() {
                         </div>
                     </div>
                     <div class="col-md-4 mb-3">
-                        <div class="card text-white bg-success shadow-sm h-100"> <!-- Verde -->
+                        <div class="card text-white bg-success shadow-sm h-100">
                             <div class="card-body">
                                 <h6 class="card-title">
                                     <i class="bi ${saldoAFavor > 0 ? 'bi-plus-circle-fill' : 'bi-exclamation-triangle-fill'} me-2"></i>
